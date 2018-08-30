@@ -37,8 +37,8 @@ setup(
     description='Earth Engine based {} Model'.format(model_name),
     long_description=long_description,
     license='Apache',
-    author='Author Name',
-    author_email='Author Email',
+    author='Charles Morton',
+    author_email='charles.morton@dri.edu',
     url='https://github.com/Open-ET/{}'.format(model_name.lower()),
     download_url='https://github.com/Open-ET/{}/archive/v{}.tar.gz'.format(
 		model_name.lower(), version),

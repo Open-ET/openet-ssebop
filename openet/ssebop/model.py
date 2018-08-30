@@ -6,6 +6,7 @@ import ee
 system_properties = ['system:index', 'system:time_start']
 
 
+# TODO: Make this a class eventually
 def collection(
         variable,
         collections,
