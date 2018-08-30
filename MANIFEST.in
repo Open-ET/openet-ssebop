@@ -1,0 +1,4 @@
+exclude *.ipynb
+exclude *.txt
+include LICENSE.txt README.rst setup.py
+recursive-include openet *
