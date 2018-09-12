@@ -39,10 +39,10 @@ setup(
     license='Apache',
     author='Charles Morton',
     author_email='charles.morton@dri.edu',
-    url='https://github.com/Open-ET/{}'.format(model_name.lower()),
-    download_url='https://github.com/Open-ET/{}/archive/v{}.tar.gz'.format(
+    url='https://github.com/Open-ET/{}-beta'.format(model_name.lower()),
+    download_url='https://github.com/Open-ET/{}-beta/archive/v{}.tar.gz'.format(
 		model_name.lower(), version),
-    install_requires=['earthengine-api'],
+    install_requires=['earthengine-api', 'oauth2client', 'openet'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     packages=['openet.{}'.format(model_name.lower())],

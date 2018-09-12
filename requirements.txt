@@ -1,2 +1,3 @@
 earthengine-api
-pytest
+openet
+oauth2client
