@@ -21,3 +21,7 @@ dist/
 
 # PyCharm project settings
 .idea
+
+# Earth Engine keys
+privatekey.json
+privatekey.b64
