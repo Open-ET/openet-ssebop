@@ -39,8 +39,8 @@ setup(
     license='Apache',
     author='Charles Morton',
     author_email='charles.morton@dri.edu',
-    url='https://github.com/Open-ET/{}-beta'.format(model_name.lower()),
-    download_url='https://github.com/Open-ET/{}-beta/archive/v{}.tar.gz'.format(
+    url='https://github.com/Open-ET/openet-{}-beta'.format(model_name.lower()),
+    download_url='https://github.com/Open-ET/openet-{}-beta/archive/v{}.tar.gz'.format(
 		model_name.lower(), version),
     install_requires=['earthengine-api', 'oauth2client', 'openet'],
     setup_requires=['pytest-runner'],
@@ -49,7 +49,6 @@ setup(
     keywords='{} OpenET Evapotranspiration Earth Engine'.format(model_name),
     classifiers = [
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6'],
     zip_safe=False,
 )

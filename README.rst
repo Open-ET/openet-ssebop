@@ -42,9 +42,9 @@ Each OpenET model should be stored in the "openet" folder (namespace).  The bene
 
     import openet.ssebop as ssebop
 
-.. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop.svg?branch=master
+.. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
-   :target: https://travis-ci.org/Open-ET/openet-ssebop
+   :target: https://travis-ci.org/Open-ET/openet-ssebop-beta
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
