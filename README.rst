@@ -6,10 +6,80 @@ OpenET - SSEBop
 
 This repository provides an Earth Engine Python API based implementation of the SSEBop ET model.
 
+The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETo).
+The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on clear-sky net radiation balance principles.
+This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
+
+Input Collections
+=================
+
+Currently SSEBop ET can only be computed for Landsat Collection 1 TOA images.
+
+Examples
+========
+
+Jupyter notebooks are provided in the "examples" folder that show various approaches for calling the OpenET SSEBop model.
+
+Model Structure
+===============
+
+The SSEBop model is composed of two primary classes: Image() and Collection().
+
+Image
+-----
+
+.. code-block:: console
+    import openet.disalexi as disalexi
+
+    landat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
+    etf_img = disalexi.Image().from_landsat_c1_toa(landat_img).etf
+
+Collection
+----------
+
+
+
+Ancillary Datasets
+==================
+
+Maximum Daily Air Temperature (Tmax)
+------------------------------------
+Tmax is used for...
+
+Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
+
+dT
+--
+dT is...
+
+Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1_scene
+
+Elevation
+---------
+The default elevation dataset is a custom SRTM based CONUS wide 1km resolution raster.
+
+Default Asset ID: projects/usgs-ssebop/srtm_1km
+
+The elevation parameter will accept any Earth Engine image.
+
+Tcorr
+-----
+Tcorr is...
+
+The Tcorr value is read from precomputed Earth Engine feature collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the feature collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
+
+The Tcorr is a function of the maximum air temperature dataset, so separate Tcorr collections have been generated for each of the following air temperature datasets: CIMIS, DAYMET, GRIDMET, TopoWX.  The data source of the Tcorr collection needs to match the datasource of the Tmax source.
+
+The Tcorr collections were last updated through 2017 but will eventually be updated daily.
+
+Default Asset IDs
+Scene ID: projects/usgs-ssebop/tcorr/topowx_median_v0_scene
+Monthly: projects/usgs-ssebop/tcorr/topowx_median_v0_monthly
+
 Installation
 ============
 
-To install the OpenET SSEBop python module:
+The OpenET SSEBop python module can be installed via pip:
 
 .. code-block:: console
 
@@ -21,26 +91,34 @@ Dependencies
 Modules needed to run the model:
 
  * `earthengine-api <https://github.com/google/earthengine-api>`__
+ * `openet <https://github.com/Open-ET/openet-core-beta>`__
 
 Modules needed to run the test suite:
 
  * `pytest <https://docs.pytest.org/en/latest/>`__
 
-Running Testing
-===============
+Running Tests
+=============
 
 .. code-block:: console
 
     python -m pytest
 
-Namespace Packages
-==================
+OpenET Namespace Package
+========================
 
 Each OpenET model should be stored in the "openet" folder (namespace).  The benefit of the namespace package is that each ET model can be tracked in separate repositories but called as a "dot" submodule of the main openet module,
 
 .. code-block:: console
 
     import openet.ssebop as ssebop
+
+
+References
+==========
+
+ * `Senay et al., 2013 <http://onlinelibrary.wiley.com/doi/10.1111/jawr.12057/abstract>`__
+ * `Senay et al., 2016 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`__
 
 .. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
