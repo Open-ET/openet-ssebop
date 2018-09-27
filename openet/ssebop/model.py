@@ -1,12 +1,28 @@
+import datetime
 import logging
 import sys
 
 import ee
 
-system_properties = ['system:index', 'system:time_start']
+import openet.interp
 
 
-# TODO: Make this a class eventually
+def lazy_property(fn):
+    """Decorator that makes a property lazy-evaluated
+
+    https://stevenloria.com/lazy-properties/
+    """
+    attr_name = '_lazy_' + fn.__name__
+
+    @property
+    def _lazy_property(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+    return _lazy_property
+
+
+# TODO: Make this into a Collection class
 def collection(
         variable,
         collections,
@@ -15,14 +31,13 @@ def collection(
         t_interval,
         geometry,
         **kwargs
-        ):
-    """Generic OpenET Collection
+    ):
+    """Earth Engine based SSEBop Image Collection
 
     Parameters
     ----------
-    self :
     variable : str
-
+        Variable to compute.
     collections : list
         GEE satellite image collection IDs.
     start_date : str
@@ -34,15 +49,11 @@ def collection(
         Selecting 'overpass' will return values only for the overpass dates.
     geometry : ee.Geometry
         The geometry object will be used to filter the input collections.
-    kwargs :
-
-    Returns
-    -------
-    ee.ImageCollection
+    kwargs : dict
 
     """
 
-    # CGM - Make this a global or collection property?
+    # Should this be a global (or Collection class property)
     landsat_c1_toa_collections = [
         'LANDSAT/LC08/C01/T1_RT_TOA',
         'LANDSAT/LE07/C01/T1_RT_TOA',
@@ -51,16 +62,22 @@ def collection(
         'LANDSAT/LT05/C01/T1_TOA',
     ]
 
-    # TODO: Test whether the requested variable is supported
+    # Test whether the requested variable is supported
+    # Force variable to be lowercase for now
+    variable = variable.lower()
+    if variable.lower() not in dir(Image):
+        raise ValueError('unsupported variable: {}'.format(variable))
+    if variable.lower() not in ['etf']:
+        raise ValueError('unsupported variable: {}'.format(variable))
 
     # Build the variable image collection
     variable_coll = ee.ImageCollection([])
     for coll_id in collections:
         if coll_id in landsat_c1_toa_collections:
             def compute(image):
-                model_obj = SSEBop.from_landsat_c1_toa(
+                model_obj = Image.from_landsat_c1_toa(
                     toa_image=ee.Image(image))
-                return ee.Image(model_obj.get_variable(variable))
+                return ee.Image(getattr(model_obj, variable))
         else:
             raise ValueError('unsupported collection: {}'.format(coll_id))
 
@@ -69,53 +86,67 @@ def collection(
             .filterBounds(geometry) \
             .map(compute)
 
-        # TODO: Allow additional filter parameters (like CLOUD_COVER_LAND for Landsat)
+        # TODO: Apply additional filter parameters from kwargs
+        #   (like CLOUD_COVER_LAND for Landsat)
         # .filterMetadata() \
 
         variable_coll = variable_coll.merge(var_coll)
 
-    # TODO: Add interpolation component
-
     # Interpolate/aggregate to t_interval
-    # Should this only be allowed for specific variables (ETf, ETa)?
-    # We would need a daily reference collection to get to ET
-    # output_coll = openet.interp.interpolate(variable_coll)
+    # TODO: Test whether the requested variable can/should be interpolated
+    # TODO: Only load ET reference collection if interpolating ET
+    # TODO: Get reference ET collection ID and band name from kwargs
+    # TODO:   or accept an ee.ImageCollection directly
+    # TODO: Get interp_days and interp_type from kwargs
 
-    return variable_coll
+    # Hardcoding to GRIDMET for now
+    et_reference_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+        .select(['etr'])\
+        .filterDate(start_date, end_date)
+
+    # Interpolate to a daily timestep
+    # This function is currently setup to always multiply
+    interp_coll = openet.interp.daily_et(
+        et_reference_coll, variable_coll, interp_days=32, interp_type='linear')
+
+    return interp_coll
 
 
-class SSEBop():
+class Image():
+    """Earth Engine based SSEBop Image"""
+
     def __init__(
             self, image,
-            k_factor=1.0,
-            dt_source='ASSET',
+            dt_source='DAYMET_MEDIAN_V1',
             elev_source='ASSET',
             tcorr_source='SCENE',
-            tmax_source='GRIDMET',
+            tmax_source='TOPOWX_MEDIAN_V0',
+            elr_flag=False,
             tdiff_threshold=15,
             **kwargs
             ):
-        """Initialize an image for computing SSEBop.
+        """Construct a generic SSEBop Image
 
         Parameters
         ----------
-        image :  ee.Image
-            A SSEBop input image.
+        image : ee.Image
+            A "prepped" SSEBop input image.
             Image must have bands: "ndvi" and "lst".
-        k_factor : float, optional
-            Scale factor for ETf (or ETo) values.
-            Used to convert ETf from "ETrF" (0-1) to EToF (0-1.2) to match ETo
-            (Or to convert ETo to ETr).
-        dt_source : {'ASSET'}, optional
-            dT data set keyword (the default is 'ASSET').
+        dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1'}, optional
+            dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM'}, optional
-            Elevation data set keyword (the default is 'ASSET').
-        tcorr_source : {'SCENE', 'MONTHLY', or constant}, optional
-            Tcorr data set keyword (the default is 'SCENE').
-        tmax_source :  {'DAYMET', 'GRIDMET', 'TOPOWX_MEDIAN'}, optional
-            Maximum air temperature data set keyword (the default is 'DAYMET').
-        tdiff_threshold :  float, optional
-            Cloud mask buffer using Tdiff (in K) (the default is 15).
+            Elevation source keyword (the default is 'ASSET').
+        tcorr_source : {'SCENE', 'MONTHLY', or float}, optional
+            Tcorr source keyword (the default is 'SCENE').
+        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
+                       'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
+                       'TOPOWX_MEDIAN_V0', or float}, optional
+            Maximum air temperature source keyword (the default is 'DAYMET').
+        elr_flag : bool, optional
+            If True, apply Elevation Lapse Rate (ELR) adjustment
+            (the default is False).
+        tdiff_threshold : int, optional
+            Cloud mask buffer using Tdiff [K] (the default is 15).
         kwargs :
 
         Notes
@@ -131,46 +162,36 @@ class SSEBop():
         self.ndvi = input_image.select('ndvi')
 
         # Copy system properties
-        self.index = input_image.get('system:index')
-        self.time_start = input_image.get('system:time_start')
+        self._index = input_image.get('system:index')
+        self._time_start = input_image.get('system:time_start')
 
         # Build SCENE_ID from the (possibly merged) system:index
-        scene_id = ee.List(ee.String(self.index).split('_')).slice(-3)
-        self.scene_id = ee.String(scene_id.get(0)).cat('_') \
+        scene_id = ee.List(ee.String(self._index).split('_')).slice(-3)
+        self._scene_id = ee.String(scene_id.get(0)).cat('_') \
             .cat(ee.String(scene_id.get(1))).cat('_') \
             .cat(ee.String(scene_id.get(2)))
 
         # Build WRS2_TILE from the scene_id
-        self.wrs2_tile = ee.String('p').cat(self.scene_id.slice(5, 8)) \
-            .cat('r').cat(self.scene_id.slice(8, 11))
+        self._wrs2_tile = ee.String('p').cat(self._scene_id.slice(5, 8)) \
+            .cat('r').cat(self._scene_id.slice(8, 11))
 
         # Set server side date/time properties using the 'system:time_start'
-        self.date = ee.Date(self.time_start)
-        self.year = ee.Number(self.date.get('year'))
-        self.month = ee.Number(self.date.get('month'))
-        self.start_date = ee.Date(_date_to_time_0utc(self.date))
-        self.end_date = self.start_date.advance(1, 'day')
-        self.doy = ee.Number(self.date.getRelative('day', 'year')).add(1).int()
+        self._date = ee.Date(self._time_start)
+        self._year = ee.Number(self._date.get('year'))
+        self._month = ee.Number(self._date.get('month'))
+        self._start_date = ee.Date(_date_to_time_0utc(self._date))
+        self._end_date = self._start_date.advance(1, 'day')
+        self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
 
         # Input parameters
-        self.dt_source = dt_source
-        self.elev_source = elev_source
-        self.tcorr_source = tcorr_source
-        self.tmax_source = tmax_source
-        self.k_factor = k_factor
-        self.tdiff_threshold = tdiff_threshold
+        self._dt_source = dt_source
+        self._elev_source = elev_source
+        self._tcorr_source = tcorr_source
+        self._tmax_source = tmax_source
+        self._elr_flag = elr_flag
+        self._tdiff_threshold = tdiff_threshold
 
-    def get_variable(self, variable):
-        if variable == 'etf':
-            return self.etf()
-        # CGM - Returning ET requires ETr to be passed in (maybe via kwargs)
-        # elif variable == 'et':
-        #     return self.et()
-        elif variable == 'lst':
-            return self.lst
-        elif variable == 'ndvi':
-            return self.ndvi
-
+    @lazy_property
     def etf(self):
         """Compute SSEBop ETf for a single image
 
@@ -189,162 +210,269 @@ class SSEBop():
             {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
         etf = etf.updateMask(etf.lt(1.3)) \
             .clamp(0, 1.05) \
-            .updateMask(tmax.subtract(lst).lte(self.tdiff_threshold)) \
+            .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
             .setMulti({
-                'system:index': self.index,
-                'system:time_start': self.time_start,
+                'system:index': self._index,
+                'system:time_start': self._time_start,
                 'TCORR': tcorr,
                 'TCORR_INDEX': tcorr_index})
         return ee.Image(etf).rename(['etf'])
 
     def _dt(self):
         """"""
-        if _is_number(self.dt_source):
-            return ee.Image.constant(self.dt_source).set('DOY', self.doy)
-        elif self.dt_source.upper() == 'ASSET':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/daymet_dt_median') \
-                .filter(ee.Filter.calendarRange(self.doy, self.doy, 'day_of_year'))
-            return ee.Image(dt_coll.first())
+        if _is_number(self._dt_source):
+            dt_img = ee.Image.constant(self._dt_source)
+        elif self._dt_source.upper() in ['DAYMET_MEDIAN_V0']:
+            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
+                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
+            # Clamp dT values to 6-25 K when using daymet_dt_median asset
+            dt_img = ee.Image(dt_coll.first()).clamp(6, 25)
+        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
+            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1') \
+                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
+            # Clamp dT values to 6-25 K when using daymet_dt_median asset
+            dt_img = ee.Image(dt_coll.first()).clamp(6, 25)
+        # elif self.dt_source.upper() == 'DAYMET':
+        #     # DAYMET does not include Dec 31st on leap years
+        #     # Adding one extra date to end date to avoid errors
+        #     temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
+        #         .filterDate(self.start_date, self.end_date.advance(1, 'day')) \
+        #         .select(['tmax', 'tmin'], ['tmax', 'tmin']) \
+        #         .map(common.c_to_k)
+        #     dt_coll = common.collection('dt_daymet')
+        # elif self.dt_source.upper() == 'GRIDMET':
+        #     dt_coll = common.collection('dt_gridmet')
         else:
-            logging.error('\nInvalid dT: {}\n'.format(self.dt_source))
+            logging.error('\nInvalid dT: {}\n'.format(self._dt_source))
             sys.exit()
+        return dt_img
 
     def _elev(self):
         """"""
-        if _is_number(self.elev_source):
-            elev_image = ee.Image.constant(ee.Number(self.elev_source))
-        elif self.elev_source.upper() == 'ASSET':
+        if _is_number(self._elev_source):
+            elev_image = ee.Image.constant(ee.Number(self._elev_source))
+        elif self._elev_source.upper() == 'ASSET':
             elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
-        elif self.elev_source.upper() == 'GTOPO':
+        elif self._elev_source.upper() == 'GTOPO':
             elev_image = ee.Image('USGS/GTOPO30')
-        elif self.elev_source.upper() == 'NED':
+        elif self._elev_source.upper() == 'NED':
             elev_image = ee.Image('USGS/NED')
-        elif self.elev_source.upper() == 'SRTM':
+        elif self._elev_source.upper() == 'SRTM':
             elev_image = ee.Image('CGIAR/SRTM90_V4')
+        elif (self._elev_source.lower().startswith('projects/') or
+              self._elev_source.lower().startswith('users/')):
+            elev_image = ee.Image(self._elev_source)
         else:
             logging.error('\nUnsupported elev_source: {}\n'.format(
-                self.elev_source))
+                self._elev_source))
             sys.exit()
         return elev_image.select([0], ['elev'])
 
     def _tcorr(self):
         """Get Tcorr from pre-computed assets for each Tmax source
 
-        This function is setup to get Tcorr based on the following priority:
-          1) user specificed Tcorr value
-          2) pre-compted scene specific Tcorr if available
-          3) pre-computed WRS2 tile (path/row) monthly Tcorr if avaiable
-          4) global default Tcorr of 0.978
-
-        The Tcorr collections are a function the Tmax dataset that is used.
-        Each Tcorr collection has an "INDEX" which specificed the priority
-        (see table below) with lower values being preferred.
-        The Tcorr prioritization is done my merging the collections,
-        sorting based on the INDEX, and taking the first object.
-
-        Tcorr INDEX values indicate
+        Tcorr Index values indicate which level of Tcorr was used
           0 - Scene specific Tcorr
           1 - Mean monthly Tcorr per WRS2 tile
           2 - Default Tcorr
           3 - User defined Tcorr
-
-        Returns:
-            ee.Number: Tcorr value
-            ee.Number: Tcorr INDEX value
         """
 
-        if _is_number(self.tcorr_source):
-            tcorr = ee.Number(self.tcorr_source)
+        # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
+        if _is_number(self._tcorr_source):
+            tcorr = ee.Number(self._tcorr_source)
             tcorr_index = ee.Number(3)
-        elif (self.tcorr_source.upper() == 'SCENE' and
-              self.tmax_source.upper() == 'DAYMET'):
-            default_coll = ee.FeatureCollection([
-                ee.Feature(None, {'INDEX': 2, 'TCORR': 0.978})])
-            month_coll = ee.FeatureCollection(
-                    'projects/usgs-ssebop/tcorr_daymet_monthly') \
-                .filterMetadata('WRS2_TILE', 'equals', self.wrs2_tile) \
-                .filterMetadata('MONTH', 'equals', self.month)
-            scene_coll = ee.FeatureCollection(
-                    'projects/usgs-ssebop/tcorr_daymet') \
-                .filterMetadata('SCENE_ID', 'equals', self.scene_id)
+            return tcorr, tcorr_index
+
+        # Lookup Tcorr collections by keyword value
+        scene_coll_dict = {
+            'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_scene',
+            'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_scene',
+            'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_scene',
+            # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_scene',
+            'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_scene',
+            'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_scene',
+            'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_scene',
+            'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_scene',
+            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_scene'
+        }
+        month_coll_dict = {
+            'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_monthly',
+            'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_monthly',
+            'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_monthly',
+            # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_monthly',
+            'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_monthly',
+            'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_monthly',
+            'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_monthly',
+            'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_monthly',
+            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_monthly',
+        }
+        default_value_dict = {
+            'CIMIS': 0.978,
+            'DAYMET': 0.978,
+            'GRIDMET': 0.978,
+            'TOPOWX': 0.978,
+            'CIMIS_MEDIAN_V1': 0.978,
+            'DAYMET_MEDIAN_V0': 0.978,
+            'DAYMET_MEDIAN_V1': 0.978,
+            'GRIDMET_MEDIAN_V1': 0.978,
+            'TOPOWX_MEDIAN_V0': 0.978
+        }
+
+        # Check Tmax source value
+        tmax_key = self._tmax_source.upper()
+        if tmax_key not in default_value_dict.keys():
+            logging.error(
+                '\nInvalid tmax_source: {} / {}\n'.format(
+                    self._tcorr_source, self._tmax_source))
+            sys.exit()
+
+        default_coll = ee.FeatureCollection([
+            ee.Feature(None, {'INDEX': 2, 'TCORR': default_value_dict[tmax_key]})])
+        month_coll = ee.FeatureCollection(month_coll_dict[tmax_key]) \
+            .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile) \
+            .filterMetadata('MONTH', 'equals', self._month)
+        if self._tcorr_source.upper() == 'SCENE':
+            scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key]) \
+                .filterMetadata('SCENE_ID', 'equals', self._scene_id)
             tcorr_coll = ee.FeatureCollection(
                 default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
-            tcorr_ftr = ee.Feature(tcorr_coll.first())
-            tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-            tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-        elif (self.tcorr_source.upper() == 'MONTH' and
-              self.tmax_source.upper() == 'DAYMET'):
-            default_coll = ee.FeatureCollection([
-                ee.Feature(None, {'INDEX': 2, 'TCORR': 0.978})])
-            month_coll = ee.FeatureCollection(
-                'projects/usgs-ssebop/tcorr_daymet_monthly') \
-                .filterMetadata('WRS2_TILE', 'equals', self.wrs2_tile) \
-                .filterMetadata('MONTH', 'equals', self.month)
+        elif self._tcorr_source.upper() == 'MONTH':
             tcorr_coll = ee.FeatureCollection(
                 default_coll.merge(month_coll)).sort('INDEX')
-            tcorr_ftr = ee.Feature(tcorr_coll.first())
-            tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-            tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-        elif (self.tcorr_source.upper() == 'SCENE' and
-              self.tmax_source.upper() == 'GRIDMET'):
-            default_coll = ee.FeatureCollection([
-                ee.Feature(None, {'INDEX': 2, 'TCORR': 0.978})])
-            month_coll = ee.FeatureCollection(
-                'projects/usgs-ssebop/tcorr_gridmet_monthly') \
-                .filterMetadata('WRS2_TILE', 'equals', self.wrs2_tile) \
-                .filterMetadata('MONTH', 'equals', self.month)
-            scene_coll = ee.FeatureCollection(
-                'projects/usgs-ssebop/tcorr_gridmet') \
-                .filterMetadata('SCENE_ID', 'equals', self.scene_id)
-            tcorr_coll = ee.FeatureCollection(
-                default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
-            tcorr_ftr = ee.Feature(tcorr_coll.first())
-            tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-            tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-        elif (self.tcorr_source.upper() == 'MONTH' and
-              self.tmax_source.upper() == 'GRIDMET'):
-            default_coll = ee.FeatureCollection([
-                ee.Feature(None, {'INDEX': 2, 'TCORR': 0.978})])
-            month_coll = ee.FeatureCollection(
-                'projects/usgs-ssebop/tcorr_gridmet_monthly') \
-                .filterMetadata('WRS2_TILE', 'equals', self.wrs2_tile) \
-                .filterMetadata('MONTH', 'equals', self.month)
-            tcorr_coll = ee.FeatureCollection(
-                default_coll.merge(month_coll)).sort('INDEX')
-            tcorr_ftr = ee.Feature(tcorr_coll.first())
-            tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-            tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
         else:
             logging.error(
-                '\nInvalid tcorr_source/tmax_source: {} / {}\n'.format(
-                    self.tcorr_source, self.tmax_source))
+                '\nInvalid tcorr_source: {} / {}\n'.format(
+                    self._tcorr_source, self._tmax_source))
             sys.exit()
+
+        tcorr_ftr = ee.Feature(tcorr_coll.first())
+        tcorr = ee.Number(tcorr_ftr.get('TCORR'))
+        tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
+
         return tcorr, tcorr_index
 
     def _tmax(self):
-        if _is_number(self.tmax_source):
-            return ee.Image.constant(self.tmax_source).rename(['tmax'])
-        elif self.tmax_source.upper() == 'DAYMET':
+        """Fall back on median Tmax if daily image does not exist"""
+        doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
+        date_today = datetime.datetime.today().strftime('%Y-%m-%d')
+
+        if _is_number(self._tmax_source):
+            tmax_image = ee.Image.constant(self._tmax_source).rename(['tmax'])\
+                .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
+
+        elif self._tmax_source.upper() == 'CIMIS':
+            daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily') \
+                .filterDate(self._start_date, self._end_date) \
+                .select(['Tx'], ['tmax']).map(_c_to_k)
+            daily_image = ee.Image(daily_coll.first())\
+                .set('TMAX_VERSION', date_today)
+
+            median_version = 'median_v1'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+            median_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+
+            tmax_image = ee.Image(ee.Algorithms.If(
+                daily_coll.size().gt(0), daily_image, median_image))
+
+        elif self._tmax_source.upper() == 'DAYMET':
             # DAYMET does not include Dec 31st on leap years
             # Adding one extra date to end date to avoid errors
-            tmax_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
-                .filterDate(self.start_date, self.end_date.advance(1, 'day')) \
-                .select(['tmax']) \
-                .map(_c_to_k)
-            return ee.Image(tmax_coll.first())
-        elif self.tmax_source.upper() == 'GRIDMET':
-            tmax_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET') \
-                .filterDate(self.start_date, self.end_date) \
+            daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
+                .filterDate(self._start_date, self._end_date.advance(1, 'day')) \
+                .select(['tmax']).map(_c_to_k)
+            daily_image = ee.Image(daily_coll.first())\
+                .set('TMAX_VERSION', date_today)
+
+            median_version = 'median_v0'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+            median_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+
+            tmax_image = ee.Image(ee.Algorithms.If(
+                daily_coll.size().gt(0), daily_image, median_image))
+
+        elif self._tmax_source.upper() == 'GRIDMET':
+            daily_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET') \
+                .filterDate(self._start_date, self._end_date) \
                 .select(['tmmx'], ['tmax'])
-            return ee.Image(tmax_coll.first())
+            daily_image = ee.Image(daily_coll.first())\
+                .set('TMAX_VERSION', date_today)
+
+            median_version = 'median_v1'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+            median_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+
+            tmax_image = ee.Image(ee.Algorithms.If(
+                daily_coll.size().gt(0), daily_image, median_image))
+
+        # elif self.tmax_source.upper() == 'TOPOWX':
+        #     daily_coll = ee.ImageCollection('X') \
+        #         .filterDate(self.start_date, self.end_date) \
+        #         .select(['tmmx'], ['tmax'])
+        #     daily_image = ee.Image(daily_coll.first())\
+        #         .set('TMAX_VERSION', date_today)
+        #
+        #     median_version = 'median_v1'
+        #     median_coll = ee.ImageCollection(
+        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #     median_image = ee.Image(median_coll.filter(doy_filter).first())\
+        #         .set('TMAX_VERSION', median_version)
+        #
+        #     tmax_image = ee.Image(ee.Algorithms.If(
+        #         daily_coll.size().gt(0), daily_image, median_image))
+
+        elif self._tmax_source.upper() == 'CIMIS_MEDIAN_V1':
+            median_version = 'median_v1'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V0':
+            median_version = 'median_v0'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V1':
+            median_version = 'median_v1'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        elif self._tmax_source.upper() == 'GRIDMET_MEDIAN_V1':
+            median_version = 'median_v1'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        elif self._tmax_source.upper() == 'TOPOWX_MEDIAN_V0':
+            median_version = 'median_v0'
+            median_coll = ee.ImageCollection(
+                'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        # elif self.tmax_source.upper() == 'TOPOWX_MEDIAN_V1':
+        #     median_version = 'median_v1'
+        #     median_coll = ee.ImageCollection(
+        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
+
         else:
             logging.error('\nUnsupported tmax_source: {}\n'.format(
-                self.tmax_source))
+                self._tmax_source))
             sys.exit()
+
+        return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
 
     @classmethod
     def from_landsat_c1_toa(cls, toa_image, **kwargs):
-        """Constructs a SSEBop object from a Landsat TOA image
+        """Constructs a SSEBop Image object from a Landsat Collection 1 TOA image
 
         Parameters
         ----------
@@ -445,7 +573,7 @@ class SSEBop():
         k2 = ee.Number(ee.Image(toa_image).get('k2_constant'))
 
         ts_brightness = ee.Image(toa_image).select(['lst'])
-        emissivity = SSEBop._emissivity(toa_image)
+        emissivity = Image._emissivity(toa_image)
 
         # First back out radiance from brightness temperature
         # Then recalculate emissivity corrected Ts
@@ -481,7 +609,7 @@ class SSEBop():
         ee.Image
 
         """
-        ndvi = SSEBop._ndvi(toa_image)
+        ndvi = Image._ndvi(toa_image)
         Pv = ndvi.expression(
             '((ndvi - 0.2) / 0.3) ** 2', {'ndvi': ndvi})
         # ndviRangevalue = ndvi_image.where(
@@ -505,13 +633,13 @@ class SSEBop():
             .where((ndvi.gte(0.2)).And(ndvi.lte(0.5)), RangeEmiss)
         emissivity = emissivity.clamp(0.977, 0.99)
         return emissivity.select([0], ['emissivity']) \
-            .copyProperties(ndvi, system_properties)
+            .copyProperties(ndvi, ['system:index', 'system:time_start'])
 
 # Eventually move to common or utils
 def _c_to_k(image):
     """Convert temperature from C to K"""
     return image.add(273.15) \
-        .copyProperties(image, system_properties)
+        .copyProperties(image, ['system:index', 'system:time_start'])
 
 
 def _date_to_time_0utc(date):
