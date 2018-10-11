@@ -10,7 +10,8 @@ The Operational Simplified Surface Energy Balance (SSEBop) model computes daily 
 The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on clear-sky net radiation balance principles.
 This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
 
-(Add model architecture graphic here)
+Basic SSEBop model architecture in Earth Engine:
+![Diagram Version 1](https://github.com/Open-ET/openet-ssebop-beta/blob/master/SSEBop_GEE_flow.PNG)
 
 Input Collections
 =================
