@@ -11,7 +11,7 @@ The SSEBop model does not solve all the energy balance terms explicitly; rather,
 This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
 
 Basic SSEBop model architecture in Earth Engine:
-![Diagram Version 1](https://github.com/Open-ET/openet-ssebop-beta/blob/master/SSEBop_GEE_flow.PNG)
+![Diagram Version 1](https://raw.githubusercontent.com/Open-ET/openet-ssebop-beta/master/SSEBop_GEE_flow.PNG)
 
 Input Collections
 =================
