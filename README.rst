@@ -17,7 +17,11 @@ Basic SSEBop model architecture in Earth Engine:
 Input Collections
 =================
 
-Currently SSEBop ET can only be computed for Landsat Collection 1 TOA images.
+Currently SSEBop ET can only be computed for Landsat Collection 1 TOA image from the following Earth Engine image collections:
+
+ * LANDSAT/LC08/C01/T1_RT_TOA or LANDSAT/LC08/C01/T1_TOA
+ * LANDSAT/LE07/C01/T1_RT_TOA or LANDSAT/LE07/C01/T1_TOA
+ * LANDSAT/LT05/C01/T1_TOA
 
 Examples
 ========
@@ -27,7 +31,7 @@ Jupyter notebooks are provided in the "examples" folder that show various approa
 Model Structure
 ===============
 
-The SSEBop model is composed of two primary classes: Image() and Collection().
+The SSEBop model is currently composed of a single Image() class.
 
 Image
 -----
