@@ -28,7 +28,7 @@ version = find_version('openet', model_name.lower(), '__init__.py')
 
 # Get the long description from the README file
 here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.rst')) as f:
+with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
@@ -36,6 +36,7 @@ setup(
     version=version,
     description='Earth Engine based {} Model'.format(model_name),
     long_description=long_description,
+    long_description_content_type='text/x-rst',
     license='Apache',
     author='Charles Morton',
     author_email='charles.morton@dri.edu',

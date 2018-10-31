@@ -36,7 +36,8 @@ The SSEBop model is currently composed of a single Image() class.
 Image
 -----
 
-.. code-block:: console
+.. code-block:: python
+
     import openet.ssebop as ssebop
 
     landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
