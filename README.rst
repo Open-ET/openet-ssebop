@@ -35,28 +35,26 @@ Landsat Collection 1 TOA Input Image
 
 To instantiate the class for a Landsat Collection 1 TOA image, use the Image().from_landsat_c1_toa() method.
 
-The input Landsat image must have the following bands and properties.
+The input Landsat image must have the following bands and properties:
 
-Band Names (based on SPACECRAFT_ID property)
-  =================  ======================================
-  SPACECRAFT_ID      Band Names
-  =================  ======================================
-  LANDSAT_5          B1, B2, B3, B4, B5, B7, B6, BQA
-  LANDSAT_7          B1, B2, B3, B4, B5, B7, B6_VCID_1, BQA
-  LANDSAT_8          B2, B3, B4, B5, B6, B7, 'B10', BQA
-  =================  ======================================
+=================  ======================================
+SPACECRAFT_ID      Band Names
+=================  ======================================
+LANDSAT_5          B1, B2, B3, B4, B5, B7, B6, BQA
+LANDSAT_7          B1, B2, B3, B4, B5, B7, B6_VCID_1, BQA
+LANDSAT_8          B2, B3, B4, B5, B6, B7, 'B10', BQA
+=================  ======================================
 
-Properties
-  =================  ======================================
-  Property           Description
-  =================  ======================================
-  system:index       - Landsat Scene ID
-                     - Must be in the Earth Engine format (e.g. LC08_044033_20170716)
-                     - Used to lookup the scene specific c-factor
-  system:time_start  Image datetime in milliseconds since 1970
-  SPACECRAFT_ID      - Used to determine which Landsat type
-                     - Must be: LANDSAT_5, LANDSAT_7, or LANDSAT_8
-  =================  ======================================
+=================  =============================================
+Property           Description
+=================  =============================================
+system:index       - Landsat Scene ID
+                   - Must be in the Earth Engine format (e.g. LC08_044033_20170716)
+                   - Used to lookup the scene specific c-factor
+system:time_start  Image datetime in milliseconds since 1970
+SPACECRAFT_ID      - Used to determine which Landsat type
+                   - Must be: LANDSAT_5, LANDSAT_7, or LANDSAT_8
+=================  =============================================
 
 Model Output
 ------------
@@ -106,18 +104,18 @@ Ancillary Datasets
 
 Maximum Daily Air Temperature (Tmax)
 ------------------------------------
-The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay et al., 2017.
+The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in [Senay2017]_.
 
 Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
 
 Land Surface Temperature
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in Senay et al., 2016.
+Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in [Senay2016]_.
 
 dT
 --
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
-In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay et al. (2013). The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
+In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in [Senay2013]_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
 
 Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1_scene
 
@@ -172,10 +170,12 @@ Each OpenET model is stored in the "openet" folder (namespace).  The model can t
 References
 ==========
 
- * `Senay et al., 2013 <http://onlinelibrary.wiley.com/doi/10.1111/jawr.12057/abstract>`__
- * `Senay et al., 2016 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`__
- * `Senay et al., 2017 <https://www.sciencedirect.com/science/article/pii/S0034425717301967>`__
- * `Senay, 2018 <http://elibrary.asabe.org/abstract.asp?AID=48975&t=3&dabs=Y&redir=&redirType=>`__
+.. _references:
+
+.. [Senay2013] `Operational Evapotranspiration Mapping Using Remote Sensing and Weather Datasets: A New Parameterization for the SSEB Approach <http://onlinelibrary.wiley.com/doi/10.1111/jawr.12057/abstract>`__
+.. [Senay2016] `Evaluating Landsat 8 evapotranspiration for water use mapping in the Colorado River Basin <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`__
+.. [Senay2017] `Satellite-based water use dynamics using historical Landsat data (1984–2014) in the southwestern United States <https://www.sciencedirect.com/science/article/pii/S0034425717301967>`__
+.. [Senay2018] `Satellite Psychrometric Formulation of the Operational Simplified Surface Energy Balance (SSEBop) Model for Quantifying and Mapping Evapotranspiration <http://elibrary.asabe.org/abstract.asp?AID=48975&t=3&dabs=Y&redir=&redirType=>`__
 
 .. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
