@@ -12,36 +12,77 @@ This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values
 
 Basic SSEBop model architecture in Earth Engine:
 
-![Diagram Version 1](https://raw.githubusercontent.com/Open-ET/openet-ssebop-beta/master/SSEBop_GEE_flow.PNG)
+.. image:: SSEBop_GEE_flow.PNG
 
 Input Collections
 =================
 
-Currently SSEBop ET can only be computed for Landsat Collection 1 TOA images.
+SSEBop ET can currently only be computed for Landsat Collection 1 TOA image from the following Earth Engine image collections:
 
-Examples
-========
+ * LANDSAT/LC08/C01/T1_RT_TOA or LANDSAT/LC08/C01/T1_TOA
+ * LANDSAT/LE07/C01/T1_RT_TOA or LANDSAT/LE07/C01/T1_TOA
+ * LANDSAT/LT05/C01/T1_TOA
 
-Jupyter notebooks are provided in the "examples" folder that show various approaches for calling the OpenET SSEBop model.
+Note that scene specific Tcorr values have only been computed for Landsat images covering the contiguous United States (CONUS).  SSEBop estimates for Landsat images outside the CONUS will use the default c-factor value of 0.978 (see Tcorr_ section).
 
-Model Structure
-===============
+Model Design
+============
 
-The SSEBop model is composed of two primary classes: Image() and Collection().
+The primary component of the SSEBop model is the Image() class.  The Image class should be generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.
 
-Image
------
+Landsat Collection 1 TOA
+------------------------
 
-.. code-block:: console
+To instantiate the class for a Landsat Collection 1 TOA image, use the Image().from_landsat_c1_toa() method.
+
+The input Landsat image must have the following bands and properties.
+
+Band Names (based on SPACECRAFT_ID property)
+  LANDSAT_5: B1, B2, B3, B4, ', B7, B6, BQA
+
+  LANDSAT_7: B1, B2, B3, B4, B5, B7, B6_VCID_1, BQA
+
+  LANDSAT_8: B2, B3, B4, B5, B6, B7, 'B10', BQA
+
+Properties
+  system:index: Landsat Scene ID (in the Earth Engine format, i.e. LC08_044033_20170716).  Used to lookup the scene specific c-factor.
+
+  system:time_start: milliseconds since 1970
+
+  SPACECRAFT_ID: Used to determine which Landsat type.  Must be: LANDSAT_5, LANDSAT_7, or LANDSAT_8
+
+Example
+~~~~~~~
+
+.. code-block:: python
+
     import openet.ssebop as ssebop
 
     landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
     etf_img = ssebop.Image().from_landsat_c1_toa(landsat_img).etf
 
-Collection
-----------
+Custom Input
+------------
 
+SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature) and 'ndvi' (normalized difference vegetation index).
 
+No cloud masking will be applied by the SSEBop model since this is typically handled in the collection methods.  The input image must have the 'system:index' and 'system:time_start' properties described above.
+
+.. code-block:: python
+
+    import openet.ssebop as ssebop
+
+    input_img = ee.Image([ee.Image(lst), ee.Image(ndvi)]) \
+        .rename(['lst', 'ndvi']) \
+        .setMulti({
+            'system:index': 'LC08_044033_20170716',
+            'system:time_start': ee.Date().millis()})
+    ssebop_obj = ssebop.Image(input_img)
+
+Examples
+========
+
+Jupyter notebooks are provided in the "examples" folder that show various approaches for calling the OpenET SSEBop model.
 
 Ancillary Datasets
 ==================
@@ -73,6 +114,8 @@ The default elevation dataset is a custom SRTM based CONUS wide 1km resolution r
 Default Asset ID: projects/usgs-ssebop/srtm_1km
 
 The elevation parameter will accept any Earth Engine image.
+
+.. _Tcorr:
 
 Tcorr (C-factor)
 ----------------
@@ -107,17 +150,6 @@ Modules needed to run the model:
  * `earthengine-api <https://github.com/google/earthengine-api>`__
  * `openet <https://github.com/Open-ET/openet-core-beta>`__
 
-Modules needed to run the test suite:
-
- * `pytest <https://docs.pytest.org/en/latest/>`__
-
-Running Tests
-=============
-
-.. code-block:: console
-
-    python -m pytest
-
 OpenET Namespace Package
 ========================
 
@@ -126,7 +158,6 @@ Each OpenET model should be stored in the "openet" folder (namespace).  The bene
 .. code-block:: console
 
     import openet.ssebop as ssebop
-
 
 References
 ==========
