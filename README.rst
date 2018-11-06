@@ -104,18 +104,18 @@ Ancillary Datasets
 
 Maximum Daily Air Temperature (Tmax)
 ------------------------------------
-The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in [Senay2017]_.
+The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay2017_.
 
 Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
 
 Land Surface Temperature
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in [Senay2016]_.
+Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
 
 dT
 --
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
-In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in [Senay2013]_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
+In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2013_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
 
 Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1_scene
 
