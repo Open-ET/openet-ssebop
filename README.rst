@@ -89,13 +89,13 @@ Ancillary Datasets
 
 Maximum Daily Air Temperature (Tmax)
 ------------------------------------
-The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay et al. (2017) 
+The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay et al., 2017. 
 
 Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
 
 Land Surface Temperature
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology at `Senay et al., 2016 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`. 
+Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in Senay et al., 2016. 
 
 dT
 --
