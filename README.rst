@@ -28,7 +28,7 @@ Note that scene specific Tcorr values have only been computed for Landsat images
 Model Design
 ============
 
-The primary component of the SSEBop model is the Image() class.  The Image class should be generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.
+The primary component of the SSEBop model is the Image() class.  The Image class should generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.
 
 Landsat Collection 1 TOA
 ------------------------
@@ -95,9 +95,7 @@ Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
 
 Land Surface Temperature
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology here: http://www.sciencedirect.com/science/article/pii/S0034425715302650. 
-
-(add equation graphic?)
+Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology at `Senay et al., 2016 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`. 
 
 dT
 --
@@ -121,7 +119,7 @@ Tcorr (C-factor)
 ----------------
 In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels. This temperature correction component is based on a ratio of Tmax and Land Surface Temperature (LST) that has passed through several conditions such as NDVI limits.
 
-(add parameterization table here)
+.. image:: Tcorr_table.PNG
 
 The Tcorr value is read from precomputed Earth Engine feature collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the feature collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
 
@@ -164,7 +162,9 @@ References
 
  * `Senay et al., 2013 <http://onlinelibrary.wiley.com/doi/10.1111/jawr.12057/abstract>`__
  * `Senay et al., 2016 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`__
-
+ * `Senay et al., 2017 <https://www.sciencedirect.com/science/article/pii/S0034425717301967>`__
+ * `Senay, 2018 <http://elibrary.asabe.org/abstract.asp?AID=48975&t=3&dabs=Y&redir=&redirType=>`__
+ 
 .. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
    :target: https://travis-ci.org/Open-ET/openet-ssebop-beta
