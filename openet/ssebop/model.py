@@ -548,7 +548,8 @@ class Image():
         Parameters
         ----------
         toa_image : ee.Image
-            Renamed TOA image with 'red' and 'nir' bands.
+            Renamed TOA image with 'red', 'nir', and 'lst' bands.
+            Image must also have 'k1_constant' and 'k2_constant' properties.
 
         Returns
         -------
@@ -556,12 +557,13 @@ class Image():
 
         Notes
         -----
-        Note, the coefficients were derived from a small number of scenes in
-        southern Idaho [Allen2007] and may not be appropriate for other areas.
+        The corrected radiation coefficients were derived from a small number
+        of scenes in southern Idaho [Allen2007] and may not be appropriate for
+        other areas.
 
         References
         ----------
-        .. [ALlen2007a] R. Allen, M. Tasumi, R. Trezza (2007),
+        .. [Allen2007] R. Allen, M. Tasumi, R. Trezza (2007),
             Satellite-Based Energy Balance for Mapping Evapotranspiration with
             Internalized Calibration (METRIC) Model,
             Journal of Irrigation and Drainage Engineering, Vol 133(4),
