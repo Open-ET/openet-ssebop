@@ -5,32 +5,15 @@ import ee
 import pytest
 
 import openet.ssebop as ssebop
+import openet.ssebop.utils as utils
 
 
 SCENE_ID = 'LC08_042035_20150713'
 SCENE_DATE = '2015-07-13'
 
 
-# Should these be fixtures or maybe moved to utils.py?
+# Should these be test fixtures instead?
 # I'm not sure how to make them fixtures and allow input parameters
-def constant_image_value(image, crs='EPSG:32613', scale=1):
-    """Extract the output value from a calculation done with constant images"""
-    return ee.Image(image).rename(['output'])\
-        .reduceRegion(
-            reducer=ee.Reducer.first(), scale=scale,
-            geometry=ee.Geometry.Rectangle([0, 0, 10, 10], crs, False))\
-        .getInfo()['output']
-
-
-def point_image_value(image, xy, scale=1):
-    """Extract the output value from a calculation at a point"""
-    return ee.Image(image).rename(['output'])\
-        .reduceRegion(
-            reducer=ee.Reducer.first(), geometry=ee.Geometry.Point(xy),
-            scale=scale)\
-        .getInfo()['output']
-
-
 def toa_image(red=0.2, nir=0.7, bt=300):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
     return ee.Image.constant([red, nir, bt])\
@@ -50,22 +33,9 @@ def default_image(lst=300, ndvi=0.8):
     })
 
 
-# def test_ee_init():
-#     """Check that Earth Engine was initialized"""
-#     assert ee.Number(1).getInfo() == 1
-
-
-def test_constant_image_value(tol=0.000001):
-    expected = 10.123456789
-    input_img = ee.Image.constant(expected)
-    output = constant_image_value(input_img)
-    assert abs(output - expected) <= tol
-
-
-def test_point_image_value(tol=0.01):
-    expected = 2364.35
-    output = point_image_value(ee.Image('USGS/NED'), [-106.03249, 37.17777])
-    assert abs(output - expected) <= tol
+def test_ee_init():
+    """Check that Earth Engine was initialized"""
+    assert ee.Number(1).getInfo() == 1
 
 
 # Test the static methods of the class first
@@ -86,7 +56,7 @@ def test_point_image_value(tol=0.01):
 )
 def test_ndvi_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
-    output = constant_image_value(ssebop.Image._ndvi(toa))
+    output = utils.constant_image_value(ssebop.Image._ndvi(toa))
     # logging.debug('\n  Target values: {}'.format(expected))
     # logging.debug('  Output values: {}'.format(output))
     assert abs(output - expected) <= tol
@@ -113,7 +83,7 @@ def test_ndvi_band_name():
 )
 def test_emissivity_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
-    output = constant_image_value(ssebop.Image._emissivity(toa))
+    output = utils.constant_image_value(ssebop.Image._emissivity(toa))
     assert abs(output - expected) <= tol
 
 
@@ -130,7 +100,7 @@ def test_emissivity_band_name():
 )
 def test_lst_calculation(red, nir, bt, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir, bt=bt)
-    output = constant_image_value(ssebop.Image._lst(toa))
+    output = utils.constant_image_value(ssebop.Image._lst(toa))
     assert abs(output - expected) <= tol
 
 
@@ -166,7 +136,7 @@ def test_Image_default_parameters():
 def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     """Test getting dT values for a single date at a real point"""
     output_img = ssebop.Image(default_image(), dt_source=dt_source)._dt()
-    output = point_image_value(ee.Image(output_img), xy)
+    output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
 
@@ -211,7 +181,7 @@ def test_Image_dt_clamping(doy, expected):
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
     output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev()
-    output = point_image_value(ee.Image(output_img), xy)
+    output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
 
@@ -304,7 +274,7 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
     output_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax()
-    output = point_image_value(ee.Image(output_img), xy)
+    output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
 
@@ -327,7 +297,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
     output_img = ssebop.Image(input_img, tmax_source=tmax_source)._tmax()
-    output = point_image_value(ee.Image(output_img), xy)
+    output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
 
@@ -349,9 +319,9 @@ today_dt = datetime.datetime.today()
     ]
 )
 def test_Image_tmax_properties(tmax_source, expected):
-    """Test if properties are set on Tmax image"""
-    tmax = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax()
-    output = tmax.getInfo()['properties']
+    """Test if properties are set on the Tmax image"""
+    tmax_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax()
+    output = tmax_img.getInfo()['properties']
     assert output['TMAX_SOURCE'] == tmax_source
     assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
 
@@ -392,13 +362,28 @@ def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected,
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
             tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\
         .etf
-    output = constant_image_value(ee.Image(output_img))
+    output = utils.constant_image_value(ee.Image(output_img))
 
     # For some ETf tests, returning None is the correct result
     if output is None and expected is None:
         assert True
     else:
         assert abs(output - expected) <= tol
+
+
+def test_Image_etf_band_name():
+    output = ssebop.Image(default_image()).etf.getInfo()['bands'][0]['id']
+    assert output == 'etf'
+
+
+def test_Image_etf_properties(tol=0.0001):
+    """Test if properties are set on the ETf image"""
+    etf_img = ssebop.Image(default_image()).etf
+    output = etf_img.getInfo()['properties']
+    assert output['system:index'] == SCENE_ID
+    assert output['system:time_start'] == ee.Date(SCENE_DATE).millis().getInfo()
+    assert abs(output['TCORR'] - 0.9752) <= tol
+    assert output['TCORR_INDEX'] == 0
 
 
 # def test_Image_from_landsat_c1_toa(self):
