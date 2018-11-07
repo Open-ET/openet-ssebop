@@ -4,6 +4,7 @@ import sys
 
 import ee
 
+from . import utils
 import openet.interp
 
 
@@ -179,7 +180,7 @@ class Image():
         self._date = ee.Date(self._time_start)
         self._year = ee.Number(self._date.get('year'))
         self._month = ee.Number(self._date.get('month'))
-        self._start_date = ee.Date(_date_to_time_0utc(self._date))
+        self._start_date = ee.Date(utils._date_to_time_0utc(self._date))
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
 
@@ -220,7 +221,7 @@ class Image():
 
     def _dt(self):
         """"""
-        if _is_number(self._dt_source):
+        if utils._is_number(self._dt_source):
             dt_img = ee.Image.constant(self._dt_source)
         elif self._dt_source.upper() in ['DAYMET_MEDIAN_V0']:
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
@@ -249,7 +250,7 @@ class Image():
 
     def _elev(self):
         """"""
-        if _is_number(self._elev_source):
+        if utils._is_number(self._elev_source):
             elev_image = ee.Image.constant(ee.Number(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
             elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
@@ -279,7 +280,7 @@ class Image():
         """
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
-        if _is_number(self._tcorr_source):
+        if utils._is_number(self._tcorr_source):
             tcorr = ee.Number(self._tcorr_source)
             tcorr_index = ee.Number(3)
             return tcorr, tcorr_index
@@ -357,14 +358,14 @@ class Image():
         doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
         date_today = datetime.datetime.today().strftime('%Y-%m-%d')
 
-        if _is_number(self._tmax_source):
+        if utils._is_number(self._tmax_source):
             tmax_image = ee.Image.constant(self._tmax_source).rename(['tmax'])\
                 .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
 
         elif self._tmax_source.upper() == 'CIMIS':
             daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily') \
                 .filterDate(self._start_date, self._end_date) \
-                .select(['Tx'], ['tmax']).map(_c_to_k)
+                .select(['Tx'], ['tmax']).map(utils._c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
 
@@ -382,7 +383,7 @@ class Image():
             # Adding one extra date to end date to avoid errors
             daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
                 .filterDate(self._start_date, self._end_date.advance(1, 'day')) \
-                .select(['tmax']).map(_c_to_k)
+                .select(['tmax']).map(utils._c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
 
@@ -638,30 +639,4 @@ class Image():
             .copyProperties(ndvi, ['system:index', 'system:time_start'])
 
 # Eventually move to common or utils
-def _c_to_k(image):
-    """Convert temperature from C to K"""
-    return image.add(273.15) \
-        .copyProperties(image, ['system:index', 'system:time_start'])
 
-
-def _date_to_time_0utc(date):
-    """Get the 0 UTC time_start for a date
-
-    Extra operations are needed since update() does not set milliseconds to 0.
-
-    Args:
-        date (ee.Date):
-
-    Returns:
-        ee.Number
-    """
-    return date.update(hour=0, minute=0, second=0).millis()\
-        .divide(1000).floor().multiply(1000)
-
-
-def _is_number(x):
-    try:
-        float(x)
-        return True
-    except:
-        return False
