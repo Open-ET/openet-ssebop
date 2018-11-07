@@ -10,6 +10,7 @@ import openet.ssebop.utils as utils
 
 SCENE_ID = 'LC08_042035_20150713'
 SCENE_DATE = '2015-07-13'
+SCENE_DOY = 194
 
 
 # Should these be test fixtures instead?
@@ -73,7 +74,8 @@ def test_ndvi_band_name():
         [0.2, 9.0 / 55, 0.985],      # -0.1
         [0.2, 0.2,  0.977],          # 0.0
         [0.1, 11.0 / 90,  0.977],    # 0.1
-        # [0.2, 0.3, 0.986335],        # 0.2 - fails, should be 0.977?
+        [0.2, 0.2999, 0.977],        # 0.3- (0.3 NIR isn't exactly an NDVI of 0.2)
+        [0.2, 0.3001, 0.986335],     # 0.3+
         [0.1, 13.0 / 70, 0.986742],  # 0.3
         [0.3, 0.7, 0.987964],        # 0.4
         [0.2, 0.6, 0.99],            # 0.5
@@ -117,15 +119,20 @@ def test_Image_default_parameters():
     assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert s._elr_flag == False
     assert s._tdiff_threshold == 15
+    assert s._dt_min == 6
+    assert s._dt_max == 25
 
 
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
         ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
-        # ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],  # DEADBEEF - Fails?
-        ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
         ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
+        ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
+        # Check default clamped values
+        ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],
+        ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 6],
+        ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
         # Check string/float constant values
         ['19.262', 194, [-120.113, 36.336], 19.262],  # Check constant values
         [19.262, 194, [-120.113, 36.336], 19.262],    # Check constant values
@@ -135,28 +142,31 @@ def test_Image_default_parameters():
 )
 def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     """Test getting dT values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), dt_source=dt_source)._dt()
-    output = utils.point_image_value(ee.Image(output_img), xy)
+    s = ssebop.Image(default_image(), dt_source=dt_source)
+    s._doy = doy
+    output = utils.point_image_value(ee.Image(s._dt()), xy)
     assert abs(output - expected) <= tol
 
 
 @pytest.mark.parametrize(
-    'doy, expected',
+    'doy, dt_min, dt_max',
     [
-        [1, [6, 25]],
-        [200, [6, 25]],
+        [1, 6, 25],
+        [200, 6, 25],
+        [200, 10, 15],
     ]
 )
-def test_Image_dt_clamping(doy, expected):
-    s = ssebop.Image(default_image(), dt_source='DAYMET_MEDIAN_V1')
+def test_Image_dt_clamping(doy, dt_min, dt_max):
+    s = ssebop.Image(default_image(), dt_source='DAYMET_MEDIAN_V1',
+                     dt_min=dt_min, dt_max=dt_max)
     s._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
     output = ee.Image(s._dt())\
         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))\
         .getInfo()
-    assert output['dt_min'] >= expected[0]
-    assert output['dt_max'] <= expected[1]
+    assert output['dt_min'] >= dt_min
+    assert output['dt_max'] <= dt_max
 
 
 @pytest.mark.parametrize(
@@ -333,31 +343,31 @@ def test_Image_tmax_properties(tmax_source, expected):
         # Test ETf clamp conditions
         [300, 0.80, 10, 50, 0.98, 310, 15, False, None],
         [300, 0.80, 15, 50, 0.98, 310, 15, False, 1.05],
-        # # Test dT high, max/min, and low clamp values
-        # [305, 0.80, 29, 50, 0.98, 310, 10, False, 0.952],
-        # [305, 0.80, 25, 50, 0.98, 310, 10, False, 0.952],
-        # [305, 0.80, 6, 50, 0.98, 310, 10, False, 0.8],
-        # [305, 0.80, 5, 50, 0.98, 310, 10, False, 0.8],
-        # # High and low test values (made up numbers)
-        # [305, 0.80, 15, 50, 0.98, 310, 10, False, 0.9200],
-        # [315, 0.10, 15, 50, 0.98, 310, 10, False, 0.2533],
-        # # Test Tcorr
-        # [305, 0.80, 15, 50, 0.985, 310, 10, False, 1.0233],
-        # [315, 0.10, 15, 50, 0.985, 310, 10, False, 0.3566],
+        # Test dT high, max/min, and low clamp values
+        [305, 0.80, 29, 50, 0.98, 310, 10, False, 0.952],
+        [305, 0.80, 25, 50, 0.98, 310, 10, False, 0.952],
+        [305, 0.80, 6, 50, 0.98, 310, 10, False, 0.8],
+        [305, 0.80, 5, 50, 0.98, 310, 10, False, 0.8],
+        # High and low test values (made up numbers)
+        [305, 0.80, 15, 50, 0.98, 310, 10, False, 0.9200],
+        [315, 0.10, 15, 50, 0.98, 310, 10, False, 0.2533],
+        # Test Tcorr
+        [305, 0.80, 15, 50, 0.985, 310, 10, False, 1.0233],
+        [315, 0.10, 15, 50, 0.985, 310, 10, False, 0.3566],
         # # Test ELR flag
         # [305, 0.80, 15, 2000, 0.98, 310, 10, False, 0.9200],
-        # [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],
-        # [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],
-        # # Test Tdiff buffer value masking
-        # [299, 0.80, 15, 50, 0.98, 310, 10, False, None],
-        # [304, 0.10, 15, 50, 0.98, 310, 5, False, None],
-        # # Central Valley test values
-        # [302, 0.80, 17, 50, 0.985, 308, 10, False, 1.05],
-        # [327, 0.08, 17, 50, 0.985, 308, 10, False, 0.0],
+        # [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],  # DEADBEEF - Fails, ELR not implemented yet
+        # [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],  # DEADBEEF - Fails, ELR not implemented yet
+        # Test Tdiff buffer value masking
+        [299, 0.80, 15, 50, 0.98, 310, 10, False, None],
+        # [304, 0.10, 15, 50, 0.98, 310, 5, False, None],      # DEADBEEF - Fails?
+        # Central Valley test values
+        [302, 0.80, 17, 50, 0.985, 308, 10, False, 1.05],
+        [327, 0.08, 17, 50, 0.985, 308, 10, False, 0.0],
     ]
 )
 def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected,
-                   tol=0.000001):
+                   tol=0.0001):
     output_img = ssebop.Image(
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
             tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\

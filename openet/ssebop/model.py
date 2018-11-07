@@ -124,7 +124,8 @@ class Image():
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
             tdiff_threshold=15,
-            **kwargs
+            dt_min=6,
+            dt_max=25,
             ):
         """Construct a generic SSEBop Image
 
@@ -148,7 +149,10 @@ class Image():
             (the default is False).
         tdiff_threshold : int, optional
             Cloud mask buffer using Tdiff [K] (the default is 15).
-        kwargs :
+        dt_min : float, optional
+            Minimum allowable dT value [K] (the default is 6).
+        dt_max : float, optional
+            Maximum allowable dT value [K] (the default is 25).
 
         Notes
         -----
@@ -191,6 +195,8 @@ class Image():
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
         self._tdiff_threshold = tdiff_threshold
+        self._dt_min = dt_min
+        self._dt_max = dt_max
 
     @lazy_property
     def etf(self):
@@ -224,30 +230,19 @@ class Image():
         """"""
         if utils._is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
-        elif self._dt_source.upper() in ['DAYMET_MEDIAN_V0']:
+        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            # Clamp dT values to 6-25 K when using daymet_dt_median asset
-            dt_img = ee.Image(dt_coll.first()).clamp(6, 25)
+            dt_img = ee.Image(dt_coll.first())
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1') \
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            # Clamp dT values to 6-25 K when using daymet_dt_median asset
-            dt_img = ee.Image(dt_coll.first()).clamp(6, 25)
-        # elif self.dt_source.upper() == 'DAYMET':
-        #     # DAYMET does not include Dec 31st on leap years
-        #     # Adding one extra date to end date to avoid errors
-        #     temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
-        #         .filterDate(self.start_date, self.end_date.advance(1, 'day')) \
-        #         .select(['tmax', 'tmin'], ['tmax', 'tmin']) \
-        #         .map(common.c_to_k)
-        #     dt_coll = common.collection('dt_daymet')
-        # elif self.dt_source.upper() == 'GRIDMET':
-        #     dt_coll = common.collection('dt_gridmet')
+            dt_img = ee.Image(dt_coll.first())
         else:
             logging.error('\nInvalid dT: {}\n'.format(self._dt_source))
             sys.exit()
-        return dt_img
+
+        return dt_img.clamp(self._dt_min, self._dt_max)
 
     def _elev(self):
         """"""
@@ -268,6 +263,7 @@ class Image():
             logging.error('\nUnsupported elev_source: {}\n'.format(
                 self._elev_source))
             sys.exit()
+
         return elev_image.select([0], ['elev'])
 
     def _tcorr(self):
@@ -621,9 +617,9 @@ class Image():
         #  '((0.99*Pv)+(0.97 *(1-Pv))+dE)',{'Pv':Pv, 'dE':dE})
         emissivity = ndvi \
             .where(ndvi.lt(0), 0.985) \
-            .where((ndvi.gte(0)).And(ndvi.lt(0.2)), 0.977) \
+            .where(ndvi.gte(0).And(ndvi.lt(0.2)), 0.977) \
             .where(ndvi.gt(0.5), 0.99) \
-            .where((ndvi.gte(0.2)).And(ndvi.lte(0.5)), RangeEmiss)
+            .where(ndvi.gte(0.2).And(ndvi.lte(0.5)), RangeEmiss)
         emissivity = emissivity.clamp(0.977, 0.99)
 
         return emissivity.select([0], ['emissivity'])
