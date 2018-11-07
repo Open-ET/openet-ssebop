@@ -12,7 +12,7 @@ This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values
 
 Basic SSEBop model architecture in Earth Engine:
 
-.. image:: SSEBop_GEE_flow.PNG
+.. image:: docs/SSEBop_GEE_flow.PNG
 
 Input Collections
 =================
@@ -131,7 +131,7 @@ Tcorr (C-factor)
 ----------------
 In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels. This temperature correction component is based on a ratio of Tmax and Land Surface Temperature (LST) that has passed through several conditions such as NDVI limits.
 
-.. image:: Tcorr_table.PNG
+.. image:: docs/Tcorr_table.PNG
 
 The Tcorr value is read from precomputed Earth Engine feature collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the feature collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
 
