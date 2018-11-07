@@ -119,7 +119,7 @@ class Image():
     def __init__(
             self, image,
             dt_source='DAYMET_MEDIAN_V1',
-            elev_source='ASSET',
+            elev_source='SRTM',
             tcorr_source='SCENE',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
@@ -136,7 +136,7 @@ class Image():
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
-            Elevation source keyword (the default is 'ASSET').
+            Elevation source keyword (the default is 'SRTM').
         tcorr_source : {'SCENE', 'MONTHLY', or float}, optional
             Tcorr source keyword (the default is 'SCENE').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
@@ -260,7 +260,7 @@ class Image():
         elif self._elev_source.upper() == 'NED':
             elev_image = ee.Image('USGS/NED')
         elif self._elev_source.upper() == 'SRTM':
-            elev_image = ee.Image('CGIAR/SRTM90_V4')
+            elev_image = ee.Image('USGS/SRTMGL1_003')
         elif (self._elev_source.lower().startswith('projects/') or
               self._elev_source.lower().startswith('users/')):
             elev_image = ee.Image(self._elev_source)
