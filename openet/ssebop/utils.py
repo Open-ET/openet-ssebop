@@ -12,8 +12,7 @@ def _c_to_k(image):
     ee.Image
 
     """
-    return image.add(273.15) \
-        .copyProperties(image, ['system:index', 'system:time_start'])
+    return image.add(273.15)
 
 
 def _date_to_time_0utc(date):

@@ -133,9 +133,9 @@ class Image():
         image : ee.Image
             A "prepped" SSEBop input image.
             Image must have bands: "ndvi" and "lst".
-        dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1'}, optional
+        dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
-        elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM'}, optional
+        elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'ASSET').
         tcorr_source : {'SCENE', 'MONTHLY', or float}, optional
             Tcorr source keyword (the default is 'SCENE').
@@ -217,12 +217,13 @@ class Image():
                 'system:time_start': self._time_start,
                 'TCORR': tcorr,
                 'TCORR_INDEX': tcorr_index})
+
         return ee.Image(etf).rename(['etf'])
 
     def _dt(self):
         """"""
         if utils._is_number(self._dt_source):
-            dt_img = ee.Image.constant(self._dt_source)
+            dt_img = ee.Image.constant(float(self._dt_source))
         elif self._dt_source.upper() in ['DAYMET_MEDIAN_V0']:
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
@@ -251,7 +252,7 @@ class Image():
     def _elev(self):
         """"""
         if utils._is_number(self._elev_source):
-            elev_image = ee.Image.constant(ee.Number(self._elev_source))
+            elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
             elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
         elif self._elev_source.upper() == 'GTOPO':
@@ -281,7 +282,7 @@ class Image():
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
         if utils._is_number(self._tcorr_source):
-            tcorr = ee.Number(self._tcorr_source)
+            tcorr = ee.Number(float(self._tcorr_source))
             tcorr_index = ee.Number(3)
             return tcorr, tcorr_index
 
@@ -359,25 +360,22 @@ class Image():
         date_today = datetime.datetime.today().strftime('%Y-%m-%d')
 
         if utils._is_number(self._tmax_source):
-            tmax_image = ee.Image.constant(self._tmax_source).rename(['tmax'])\
+            tmax_image = ee.Image.constant(float(self._tmax_source))\
+                .rename(['tmax'])\
                 .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
-
         elif self._tmax_source.upper() == 'CIMIS':
             daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily') \
                 .filterDate(self._start_date, self._end_date) \
                 .select(['Tx'], ['tmax']).map(utils._c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
-
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
-
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
-
         elif self._tmax_source.upper() == 'DAYMET':
             # DAYMET does not include Dec 31st on leap years
             # Adding one extra date to end date to avoid errors
@@ -386,32 +384,26 @@ class Image():
                 .select(['tmax']).map(utils._c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
-
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
                 'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
-
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
-
         elif self._tmax_source.upper() == 'GRIDMET':
             daily_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET') \
                 .filterDate(self._start_date, self._end_date) \
                 .select(['tmmx'], ['tmax'])
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
-
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
-
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
-
         # elif self.tmax_source.upper() == 'TOPOWX':
         #     daily_coll = ee.ImageCollection('X') \
         #         .filterDate(self.start_date, self.end_date) \
@@ -427,7 +419,6 @@ class Image():
         #
         #     tmax_image = ee.Image(ee.Algorithms.If(
         #         daily_coll.size().gt(0), daily_image, median_image))
-
         elif self._tmax_source.upper() == 'CIMIS_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
@@ -463,7 +454,6 @@ class Image():
         #     median_coll = ee.ImageCollection(
         #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
         #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
-
         else:
             logging.error('\nUnsupported tmax_source: {}\n'.format(
                 self._tmax_source))
@@ -635,8 +625,5 @@ class Image():
             .where(ndvi.gt(0.5), 0.99) \
             .where((ndvi.gte(0.2)).And(ndvi.lte(0.5)), RangeEmiss)
         emissivity = emissivity.clamp(0.977, 0.99)
-        return emissivity.select([0], ['emissivity']) \
-            .copyProperties(ndvi, ['system:index', 'system:time_start'])
 
-# Eventually move to common or utils
-
+        return emissivity.select([0], ['emissivity'])
