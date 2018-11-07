@@ -144,7 +144,7 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     """Test getting dT values for a single date at a real point"""
     s = ssebop.Image(default_image(), dt_source=dt_source)
     s._doy = doy
-    output = utils.point_image_value(ee.Image(s._dt()), xy)
+    output = utils.point_image_value(ee.Image(s._dt), xy)
     assert abs(output - expected) <= tol
 
 
@@ -161,7 +161,7 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
                      dt_min=dt_min, dt_max=dt_max)
     s._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
-    output = ee.Image(s._dt())\
+    output = ee.Image(s._dt)\
         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))\
         .getInfo()
@@ -190,13 +190,13 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 )
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev()
+    output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
 
 def test_Image_elev_band_name():
-    output = ssebop.Image(default_image())._elev().getInfo()['bands'][0]['id']
+    output = ssebop.Image(default_image())._elev.getInfo()['bands'][0]['id']
     assert output == 'elev'
 
 
@@ -254,8 +254,8 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
     # Overwrite the month property with test value
     s.month = ee.Number(month)
 
-    # _tcorr() returns a tuple of the tcorr and tcorr_index
-    tcorr, tcorr_index = s._tcorr()
+    # _tcorr returns a tuple of the tcorr and tcorr_index
+    tcorr, tcorr_index = s._tcorr
     tcorr = tcorr.getInfo()
     tcorr_index = tcorr_index.getInfo()
 
@@ -283,7 +283,7 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax()
+    output_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
@@ -306,7 +306,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
         .setMulti({
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
-    output_img = ssebop.Image(input_img, tmax_source=tmax_source)._tmax()
+    output_img = ssebop.Image(input_img, tmax_source=tmax_source)._tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
 
@@ -330,7 +330,7 @@ today_dt = datetime.datetime.today()
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
-    tmax_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax()
+    tmax_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax
     output = tmax_img.getInfo()['properties']
     assert output['TMAX_SOURCE'] == tmax_source
     assert output['TMAX_VERSION'] == expected['TMAX_VERSION']

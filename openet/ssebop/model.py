@@ -207,9 +207,9 @@ class Image():
         """
         # Get input images and ancillary data needed to compute SSEBop ETf
         lst = ee.Image(self.lst)
-        tcorr, tcorr_index = self._tcorr()
-        tmax = ee.Image(self._tmax())
-        dt = ee.Image(self._dt())
+        tcorr, tcorr_index = self._tcorr
+        tmax = ee.Image(self._tmax)
+        dt = ee.Image(self._dt)
 
         # Compute SSEBop ETf
         etf = lst.expression(
@@ -226,6 +226,7 @@ class Image():
 
         return ee.Image(etf).rename(['etf'])
 
+    @lazy_property
     def _dt(self):
         """"""
         if utils._is_number(self._dt_source):
@@ -244,6 +245,7 @@ class Image():
 
         return dt_img.clamp(self._dt_min, self._dt_max)
 
+    @lazy_property
     def _elev(self):
         """"""
         if utils._is_number(self._elev_source):
@@ -266,6 +268,7 @@ class Image():
 
         return elev_image.select([0], ['elev'])
 
+    @lazy_property
     def _tcorr(self):
         """Get Tcorr from pre-computed assets for each Tmax source
 
@@ -350,6 +353,7 @@ class Image():
 
         return tcorr, tcorr_index
 
+    @lazy_property
     def _tmax(self):
         """Fall back on median Tmax if daily image does not exist"""
         doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
