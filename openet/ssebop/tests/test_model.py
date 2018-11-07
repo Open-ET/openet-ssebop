@@ -139,8 +139,18 @@ def test_lst_band_name():
     assert output == 'lst'
 
 
+def test_Image_default_parameters():
+    s = ssebop.Image(default_image())
+    assert s._dt_source == 'DAYMET_MEDIAN_V1'
+    assert s._elev_source == 'SRTM'
+    assert s._tcorr_source == 'SCENE'
+    assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
+    assert s._elr_flag == False
+    assert s._tdiff_threshold == 15
+
+
 @pytest.mark.parametrize(
-    'dt_source,doy,xy,expected',
+    'dt_source, doy, xy, expected',
     [
         ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
         # ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],  # DEADBEEF - Fails?
@@ -149,6 +159,8 @@ def test_lst_band_name():
         # Check string/float constant values
         ['19.262', 194, [-120.113, 36.336], 19.262],  # Check constant values
         [19.262, 194, [-120.113, 36.336], 19.262],    # Check constant values
+        # Check for valueError
+        # ['DEADBEEF', 194, [-120.113, 36.336], 18],
     ]
 )
 def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
@@ -156,6 +168,25 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     output_img = ssebop.Image(default_image(), dt_source=dt_source)._dt()
     output = point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'doy, expected',
+    [
+        [1, [6, 25]],
+        [200, [6, 25]],
+    ]
+)
+def test_Image_dt_clamping(doy, expected):
+    s = ssebop.Image(default_image(), dt_source='DAYMET_MEDIAN_V1')
+    s._doy = doy
+    reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
+    output = ee.Image(s._dt())\
+        .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
+                      geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))\
+        .getInfo()
+    assert output['dt_min'] >= expected[0]
+    assert output['dt_max'] <= expected[1]
 
 
 @pytest.mark.parametrize(
@@ -173,6 +204,8 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         # This should work but currently fails
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
+        # Check for valueError
+        # ['DEADBEEF', [-106.03249, 37.17777], 2362.0],
     ]
 )
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
@@ -182,7 +215,7 @@ def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     assert abs(output - expected) <= tol
 
 
-def test_elev_band_name():
+def test_Image_elev_band_name():
     output = ssebop.Image(default_image())._elev().getInfo()['bands'][0]['id']
     assert output == 'elev'
 
@@ -223,6 +256,8 @@ def test_elev_band_name():
         # Test a user defined Tcorr value
         ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
         [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
+        # Check for valueError
+        # ['DEADBEEF', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9762, 0]],
     ]
 )
 def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
@@ -263,6 +298,7 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
         # Check string/float constant values
         ['305', [-120.113, 36.336], 305],
         [305, [-120.113, 36.336], 305],
+        # ['DEADBEEF', [-120.113, 36.336], 310.430],
     ]
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
@@ -320,49 +356,49 @@ def test_Image_tmax_properties(tmax_source, expected):
     assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
 
 
-# @pytest.mark.parametrize(
-#     # Note: These are made up values
-#     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected',
-#     [
-#         # Test ETf clamp conditions
-#         [300, 0.80, 10, 50, 0.98, 310, 15, False, None],
-#         [300, 0.80, 15, 50, 0.98, 310, 15, False, 1.05],
-#         # Test dT high, max/min, and low clamp values
-#         [305, 0.80, 29, 50, 0.98, 310, 10, False, 0.952],
-#         [305, 0.80, 25, 50, 0.98, 310, 10, False, 0.952],
-#         [305, 0.80, 6, 50, 0.98, 310, 10, False, 0.8],
-#         [305, 0.80, 5, 50, 0.98, 310, 10, False, 0.8],
-#         # High and low test values (made up numbers)
-#         [305, 0.80, 15, 50, 0.98, 310, 10, False, 0.9200],
-#         [315, 0.10, 15, 50, 0.98, 310, 10, False, 0.2533],
-#         # Test Tcorr
-#         [305, 0.80, 15, 50, 0.985, 310, 10, False, 1.0233],
-#         [315, 0.10, 15, 50, 0.985, 310, 10, False, 0.3566],
-#         # Test ELR flag
-#         [305, 0.80, 15, 2000, 0.98, 310, 10, False, 0.9200],
-#         [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],
-#         [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],
-#         # Test Tdiff buffer value masking
-#         [299, 0.80, 15, 50, 0.98, 310, 10, False, None],
-#         [304, 0.10, 15, 50, 0.98, 310, 5, False, None],
-#         # Central Valley test values
-#         [302, 0.80, 17, 50, 0.985, 308, 10, False, 1.05],
-#         [327, 0.08, 17, 50, 0.985, 308, 10, False, 0.0],
-#     ]
-# )
-# def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected,
-#                    tol=0.000001):
-#     output_img = ssebop.Image(
-#             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-#             tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\
-#         .etf
-#     output = constant_image_value(ee.Image(output_img))
-#
-#     # For some ETf tests, returning None is the correct result
-#     if output is None and expected is None:
-#         assert True
-#     else:
-#         assert abs(output - expected) <= tol
+@pytest.mark.parametrize(
+    # Note: These are made up values
+    'lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected',
+    [
+        # Test ETf clamp conditions
+        [300, 0.80, 10, 50, 0.98, 310, 15, False, None],
+        [300, 0.80, 15, 50, 0.98, 310, 15, False, 1.05],
+        # # Test dT high, max/min, and low clamp values
+        # [305, 0.80, 29, 50, 0.98, 310, 10, False, 0.952],
+        # [305, 0.80, 25, 50, 0.98, 310, 10, False, 0.952],
+        # [305, 0.80, 6, 50, 0.98, 310, 10, False, 0.8],
+        # [305, 0.80, 5, 50, 0.98, 310, 10, False, 0.8],
+        # # High and low test values (made up numbers)
+        # [305, 0.80, 15, 50, 0.98, 310, 10, False, 0.9200],
+        # [315, 0.10, 15, 50, 0.98, 310, 10, False, 0.2533],
+        # # Test Tcorr
+        # [305, 0.80, 15, 50, 0.985, 310, 10, False, 1.0233],
+        # [315, 0.10, 15, 50, 0.985, 310, 10, False, 0.3566],
+        # # Test ELR flag
+        # [305, 0.80, 15, 2000, 0.98, 310, 10, False, 0.9200],
+        # [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],
+        # [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],
+        # # Test Tdiff buffer value masking
+        # [299, 0.80, 15, 50, 0.98, 310, 10, False, None],
+        # [304, 0.10, 15, 50, 0.98, 310, 5, False, None],
+        # # Central Valley test values
+        # [302, 0.80, 17, 50, 0.985, 308, 10, False, 1.05],
+        # [327, 0.08, 17, 50, 0.985, 308, 10, False, 0.0],
+    ]
+)
+def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected,
+                   tol=0.000001):
+    output_img = ssebop.Image(
+            default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+            tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\
+        .etf
+    output = constant_image_value(ee.Image(output_img))
+
+    # For some ETf tests, returning None is the correct result
+    if output is None and expected is None:
+        assert True
+    else:
+        assert abs(output - expected) <= tol
 
 
 # def test_Image_from_landsat_c1_toa(self):
