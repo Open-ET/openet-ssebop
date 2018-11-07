@@ -240,8 +240,7 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         else:
-            logging.error('\nInvalid dT: {}\n'.format(self._dt_source))
-            sys.exit()
+            raise ValueError('Invalid dT: {}\n'.format(self._dt_source))
 
         return dt_img.clamp(self._dt_min, self._dt_max)
 
@@ -262,9 +261,8 @@ class Image():
               self._elev_source.lower().startswith('users/')):
             elev_image = ee.Image(self._elev_source)
         else:
-            logging.error('\nUnsupported elev_source: {}\n'.format(
+            raise ValueError('Unsupported elev_source: {}\n'.format(
                 self._elev_source))
-            sys.exit()
 
         return elev_image.select([0], ['elev'])
 
@@ -342,10 +340,9 @@ class Image():
             tcorr_coll = ee.FeatureCollection(
                 default_coll.merge(month_coll)).sort('INDEX')
         else:
-            logging.error(
-                '\nInvalid tcorr_source: {} / {}\n'.format(
+            raise ValueError(
+                'Invalid tcorr_source: {} / {}\n'.format(
                     self._tcorr_source, self._tmax_source))
-            sys.exit()
 
         tcorr_ftr = ee.Feature(tcorr_coll.first())
         tcorr = ee.Number(tcorr_ftr.get('TCORR'))
@@ -455,9 +452,8 @@ class Image():
         #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
         #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
         else:
-            logging.error('\nUnsupported tmax_source: {}\n'.format(
+            raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
-            sys.exit()
 
         return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
 

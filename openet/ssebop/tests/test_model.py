@@ -136,8 +136,6 @@ def test_Image_default_parameters():
         # Check string/float constant values
         ['19.262', 194, [-120.113, 36.336], 19.262],  # Check constant values
         [19.262, 194, [-120.113, 36.336], 19.262],    # Check constant values
-        # Check for valueError
-        # ['DEADBEEF', 194, [-120.113, 36.336], 18],
     ]
 )
 def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
@@ -146,6 +144,11 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     s._doy = doy
     output = utils.point_image_value(ee.Image(s._dt), xy)
     assert abs(output - expected) <= tol
+
+
+def test_Image_dt_exception():
+    with pytest.raises(ValueError):
+        ssebop.Image(default_image(), dt_source='')._dt.getInfo()
 
 
 @pytest.mark.parametrize(
@@ -184,8 +187,6 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         # This should work but currently fails
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
-        # Check for valueError
-        # ['DEADBEEF', [-106.03249, 37.17777], 2362.0],
     ]
 )
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
@@ -193,6 +194,11 @@ def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
+
+
+def test_Image_elev_exception():
+    with pytest.raises(ValueError):
+        ssebop.Image(default_image(), elev_source='')._elev.getInfo()
 
 
 def test_Image_elev_band_name():
@@ -236,8 +242,6 @@ def test_Image_elev_band_name():
         # Test a user defined Tcorr value
         ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
         [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
-        # Check for valueError
-        # ['DEADBEEF', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9762, 0]],
     ]
 )
 def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
@@ -263,6 +267,11 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
     assert tcorr_index == expected[1]
 
 
+def test_Image_tcorr_exception():
+    with pytest.raises(ValueError):
+        ssebop.Image(default_image(), tcorr_source='')._tcorr.getInfo()
+
+
 @pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
@@ -278,7 +287,6 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
         # Check string/float constant values
         ['305', [-120.113, 36.336], 305],
         [305, [-120.113, 36.336], 305],
-        # ['DEADBEEF', [-120.113, 36.336], 310.430],
     ]
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
@@ -286,6 +294,11 @@ def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     output_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output - expected) <= tol
+
+
+def test_Image_tmax_exception():
+    with pytest.raises(ValueError):
+        ssebop.Image(default_image(), tmax_source='')._tmax.getInfo()
 
 
 @pytest.mark.parametrize(
