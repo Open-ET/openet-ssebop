@@ -211,6 +211,10 @@ class Image():
         tmax = ee.Image(self._tmax)
         dt = ee.Image(self._dt)
 
+        # Adjust air temperature based on elevation (Elevation Lapse Rate)
+        if self._elr_flag:
+            tmax = ee.Image(self._lapse_adjust(tmax, ee.Image(self._elev)))
+
         # Compute SSEBop ETf
         etf = lst.expression(
             '(lst * (-1) + tmax * tcorr + dt) / dt',
@@ -623,3 +627,29 @@ class Image():
         emissivity = emissivity.clamp(0.977, 0.99)
 
         return emissivity.select([0], ['emissivity'])
+
+    @staticmethod
+    def _lapse_adjust(temperature, elev, lapse_threshold=1500):
+        """Compute Elevation Lapse Rate (ELR) adjusted temperature
+
+        Parameters
+        ----------
+        temperature : ee.Image
+            Temperature [K].
+        elev : ee.Image
+            Elevation [m].
+        lapse_threshold : float
+            Minimum elevation to adjust temperature [m] (the default is 1500).
+
+        Returns
+        -------
+        ee.Image of adjusted temperature
+
+        """
+        elr_adjust = ee.Image(temperature).expression(
+            '(temperature - (0.003 * (elev - threshold)))',
+            {
+                'temperature': temperature, 'elev': elev,
+                'threshold': lapse_threshold
+            })
+        return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)

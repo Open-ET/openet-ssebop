@@ -111,6 +111,20 @@ def test_lst_band_name():
     assert output == 'lst'
 
 
+@pytest.mark.parametrize(
+    'tmax, elev, threshold, expected',
+    [
+        [305, 1500, 1500, 305],
+        [305, 2000, 1500, 303.5],
+        [305, 500, 0, 303.5],
+    ]
+)
+def test_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
+    output = utils.constant_image_value(ssebop.Image._lapse_adjust(
+        ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
+    assert abs(output - expected) <= tol
+
+
 def test_Image_default_parameters():
     s = ssebop.Image(default_image())
     assert s._dt_source == 'DAYMET_MEDIAN_V1'
@@ -367,13 +381,13 @@ def test_Image_tmax_properties(tmax_source, expected):
         # Test Tcorr
         [305, 0.80, 15, 50, 0.985, 310, 10, False, 1.0233],
         [315, 0.10, 15, 50, 0.985, 310, 10, False, 0.3566],
-        # # Test ELR flag
-        # [305, 0.80, 15, 2000, 0.98, 310, 10, False, 0.9200],
-        # [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],  # DEADBEEF - Fails, ELR not implemented yet
-        # [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],  # DEADBEEF - Fails, ELR not implemented yet
+        # Test ELR flag
+        [305, 0.80, 15, 2000, 0.98, 310, 10, False, 0.9200],
+        [305, 0.80, 15, 2000, 0.98, 310, 10, True, 0.8220],
+        [315, 0.10, 15, 2000, 0.98, 310, 10, True, 0.1553],
         # Test Tdiff buffer value masking
         [299, 0.80, 15, 50, 0.98, 310, 10, False, None],
-        # [304, 0.10, 15, 50, 0.98, 310, 5, False, None],      # DEADBEEF - Fails?
+        [304, 0.10, 15, 50, 0.98, 310, 5, False, None],
         # Central Valley test values
         [302, 0.80, 17, 50, 0.985, 308, 10, False, 1.05],
         [327, 0.08, 17, 50, 0.985, 308, 10, False, 0.0],
@@ -383,7 +397,8 @@ def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, tdiff, elr, expected,
                    tol=0.0001):
     output_img = ssebop.Image(
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-            tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\
+            tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff,
+            elr_flag=elr)\
         .etf
     output = utils.constant_image_value(ee.Image(output_img))
 
