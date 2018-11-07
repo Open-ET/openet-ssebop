@@ -59,7 +59,7 @@ SPACECRAFT_ID      - Used to determine which Landsat type
 Model Output
 ------------
 
-The primary output of the SSEBop model is the fraction of reference ET (ETf).  The actual ET can then be computed by multiplying the Landsat based ETf image the reference ET (e.g. from GRIDMET).
+The primary output of the SSEBop model is the fraction of reference ET (ETf).  The actual ET can then be computed by multiplying the Landsat-based ETf image with the reference ET (e.g. from GRIDMET).
 
 Example
 -------
@@ -117,7 +117,7 @@ dT
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
 In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2013_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
 
-Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1_scene
+Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1
 
 Elevation
 ---------
@@ -140,7 +140,9 @@ The Tcorr is a function of the maximum air temperature dataset, so separate Tcor
 The Tcorr collections were last updated through 2017 but will eventually be updated daily.
 
 Default Asset IDs
+
 Scene ID: projects/usgs-ssebop/tcorr/topowx_median_v0_scene
+
 Monthly ID: projects/usgs-ssebop/tcorr/topowx_median_v0_monthly
 
 Installation
