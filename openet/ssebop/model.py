@@ -133,7 +133,8 @@ class Image():
         ----------
         image : ee.Image
             A "prepped" SSEBop input image.
-            Image must have bands: "ndvi" and "lst".
+            Image must have bands "ndvi" and "lst".
+            Image must have 'system:index' and 'system:time_start' properties.
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
@@ -143,20 +144,20 @@ class Image():
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
                        'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
                        'TOPOWX_MEDIAN_V0', or float}, optional
-            Maximum air temperature source keyword (the default is 'DAYMET').
+            Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
         elr_flag : bool, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
         tdiff_threshold : int, optional
             Cloud mask buffer using Tdiff [K] (the default is 15).
         dt_min : float, optional
-            Minimum allowable dT value [K] (the default is 6).
+            Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
-            Maximum allowable dT value [K] (the default is 25).
+            Maximum allowable dT [K] (the default is 25).
 
         Notes
         -----
-        Currently image must have a Landsat style 'system:index' in order to
+        Input image must have a Landsat style 'system:index' in order to
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """

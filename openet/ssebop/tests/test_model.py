@@ -40,6 +40,45 @@ def test_ee_init():
     assert ee.Number(1).getInfo() == 1
 
 
+def test_Image_default_parameters():
+    s = ssebop.Image(default_image())
+    assert s._dt_source == 'DAYMET_MEDIAN_V1'
+    assert s._elev_source == 'SRTM'
+    assert s._tcorr_source == 'SCENE'
+    assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
+    assert s._elr_flag == False
+    assert s._tdiff_threshold == 15
+    assert s._dt_min == 6
+    assert s._dt_max == 25
+
+
+# Todo: Break these up into separate functions?
+def test_Image_calculated_properties():
+    s = ssebop.Image(default_image())
+    assert s._time_start.getInfo() == ee.Date(SCENE_DATE).millis().getInfo()
+    assert s._scene_id.getInfo() == SCENE_ID
+    assert s._wrs2_tile.getInfo() == 'p{}r{}'.format(
+        SCENE_ID.split('_')[1][:3], SCENE_ID.split('_')[1][3:])
+
+
+def test_Image_date_properties():
+    s = ssebop.Image(default_image())
+    assert s._date.getInfo()['value'] == utils.millis(SCENE_DT)
+    assert s._year.getInfo() == int(SCENE_DATE.split('-')[0])
+    assert s._month.getInfo() == int(SCENE_DATE.split('-')[1])
+    assert s._start_date.getInfo()['value'] == utils.millis(SCENE_DT)
+    assert s._end_date.getInfo()['value'] == utils.millis(
+        SCENE_DT + datetime.timedelta(days=1))
+    assert s._doy.getInfo() == SCENE_DOY
+
+
+def test_Image_scene_id_property():
+    """Test that the system:index from a merged collection is parsed"""
+    input_img = default_image()
+    s = ssebop.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
+    assert s._scene_id.getInfo() == SCENE_ID
+
+
 # Test the static methods of the class first
 # Do these need to be inside the TestClass?
 @pytest.mark.parametrize(
@@ -124,35 +163,6 @@ def test_Image_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
     output = utils.constant_image_value(ssebop.Image._lapse_adjust(
         ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
     assert abs(output - expected) <= tol
-
-
-def test_Image_default_parameters():
-    s = ssebop.Image(default_image())
-    assert s._dt_source == 'DAYMET_MEDIAN_V1'
-    assert s._elev_source == 'SRTM'
-    assert s._tcorr_source == 'SCENE'
-    assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
-    assert s._elr_flag == False
-    assert s._tdiff_threshold == 15
-    assert s._dt_min == 6
-    assert s._dt_max == 25
-
-
-# Todo: Break these up into separate functions?
-def test_Image_calculated_parameters():
-    s = ssebop.Image(default_image())
-    assert s._index.getInfo() == SCENE_ID
-    assert s._time_start.getInfo() == ee.Date(SCENE_DATE).millis().getInfo()
-    assert s._scene_id.getInfo() == SCENE_ID
-    assert s._wrs2_tile.getInfo() == 'p{}r{}'.format(
-        SCENE_ID.split('_')[1][:3], SCENE_ID.split('_')[1][3:])
-    assert s._date.getInfo()['value'] == utils.millis(SCENE_DT)
-    assert s._year.getInfo() == int(SCENE_DATE.split('-')[0])
-    assert s._month.getInfo() == int(SCENE_DATE.split('-')[1])
-    assert s._start_date.getInfo()['value'] == utils.millis(SCENE_DT)
-    assert s._end_date.getInfo()['value'] == utils.millis(
-        SCENE_DT + datetime.timedelta(days=1))
-    assert s._doy.getInfo() == SCENE_DOY
 
 
 @pytest.mark.parametrize(
