@@ -177,10 +177,18 @@ References
 
 .. _references:
 
-.. [Senay2013] `Senay, G., Bohms, S., Singh, R., Gowda, P., Velpuri, N., Alemu, H., Verdin, J. (2013). Operational Evapotranspiration Mapping Using Remote Sensing and Weather Datasets: A New Parameterization for the SSEB Approach. Journal of the American Water Resources Association, 49(3). https://doi.org/10.1111/jawr.12057 <http://onlinelibrary.wiley.com/doi/10.1111/jawr.12057/abstract>`__
-.. [Senay2016] `Senay, G., Friedrichs, M., Singh, R., Velpui, N. (2016). Evaluating Landsat 8 evapotranspiration for water use mapping in the Colorado River Basin. Remote Sensing of Environment, 185. https://doi.org/10.1016/j.rse.2015.12.043 <http://www.sciencedirect.com/science/article/pii/S0034425715302650>`__
-.. [Senay2017] `Senay, G., Schauer, M., Friedrichs, M., Manohar, V., Singh, R. (2017). Satellite-based water use dynamics using historical Landsat data (1984–2014) in the southwestern United States. Remote Sensing of Environment, 202. https://doi.org/10.1016/j.rse.2017.05.005 <https://www.sciencedirect.com/science/article/pii/S0034425717301967>`__
-.. [Senay2018] `Senay, G. (2018). Satellite Psychrometric Formulation of the Operational Simplified Surface Energy Balance (SSEBop) Model for Quantifying and Mapping Evapotranspiration. Applied Engineering in Agriculture, 34(3). https://doi.org/10.13031/aea.12614 <http://elibrary.asabe.org/abstract.asp?AID=48975&t=3&dabs=Y&redir=&redirType=>`__
+.. [Senay2013]
+ | Senay, G., Bohms, S., Singh, R., Gowda, P., Velpuri, N., Alemu, H., Verdin, J. (2013). Operational Evapotranspiration Mapping Using Remote Sensing and Weather Datasets: A New Parameterization for the SSEB Approach. *Journal of the American Water Resources Association*, 49(3).
+ | `https://doi.org/10.1111/jawr.12057 <https://doi.org/10.1111/jawr.12057>`__
+.. [Senay2016]
+ | Senay, G., Friedrichs, M., Singh, R., Velpui, N. (2016). Evaluating Landsat 8 evapotranspiration for water use mapping in the Colorado River Basin. *Remote Sensing of Environment*, 185.
+ | `https://doi.org/10.1016/j.rse.2015.12.043 <https://doi.org/10.1016/j.rse.2015.12.043>`__
+.. [Senay2017]
+ | Senay, G., Schauer, M., Friedrichs, M., Manohar, V., Singh, R. (2017). Satellite-based water use dynamics using historical Landsat data (1984–2014) in the southwestern United States. *Remote Sensing of Environment*, 202.
+ | `https://doi.org/10.1016/j.rse.2017.05.005 <https://doi.org/10.1016/j.rse.2017.05.005>`__
+.. [Senay2018]
+ | Senay, G. (2018). Satellite Psychrometric Formulation of the Operational Simplified Surface Energy Balance (SSEBop) Model for Quantifying and Mapping Evapotranspiration. *Applied Engineering in Agriculture*, 34(3).
+ | `https://doi.org/10.13031/aea.12614 <https://doi.org/10.13031/aea.12614>`__
 
 .. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
