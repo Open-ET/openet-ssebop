@@ -1,3 +1,5 @@
+import calendar
+
 import ee
 
 
@@ -62,3 +64,18 @@ def _is_number(x):
         return True
     except:
         return False
+
+
+def millis(input_dt):
+    """Convert datetime to milliseconds since epoch
+
+    Parameters
+    ----------
+    input_dt : datetime
+
+    Returns
+    -------
+    int
+
+    """
+    return 1000 * int(calendar.timegm(input_dt.timetuple()))

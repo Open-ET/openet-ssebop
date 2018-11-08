@@ -9,8 +9,9 @@ import openet.ssebop.utils as utils
 
 
 SCENE_ID = 'LC08_042035_20150713'
-SCENE_DATE = '2015-07-13'
-SCENE_DOY = 194
+SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
+SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
+SCENE_DOY = int(SCENE_DT.strftime('%j'))
 
 
 # Should these be test fixtures instead?
@@ -55,7 +56,7 @@ def test_ee_init():
         [0.1, 17.0 / 30, 0.7],
     ]
 )
-def test_ndvi_calculation(red, nir, expected, tol=0.000001):
+def test_Image_ndvi_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
     output = utils.constant_image_value(ssebop.Image._ndvi(toa))
     # logging.debug('\n  Target values: {}'.format(expected))
@@ -63,7 +64,7 @@ def test_ndvi_calculation(red, nir, expected, tol=0.000001):
     assert abs(output - expected) <= tol
 
 
-def test_ndvi_band_name():
+def test_Image_ndvi_band_name():
     output = ssebop.Image._ndvi(toa_image()).getInfo()['bands'][0]['id']
     assert output == 'ndvi'
 
@@ -83,13 +84,13 @@ def test_ndvi_band_name():
         [0.1, 17.0 / 30, 0.99],      # 0.7
     ]
 )
-def test_emissivity_calculation(red, nir, expected, tol=0.000001):
+def test_Image_emissivity_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
     output = utils.constant_image_value(ssebop.Image._emissivity(toa))
     assert abs(output - expected) <= tol
 
 
-def test_emissivity_band_name():
+def test_Image_emissivity_band_name():
     output = ssebop.Image._emissivity(toa_image()).getInfo()['bands'][0]['id']
     assert output == 'emissivity'
 
@@ -100,13 +101,13 @@ def test_emissivity_band_name():
         [0.2, 0.7, 300, 303.471031],
     ]
 )
-def test_lst_calculation(red, nir, bt, expected, tol=0.000001):
+def test_Image_lst_calculation(red, nir, bt, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir, bt=bt)
     output = utils.constant_image_value(ssebop.Image._lst(toa))
     assert abs(output - expected) <= tol
 
 
-def test_lst_band_name():
+def test_Image_lst_band_name():
     output = ssebop.Image._lst(toa_image()).getInfo()['bands'][0]['id']
     assert output == 'lst'
 
@@ -119,7 +120,7 @@ def test_lst_band_name():
         [305, 500, 0, 303.5],
     ]
 )
-def test_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
+def test_Image_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
     output = utils.constant_image_value(ssebop.Image._lapse_adjust(
         ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
     assert abs(output - expected) <= tol
@@ -135,6 +136,23 @@ def test_Image_default_parameters():
     assert s._tdiff_threshold == 15
     assert s._dt_min == 6
     assert s._dt_max == 25
+
+
+# Todo: Break these up into separate functions?
+def test_Image_calculated_parameters():
+    s = ssebop.Image(default_image())
+    assert s._index.getInfo() == SCENE_ID
+    assert s._time_start.getInfo() == ee.Date(SCENE_DATE).millis().getInfo()
+    assert s._scene_id.getInfo() == SCENE_ID
+    assert s._wrs2_tile.getInfo() == 'p{}r{}'.format(
+        SCENE_ID.split('_')[1][:3], SCENE_ID.split('_')[1][3:])
+    assert s._date.getInfo()['value'] == utils.millis(SCENE_DT)
+    assert s._year.getInfo() == int(SCENE_DATE.split('-')[0])
+    assert s._month.getInfo() == int(SCENE_DATE.split('-')[1])
+    assert s._start_date.getInfo()['value'] == utils.millis(SCENE_DT)
+    assert s._end_date.getInfo()['value'] == utils.millis(
+        SCENE_DT + datetime.timedelta(days=1))
+    assert s._doy.getInfo() == SCENE_DOY
 
 
 @pytest.mark.parametrize(
@@ -199,7 +217,7 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         # Check custom images
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
-        # This should work but currently fails
+        # DEADBEEF - We should allow any EE image (not just users/projects)
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
     ]
 )
@@ -424,5 +442,30 @@ def test_Image_etf_properties(tol=0.0001):
     assert output['TCORR_INDEX'] == 0
 
 
-# def test_Image_from_landsat_c1_toa(self):
-    #     assert False
+# How should this @classmethod be tested?
+def test_Image_from_landsat_c1_toa_default_image():
+    """Test that the classmethod is returning a class object"""
+    output = ssebop.Image.from_landsat_c1_toa(toa_image())
+    assert type(output) == type(ssebop.Image(default_image()))
+
+
+@pytest.mark.parametrize(
+    'image_id',
+    [
+        'LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        'LANDSAT/LE07/C01/T1_RT_TOA/LE07_044033_20170708',
+        'LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
+        'LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
+    ]
+)
+def test_Image_from_landsat_c1_toa_landsat_image(image_id):
+    """Test instantiating the class from a real Landsat images"""
+    output = ssebop.Image.from_landsat_c1_toa(ee.Image(image_id)).ndvi.getInfo()
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_toa_exception():
+    """Test instantiating the class from a read Landsat images"""
+    with pytest.raises(Exception):
+        ssebop.Image.from_landsat_c1_toa(ee.Image('DEADBEEF'))._index.getInfo()
