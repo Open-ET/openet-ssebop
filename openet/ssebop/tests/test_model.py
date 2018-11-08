@@ -178,7 +178,7 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     assert abs(output - expected) <= tol
 
 
-def test_Image_dt_exception():
+def test_Image_dt_sources_exception():
     with pytest.raises(ValueError):
         ssebop.Image(default_image(), dt_source='')._dt.getInfo()
 
@@ -228,7 +228,7 @@ def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     assert abs(output - expected) <= tol
 
 
-def test_Image_elev_exception():
+def test_Image_elev_sources_exception():
     with pytest.raises(ValueError):
         ssebop.Image(default_image(), elev_source='')._elev.getInfo()
 
@@ -269,15 +269,15 @@ def test_Image_elev_band_name():
         ['MONTH', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9720, 1]],
         # If scene_id and wrs2_tile/month don't match, use default value
         # Testing one Tmax source should be good
-        # ['SCENE', 'DAYMET', 'XXXX_042035_20150713', 13, [0.9780, 2]],  # DEADBEEF - fails
-        # ['MONTH', 'DAYMET', SCENE_ID, 13, [0.9780, 2]],                # DEADBEEF - fails
+        ['SCENE', 'DAYMET', 'XXXX_042035_20150713', 13, [0.9780, 2]],
+        ['MONTH', 'DAYMET', SCENE_ID, 13, [0.9780, 2]],
         # Test a user defined Tcorr value
         ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
         [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
     ]
 )
-def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
-                     tol=0.0001):
+def test_Image_tcorr_source(tcorr_source, tmax_source, scene_id, month,
+                            expected, tol=0.0001):
     """Test getting Tcorr value and index for a single date at a real point"""
     logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
@@ -288,7 +288,7 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
     s = ssebop.Image(input_image, tcorr_source=tcorr_source,
                      tmax_source=tmax_source)
     # Overwrite the month property with test value
-    s.month = ee.Number(month)
+    s._month = ee.Number(month)
 
     # _tcorr returns a tuple of the tcorr and tcorr_index
     tcorr, tcorr_index = s._tcorr
@@ -299,7 +299,7 @@ def test_Image_tcorr(tcorr_source, tmax_source, scene_id, month, expected,
     assert tcorr_index == expected[1]
 
 
-def test_Image_tcorr_exception():
+def test_Image_tcorr_sources_exception():
     with pytest.raises(ValueError):
         ssebop.Image(default_image(), tcorr_source='')._tcorr.getInfo()
 
@@ -328,7 +328,7 @@ def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     assert abs(output - expected) <= tol
 
 
-def test_Image_tmax_exception():
+def test_Image_tmax_sources_exception():
     with pytest.raises(ValueError):
         ssebop.Image(default_image(), tmax_source='')._tmax.getInfo()
 
