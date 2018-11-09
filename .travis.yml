@@ -1,14 +1,9 @@
 language: python
-
 python:
   - "3.6"
-
 install:
   - pip install -r requirements.txt
   - pip install pytest pytest-cov coverage coveralls
-
 script:
   - python -m pytest --cov=openet
-
-after_sucess:
-  - coveralls
+after_sucess: coveralls -v

@@ -26,4 +26,7 @@ dist/
 privatekey.json
 privatekey.b64
 
+# Coveralls
+.coveralls.yml
+
 notes.txt
