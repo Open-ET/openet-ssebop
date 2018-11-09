@@ -196,6 +196,6 @@ References
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
-.. |coverage| image:: https://coveralls.io/repos/github/open-et/openet-ssebop-beta/badge.svg?branch=master
+.. |coverage| image:: https://coveralls.io/repos/github/Open-ET/openet-ssebop-beta/badge.svg?branch=master
    :alt: Coverage Status
-   :target: https://coveralls.io/repos/github/open-et/openet-ssebop-beta
+   :target: https://coveralls.io/github/Open-ET/openet-ssebop-beta
