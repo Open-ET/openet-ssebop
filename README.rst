@@ -2,7 +2,7 @@
 OpenET - SSEBop
 ===============
 
-|version| |build|
+|version| |build| |coverage|
 
 This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
@@ -184,7 +184,7 @@ References
  | Senay, G., Friedrichs, M., Singh, R., Velpui, N. (2016). Evaluating Landsat 8 evapotranspiration for water use mapping in the Colorado River Basin. *Remote Sensing of Environment*, 185.
  | `https://doi.org/10.1016/j.rse.2015.12.043 <https://doi.org/10.1016/j.rse.2015.12.043>`__
 .. [Senay2017]
- | Senay, G., Schauer, M., Friedrichs, M., Manohar, V., Singh, R. (2017). Satellite-based water use dynamics using historical Landsat data (1984–2014) in the southwestern United States. *Remote Sensing of Environment*, 202.
+ | Senay, G., Schauer, M., Friedrichs, M., Manohar, V., Singh, R. (2017). Satellite-based water use dynamics using historical Landsat data (1984\-2014) in the southwestern United States. *Remote Sensing of Environment*, 202.
  | `https://doi.org/10.1016/j.rse.2017.05.005 <https://doi.org/10.1016/j.rse.2017.05.005>`__
 .. [Senay2018]
  | Senay, G. (2018). Satellite Psychrometric Formulation of the Operational Simplified Surface Energy Balance (SSEBop) Model for Quantifying and Mapping Evapotranspiration. *Applied Engineering in Agriculture*, 34(3).
@@ -196,3 +196,6 @@ References
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
+.. |coverage| image:: https://coveralls.io/repos/github/open-et/openet-ssebop-beta/badge.svg?branch=master
+   :alt: Coverage Status
+   :target: https://coveralls.io/repos/github/open-et/openet-ssebop-beta
