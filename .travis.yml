@@ -5,10 +5,10 @@ python:
 
 install:
   - pip install -r requirements.txt
-  - pip install pytest pytest-cov coveralls
-  
+  - pip install pytest pytest-cov coverage coveralls
+
 script:
-  - python -m pytest --cov
+  - python -m pytest --cov=openet
 
 after_sucess:
   - coveralls
