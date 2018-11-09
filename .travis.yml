@@ -6,4 +6,4 @@ install:
   - pip install pytest pytest-cov coverage coveralls
 script:
   - python -m pytest --cov=openet
-after_sucess: coveralls -v
+  - coveralls -v
