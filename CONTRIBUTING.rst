@@ -19,6 +19,42 @@ All code should follow the `PEP8
 
 Docstrings should be written for all functions that follow the `NumPy docstring format <https://numpydoc.readthedocs.io/en/latest/format.html>`__.
 
+Development
+===========
+
+Conda Environment
+-----------------
+
+For local application, development, and testing, the user is strongly encouraged to create a dedicated "openet" conda environment.
+
+Create the conda environment:
+
+.. code-block:: console
+
+    conda create --name openet python=3.6
+
+Activate the environment:
+
+.. code-block:: console
+
+    conda activate openet
+
+Install additional Python modules using conda (and pip for modules not currently available via conda):
+
+.. code-block:: console
+
+    conda install earthengine-api oauth2client pytest
+    pip install openet --no-deps
+
+Updating OpenET Module
+----------------------
+
+While developing the "openet" module, pip can be used to quickly update the module in the "openet" environment if needed.
+
+.. code-block:: console
+
+    pip install . --no-deps
+
 Testing
 =======
 

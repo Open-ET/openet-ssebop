@@ -29,4 +29,5 @@ privatekey.b64
 # Coveralls
 .coveralls.yml
 
+# Miscellaneous files
 notes.txt
