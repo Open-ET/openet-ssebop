@@ -452,10 +452,11 @@ def test_Image_etf_properties(tol=0.0001):
     assert output['TCORR_INDEX'] == 0
 
 
-# How should this @classmethod be tested?
+# How should these @classmethods be tested?
 def test_Image_from_landsat_c1_toa_default_image():
     """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_toa(toa_image())
+    output = ssebop.Image.from_landsat_c1_toa(
+        ee.Image('LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'))
     assert type(output) == type(ssebop.Image(default_image()))
 
 
@@ -476,6 +477,35 @@ def test_Image_from_landsat_c1_toa_landsat_image(image_id):
 
 
 def test_Image_from_landsat_c1_toa_exception():
-    """Test instantiating the class from a read Landsat images"""
+    """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
         ssebop.Image.from_landsat_c1_toa(ee.Image('DEADBEEF'))._index.getInfo()
+
+
+def test_Image_from_landsat_c1_sr_default_image():
+    """Test that the classmethod is returning a class object"""
+    output = ssebop.Image.from_landsat_c1_sr(
+        ee.Image('LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'))
+    assert type(output) == type(ssebop.Image(default_image()))
+
+
+@pytest.mark.parametrize(
+    'image_id',
+    [
+        # 'LANDSAT/LC08/C01/T1_RT_SR/LC08_044033_20170716',
+        'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
+        # 'LANDSAT/LE07/C01/T1_RT_SR/LE07_044033_20170708',
+        'LANDSAT/LE07/C01/T1_SR/LE07_044033_20170708',
+        'LANDSAT/LT05/C01/T1_SR/LT05_044033_20110716',
+    ]
+)
+def test_Image_from_landsat_c1_sr_landsat_image(image_id):
+    """Test instantiating the class from a real Landsat images"""
+    output = ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi.getInfo()
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_sr_exception():
+    """Test instantiating the class for an invalid image ID"""
+    with pytest.raises(Exception):
+        ssebop.Image.from_landsat_c1_sr(ee.Image('DEADBEEF'))._index.getInfo()

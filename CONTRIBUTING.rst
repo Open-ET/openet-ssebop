@@ -49,7 +49,7 @@ Install additional Python modules using conda (and pip for modules not currently
 Updating OpenET Module
 ----------------------
 
-While developing the "openet" module, pip can be used to quickly update the module in the "openet" environment if needed.
+While developing the "ssebop" module, pip can be used to quickly update the module in the "openet" environment if needed.
 
 .. code-block:: console
 

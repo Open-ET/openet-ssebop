@@ -3,6 +3,7 @@ import calendar
 import ee
 
 
+# TODO: Import from common.utils
 # Should these be test fixtures instead?
 # I'm not sure how to make them fixtures and allow input parameters
 def constant_image_value(image, crs='EPSG:32613', scale=1):

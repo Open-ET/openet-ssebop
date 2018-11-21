@@ -5,6 +5,7 @@ import sys
 import ee
 
 from . import utils
+import openet.common
 import openet.interp
 
 
@@ -464,7 +465,7 @@ class Image():
 
     @classmethod
     def from_landsat_c1_toa(cls, toa_image, **kwargs):
-        """Constructs a SSEBop Image object from a Landsat Collection 1 TOA image
+        """Returns a SSEBop Image instance from a Landsat Collection 1 TOA image
 
         Parameters
         ----------
@@ -473,20 +474,23 @@ class Image():
 
         Returns
         -------
-        SSEBop
+        Image
 
         """
+        toa_image = ee.Image(toa_image)
+
         # Use the SPACECRAFT_ID property identify each Landsat type
-        spacecraft_id = ee.String(ee.Image(toa_image).get('SPACECRAFT_ID'))
+        spacecraft_id = ee.String(toa_image.get('SPACECRAFT_ID'))
 
         # Rename bands to generic names
         # Rename thermal band "k" coefficients to generic names
         input_bands = ee.Dictionary({
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
-            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1', 'BQA'],
+            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1',
+                          'BQA'],
             'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'BQA']})
-        output_bands = [
-            'blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst', 'BQA']
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
+                        'BQA']
         k1 = ee.Dictionary({
             'LANDSAT_5': 'K1_CONSTANT_BAND_6',
             'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
@@ -495,10 +499,10 @@ class Image():
             'LANDSAT_5': 'K2_CONSTANT_BAND_6',
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
-        prep_image = ee.Image(toa_image) \
+        prep_image = toa_image \
             .select(input_bands.get(spacecraft_id), output_bands) \
-            .set('k1_constant', ee.Number(ee.Image(toa_image).get(k1.get(spacecraft_id)))) \
-            .set('k2_constant', ee.Number(ee.Image(toa_image).get(k2.get(spacecraft_id))))
+            .set('k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id)))) \
+            .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
         input_image = ee.Image([
@@ -506,11 +510,84 @@ class Image():
             cls._ndvi(prep_image)
         ])
 
-        # Add properties and instantiate class
-        input_image = ee.Image(input_image.setMulti({
-            'system:index': ee.Image(toa_image).get('system:index'),
-            'system:time_start': ee.Image(toa_image).get('system:time_start')
-        }))
+        # Apply the cloud mask and add properties
+        input_image = input_image\
+            .updateMask(openet.common.landsat_c1_toa_cloud_mask(toa_image))\
+            .setMulti({
+                'system:index': toa_image.get('system:index'),
+                'system:time_start': toa_image.get('system:time_start')
+            })
+
+        # Instantiate the class
+        return cls(ee.Image(input_image), **kwargs)
+
+    @classmethod
+    def from_landsat_c1_sr(cls, sr_image, **kwargs):
+        """Returns a SSEBop Image instance from a Landsat Collection 1 SR image
+
+        Parameters
+        ----------
+        sr_image : ee.Image
+            A raw Landsat Collection 1 SR image.
+
+        Returns
+        -------
+        Image
+
+        """
+        sr_image = ee.Image(sr_image)
+
+        # Use the SATELLITE property identify each Landsat type
+        spacecraft_id = ee.String(sr_image.get('SATELLITE'))
+
+        # Rename bands to generic names
+        # Rename thermal band "k" coefficients to generic names
+        input_bands = ee.Dictionary({
+            'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
+            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
+            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa']})
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
+                        'pixel_qa']
+        # TODO: Follow up with Simon about adding K1/K2 properties to SR collection
+        # Hardcode values for now
+        k1 = ee.Dictionary({
+            'LANDSAT_5': 607.76,
+            'LANDSAT_7': 666.09,
+            'LANDSAT_8': 774.8853})
+        k2 = ee.Dictionary({
+            'LANDSAT_5': 1260.56,
+            'LANDSAT_7': 1282.71,
+            'LANDSAT_8': 1321.0789})
+        prep_image = sr_image \
+            .select(input_bands.get(spacecraft_id), output_bands) \
+            .set('k1_constant', ee.Number(k1.get(spacecraft_id))) \
+            .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
+        # k1 = ee.Dictionary({
+        #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
+        #     'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
+        #     'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
+        # k2 = ee.Dictionary({
+        #     'LANDSAT_5': 'K2_CONSTANT_BAND_6',
+        #     'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
+        #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
+        # prep_image = sr_image \
+        #     .select(input_bands.get(spacecraft_id), output_bands) \
+        #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id)))) \
+        #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
+
+        # Build the input image
+        input_image = ee.Image([
+            cls._lst(prep_image),
+            cls._ndvi(prep_image)
+        ])
+
+        # Apply the cloud mask and add properties
+        input_image = input_image\
+            .updateMask(openet.common.landsat_c1_sr_cloud_mask(sr_image))\
+            .setMulti({
+                'system:index': sr_image.get('system:index'),
+                'system:time_start': sr_image.get('system:time_start')
+            })
 
         # Instantiate the class
         return cls(input_image, **kwargs)
