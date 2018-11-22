@@ -6,6 +6,8 @@ import pytest
 
 import openet.ssebop as ssebop
 import openet.ssebop.utils as utils
+# TODO: import utils from openet.core
+# import openet.core.utils as utils
 
 
 SCENE_ID = 'LC08_042035_20150713'

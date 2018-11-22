@@ -5,8 +5,10 @@ import sys
 import ee
 
 from . import utils
-import openet.common
-import openet.interp
+import openet.core.common as common
+import openet.core.interp as interp
+# TODO: import utils from common
+# import openet.core.utils as utils
 
 
 def lazy_property(fn):
@@ -108,8 +110,8 @@ def collection(
 
     # Interpolate to a daily timestep
     # This function is currently setup to always multiply
-    interp_coll = openet.interp.daily_et(
-        et_reference_coll, variable_coll, interp_days=32, interp_type='linear')
+    interp_coll = interp.daily(et_reference_coll, variable_coll,
+                               interp_days=32, interp_method='linear')
 
     return interp_coll
 
@@ -512,7 +514,7 @@ class Image():
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(openet.common.landsat_c1_toa_cloud_mask(toa_image))\
+            .updateMask(common.landsat_c1_toa_cloud_mask(toa_image))\
             .setMulti({
                 'system:index': toa_image.get('system:index'),
                 'system:time_start': toa_image.get('system:time_start')
@@ -583,7 +585,7 @@ class Image():
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(openet.common.landsat_c1_sr_cloud_mask(sr_image))\
+            .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
             .setMulti({
                 'system:index': sr_image.get('system:index'),
                 'system:time_start': sr_image.get('system:time_start')
