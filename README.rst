@@ -28,7 +28,7 @@ Note that scene specific Tcorr values have only been computed for Landsat images
 Model Design
 ============
 
-The primary component of the SSEBop model is the Image() class.  The Image class can be used to compute an image of ET, as well as .  The Image class should generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.  ET image collections can be built by computing ET in a function that is mapped over a collection of input images (please see the `Example Notebooks`_ for more details).
+The primary component of the SSEBop model is the Image() class.  The Image class can be used to compute a single fraction of reference ET (ETf) image from a single input image.  The Image class should generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.  ET image collections can be built by computing ET in a function that is mapped over a collection of input images.  Please see the `Example Notebooks`_ for more details.
 
 Landsat Collection 1 TOA Input Image
 ------------------------------------
@@ -42,7 +42,7 @@ SPACECRAFT_ID      Band Names
 =================  ======================================
 LANDSAT_5          B1, B2, B3, B4, B5, B7, B6, BQA
 LANDSAT_7          B1, B2, B3, B4, B5, B7, B6_VCID_1, BQA
-LANDSAT_8          B2, B3, B4, B5, B6, B7, 'B10', BQA
+LANDSAT_8          B2, B3, B4, B5, B6, B7, B10, BQA
 =================  ======================================
 
 =================  =============================================
@@ -76,7 +76,7 @@ Example
 Custom Input Image
 ------------------
 
-SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature) and 'ndvi' (normalized difference vegetation index).  The input image must have the 'system:index' and 'system:time_start' properties described above.
+SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature) and 'ndvi' (normalized difference vegetation index).  The input image must have 'system:index' and 'system:time_start' properties (described above).
 
 .. code-block:: python
 
@@ -95,6 +95,7 @@ Example Notebooks
 Detailed Jupyter Notebooks of the various approaches for calling the OpenET SSEBop model are provided in the "examples" folder.
 
 + `Computing daily ET for a single Landsat image <examples/single_image.ipynb>`__
++ `Computing a daily ET image collection from Landsat image collection <examples/collection.ipynb>`__
 + `Computing annual ET from a collection <examples/interpolate.ipynb>`__
 
 Ancillary Datasets
@@ -119,9 +120,9 @@ Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1
 
 Elevation
 ---------
-The default elevation dataset is a custom SRTM based CONUS wide 1km resolution raster.
+The default elevation dataset is the USGS SRTM global image asset.
 
-Default Asset ID: projects/usgs-ssebop/srtm_1km
+Default Asset ID: `USGS/SRTMGL1_003 <https://developers.google.com/earth-engine/datasets/catalog/USGS_SRTMGL1_003>`__
 
 The elevation parameter will accept any Earth Engine image.
 
