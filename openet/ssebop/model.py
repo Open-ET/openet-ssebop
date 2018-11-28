@@ -235,6 +235,33 @@ class Image():
         return ee.Image(etf).rename(['etf'])
 
     @lazy_property
+    def tcorr(self):
+        """Compute Tcorr for the current image
+
+        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
+
+        """
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+        tmax = ee.Image(self._tmax)
+
+        # Compute tcorr
+        tcorr = lst.divide(tmax)
+
+        # Remove low LST and low NDVI
+        tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
+
+        # Filter extreme Tdiff values
+        tdiff = tmax.subtract(lst)
+        tcorr_mask = tcorr_mask.And(
+            tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
+
+        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+            .setMulti({'system:index': self._index,
+                       'system:time_start': self._time_start}) \
+            .copyProperties(tmax, ['TMAX_SOURCE', 'TMAX_VERSION'])
+
+    @lazy_property
     def _dt(self):
         """"""
         if utils._is_number(self._dt_source):
