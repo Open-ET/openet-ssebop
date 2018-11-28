@@ -164,15 +164,15 @@ class Image():
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """
-        input_image = ee.Image(image)
+        self.image = ee.Image(image)
 
         # Unpack the input bands as properties
-        self.lst = input_image.select('lst')
-        self.ndvi = input_image.select('ndvi')
+        self.lst = self.image.select('lst')
+        self.ndvi = self.image.select('ndvi')
 
         # Copy system properties
-        self._index = input_image.get('system:index')
-        self._time_start = input_image.get('system:time_start')
+        self._index = self.image.get('system:index')
+        self._time_start = self.image.get('system:time_start')
 
         # Build SCENE_ID from the (possibly merged) system:index
         scene_id = ee.List(ee.String(self._index).split('_')).slice(-3)
@@ -233,33 +233,6 @@ class Image():
                 'TCORR_INDEX': tcorr_index})
 
         return ee.Image(etf).rename(['etf'])
-
-    @lazy_property
-    def tcorr(self):
-        """Compute Tcorr for the current image
-
-        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
-
-        """
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self._tmax)
-
-        # Compute tcorr
-        tcorr = lst.divide(tmax)
-
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
-
-        # Filter extreme Tdiff values
-        tdiff = tmax.subtract(lst)
-        tcorr_mask = tcorr_mask.And(
-            tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
-
-        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
-            .setMulti({'system:index': self._index,
-                       'system:time_start': self._time_start}) \
-            .copyProperties(tmax, ['TMAX_SOURCE', 'TMAX_VERSION'])
 
     @lazy_property
     def _dt(self):
@@ -493,13 +466,17 @@ class Image():
         return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
 
     @classmethod
-    def from_landsat_c1_toa(cls, toa_image, **kwargs):
+    def from_landsat_c1_toa(cls, toa_image, cloudmask_args={}, **kwargs):
         """Returns a SSEBop Image instance from a Landsat Collection 1 TOA image
 
         Parameters
         ----------
         toa_image : ee.Image
             A raw Landsat Collection 1 TOA image.
+        cloudmask_args : dict
+            keyword arguments to pass through to cloud mask function
+        kwargs : dict
+            Keyword arguments to pass through to Image init function
 
         Returns
         -------
@@ -534,14 +511,12 @@ class Image():
             .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
-        input_image = ee.Image([
-            cls._lst(prep_image),
-            cls._ndvi(prep_image)
-        ])
+        input_image = ee.Image([cls._lst(prep_image), cls._ndvi(prep_image)])
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(common.landsat_c1_toa_cloud_mask(toa_image))\
+            .updateMask(common.landsat_c1_toa_cloud_mask(
+                toa_image, **cloudmask_args))\
             .setMulti({
                 'system:index': toa_image.get('system:index'),
                 'system:time_start': toa_image.get('system:time_start')
@@ -574,19 +549,16 @@ class Image():
         input_bands = ee.Dictionary({
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
-            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa']})
+            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10',
+                          'pixel_qa']})
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
                         'pixel_qa']
-        # TODO: Follow up with Simon about adding K1/K2 properties to SR collection
+        # TODO: Follow up with Simon about adding K1/K2 to SR collection
         # Hardcode values for now
         k1 = ee.Dictionary({
-            'LANDSAT_5': 607.76,
-            'LANDSAT_7': 666.09,
-            'LANDSAT_8': 774.8853})
+            'LANDSAT_5': 607.76, 'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853})
         k2 = ee.Dictionary({
-            'LANDSAT_5': 1260.56,
-            'LANDSAT_7': 1282.71,
-            'LANDSAT_8': 1321.0789})
+            'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
         prep_image = sr_image \
             .select(input_bands.get(spacecraft_id), output_bands) \
             .set('k1_constant', ee.Number(k1.get(spacecraft_id))) \
@@ -605,10 +577,7 @@ class Image():
         #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
-        input_image = ee.Image([
-            cls._lst(prep_image),
-            cls._ndvi(prep_image)
-        ])
+        input_image = ee.Image([cls._lst(prep_image), cls._ndvi(prep_image)])
 
         # Apply the cloud mask and add properties
         input_image = input_image\
@@ -760,3 +729,52 @@ class Image():
                 'threshold': lapse_threshold
             })
         return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
+
+    @lazy_property
+    def tcorr_image(self):
+        """Compute Tcorr for the current image
+
+        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
+
+        """
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+        tmax = ee.Image(self._tmax)
+
+        # Compute tcorr
+        tcorr = lst.divide(tmax)
+
+        # Remove low LST and low NDVI
+        tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
+
+        # Filter extreme Tdiff values
+        tdiff = tmax.subtract(lst)
+        tcorr_mask = tcorr_mask.And(
+            tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
+
+        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+            .setMulti({'system:index': self._index,
+                       'system:time_start': self._time_start}) \
+            .copyProperties(tmax, ['TMAX_SOURCE', 'TMAX_VERSION'])
+
+    @lazy_property
+    def tcorr_stats(self):
+        """Compute the Tcorr 5th percentile and count statistics"""
+        image_proj = self.image.select([0]).projection()
+        image_crs = image_proj.crs()
+        image_geo = ee.List(ee.Dictionary(
+            ee.Algorithms.Describe(image_proj)).get('transform'))
+        # image_shape = ee.List(ee.Dictionary(ee.List(ee.Dictionary(
+        #     ee.Algorithms.Describe(self.image)).get('bands')).get(0)).get('dimensions'))
+        # print(image_shape.getInfo())
+        # print(image_crs.getInfo())
+        # print(image_geo.getInfo())
+
+        return ee.Image(self.tcorr_image).reduceRegion(
+            reducer=ee.Reducer.percentile([5]).combine(ee.Reducer.count(), '', True),
+            crs=image_crs,
+            crsTransform=image_geo,
+            geometry=self.image.geometry().buffer(1000),
+            bestEffort=False,
+            maxPixels=2*10000*10000,
+            tileScale=1)

@@ -395,44 +395,6 @@ def test_Image_tmax_properties(tmax_source, expected):
 
 @pytest.mark.parametrize(
     # Note: These are made up values
-    'lst, ndvi, tmax, expected',
-    [
-        [300, 0.80, 306, 0.9804],
-        [300, 0.69, 306, None],  # NDVI < 0.7
-        [269, 0.69, 306, None],  # LST < 270
-        [290, 0.20, 306, None],  # Tdiff > 15
-        [307, 0.20, 306, None],  # Tdiff < 0
-    ]
-)
-def test_Image_compute_tcorr(lst, ndvi, tmax, expected, tol=0.0001):
-    output_img = ssebop.Image(default_image(lst=lst, ndvi=ndvi),
-                              tmax_source=tmax).tcorr
-    output = utils.constant_image_value(ee.Image(output_img))
-    if output is None and expected is None:
-        assert True
-    else:
-        assert abs(output - expected) <= tol
-
-
-def test_Image_compute_tcorr_band_name():
-    output = ssebop.Image(default_image()).tcorr.getInfo()['bands'][0]['id']
-    assert output == 'tcorr'
-
-
-def test_Image_compute_tcorr_properties(tmax_source='TOPOWX_MEDIAN_V0',
-                                        expected={'TMAX_VERSION': 'median_v0'},
-                                        tol=0.0001):
-    """Test if properties are set on the tcorr image"""
-    tcorr_img = ssebop.Image(default_image()).tcorr
-    output = tcorr_img.getInfo()['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == ee.Date(SCENE_DATE).millis().getInfo()
-    assert output['TMAX_SOURCE'] == tmax_source
-    assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
-
-
-@pytest.mark.parametrize(
-    # Note: These are made up values
     'lst, ndvi, dt, elev, tcorr, tmax, expected',
     [
         # Test ETf clamp conditions
@@ -581,3 +543,71 @@ def test_Image_from_landsat_c1_sr_exception():
     """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
         ssebop.Image.from_landsat_c1_sr(ee.Image('DEADBEEF'))._index.getInfo()
+
+
+@pytest.mark.parametrize(
+    # Note: These are made up values
+    'lst, ndvi, tmax, expected',
+    [
+        [300, 0.80, 306, 0.9804],
+        [300, 0.69, 306, None],  # NDVI < 0.7
+        [269, 0.69, 306, None],  # LST < 270
+        [290, 0.20, 306, None],  # Tdiff > 15
+        [307, 0.20, 306, None],  # Tdiff < 0
+    ]
+)
+def test_Image_tcorr_image(lst, ndvi, tmax, expected, tol=0.0001):
+    output_img = ssebop.Image(default_image(lst=lst, ndvi=ndvi),
+                              tmax_source=tmax).tcorr_image
+    output = utils.constant_image_value(ee.Image(output_img))
+    if output is None and expected is None:
+        assert True
+    else:
+        assert abs(output - expected) <= tol
+
+
+def test_Image_tcorr_image_band_name():
+    output = ssebop.Image(default_image()).tcorr_image.getInfo()['bands'][0]['id']
+    assert output == 'tcorr'
+
+
+def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
+                                      expected={'TMAX_VERSION': 'median_v0'}):
+    """Test if properties are set on the tcorr image"""
+    tcorr_img = ssebop.Image(default_image()).tcorr_image
+    output = tcorr_img.getInfo()['properties']
+    assert output['system:index'] == SCENE_ID
+    assert output['system:time_start'] == ee.Date(SCENE_DATE).millis().getInfo()
+    assert output['TMAX_SOURCE'] == tmax_source
+    assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
+
+
+def test_Image_tcorr_stats(expected=0.98663777, tol=0.00000001):
+    # The input image needs to be clipped otherwise it is unbounded
+    input_image = ee.Image(default_image())\
+        .clip(ee.Geometry.Rectangle(-120, 39, -119, 40))
+    output = ssebop.Image(input_image).tcorr_stats.getInfo()
+    assert abs(output['tcorr_p5'] - expected) <= tol
+    assert output['tcorr_count'] == 1
+
+
+@pytest.mark.parametrize(
+    'image_id, expected',
+    [
+        # TopoWX median v0 values
+        # Note, these values are slightly different than those in the tcorr
+        #   feature collection (commented out values), because the original
+        #   values were built with snap points of 0, 0 instead of 15, 15.
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         {'tcorr_p5': 0.99255660, 'tcorr_count': 969952}],  # 0.99255676, 971875
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
+         {'tcorr_p5': 0.98302061, 'tcorr_count': 1700386}], # 0.98302000, 1700567
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
+         {'tcorr_p5': 0.95788534, 'tcorr_count': 2315635}], # 0.95788514, 2315630
+    ]
+)
+def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):
+    input = ssebop.Image.from_landsat_c1_toa(ee.Image(image_id))
+    output = input.tcorr_stats.getInfo()
+    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
+    assert output['tcorr_count'] == expected['tcorr_count']
