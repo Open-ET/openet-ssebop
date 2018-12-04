@@ -3,6 +3,7 @@ import datetime
 import logging
 import subprocess
 import sys
+import time
 
 import ee
 
@@ -110,6 +111,15 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=True):
         tasks[t_desc] = t_id
         # tasks[t_id] = t_desc
     return tasks
+
+
+def image_exists(asset_id):
+    try:
+        ee.Image(asset_id).getInfo()
+        return True
+    except Exception as e:
+        # print(e)
+        return False
 
 
 def millis(input_dt):
