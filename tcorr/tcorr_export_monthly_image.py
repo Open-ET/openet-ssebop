@@ -144,13 +144,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 product=ini['SSEBOP']['tmax_source'].lower(),
                 date='month{:02d}'.format(month),
                 export=ini['EXPORT']['export_dest'].lower())
-        logging.debug('  Export ID: {0}'.format(export_id))
+        logging.info('  Export ID: {0}'.format(export_id))
 
         if ini['EXPORT']['export_dest'] == 'ASSET':
             # DEADBEEF - monthly is hardcoded in the asset_id for now
             asset_id = '{}/{}'.format(
                 tcorr_monthly_coll_id, '{:02d}'.format(month))
-            logging.debug('  Asset ID: {}'.format(asset_id))
+            logging.info('  Asset ID: {}'.format(asset_id))
 
         if overwrite_flag:
             if export_id in tasks.keys():

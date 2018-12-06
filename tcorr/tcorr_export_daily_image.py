@@ -195,27 +195,31 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 continue
 
         # Build and merge the Landsat collections
-        l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_img.geometry()) \
-            .filterBounds(export_geom) \
+        l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA')\
+            .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
+            .filterBounds(tmax_img.geometry())\
+            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
-        l7_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_RT_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_img.geometry()) \
-            .filterBounds(export_geom) \
+                            float(ini['INPUTS']['cloud_cover']))\
+            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
+            .filter(ee.Filter.gt('system:time_start',
+                                 ee.Date('2013-03-24').millis()))
+        l7_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_RT_TOA')\
+            .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
+            .filterBounds(tmax_img.geometry())\
+            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
+                            float(ini['INPUTS']['cloud_cover']))\
             .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
         l5_coll = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA')\
             .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
             .filterBounds(tmax_img.geometry())\
-            .filterBounds(export_geom) \
+            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover']))\
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
+            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
+            .filter(ee.Filter.lt('system:time_start',
+                                 ee.Date('2011-12-31').millis()))
         landsat_coll = ee.ImageCollection(l8_coll.merge(l7_coll).merge(l5_coll))
         # pprint.pprint(landsat_coll.aggregate_histogram('system:index').getInfo())
         # pprint.pprint(ee.Image(landsat_coll.first()).getInfo())
