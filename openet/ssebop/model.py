@@ -151,7 +151,7 @@ class Image():
         elr_flag : bool, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
-        tdiff_threshold : int, optional
+        tdiff_threshold : float, optional
             Cloud mask buffer using Tdiff [K] (the default is 15).
         dt_min : float, optional
             Minimum allowable dT [K] (the default is 6).
@@ -198,9 +198,9 @@ class Image():
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
-        self._tdiff_threshold = tdiff_threshold
-        self._dt_min = dt_min
-        self._dt_max = dt_max
+        self._tdiff_threshold = float(tdiff_threshold)
+        self._dt_min = float(dt_min)
+        self._dt_max = float(dt_max)
 
     @lazy_property
     def etf(self):
@@ -293,36 +293,12 @@ class Image():
 
         # Lookup Tcorr collections by keyword value
         scene_coll_dict = {
-            'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_scene',
-            'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_scene',
-            'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_scene',
-            # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_scene',
-            'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_scene',
-            'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_scene',
-            'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_scene',
-            'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_scene',
-            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_scene'
+            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_scene'
         }
         month_coll_dict = {
-            'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_monthly',
-            'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_monthly',
-            'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_monthly',
-            # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_monthly',
-            'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_monthly',
-            'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_monthly',
-            'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_monthly',
-            'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_monthly',
-            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_monthly',
+            'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_monthly',
         }
         default_value_dict = {
-            'CIMIS': 0.978,
-            'DAYMET': 0.978,
-            'GRIDMET': 0.978,
-            'TOPOWX': 0.978,
-            'CIMIS_MEDIAN_V1': 0.978,
-            'DAYMET_MEDIAN_V0': 0.978,
-            'DAYMET_MEDIAN_V1': 0.978,
-            'GRIDMET_MEDIAN_V1': 0.978,
             'TOPOWX_MEDIAN_V0': 0.978
         }
 
@@ -357,6 +333,90 @@ class Image():
         tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
 
         return tcorr, tcorr_index
+
+    # @lazy_property
+    # def _tcorr(self):
+    #     """Get Tcorr from pre-computed assets for each Tmax source
+    #
+    #     Tcorr Index values indicate which level of Tcorr was used
+    #       0 - Scene specific Tcorr
+    #       1 - Mean monthly Tcorr per WRS2 tile
+    #       2 - Default Tcorr
+    #       3 - User defined Tcorr
+    #     """
+    #
+    #     # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
+    #     if utils._is_number(self._tcorr_source):
+    #         tcorr = ee.Number(float(self._tcorr_source))
+    #         tcorr_index = ee.Number(3)
+    #         return tcorr, tcorr_index
+    #
+    #     # Lookup Tcorr collections by keyword value
+    #     scene_coll_dict = {
+    #         'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_scene',
+    #         'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_scene',
+    #         'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_scene',
+    #         # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_scene',
+    #         'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_scene',
+    #         'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_scene',
+    #         'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_scene',
+    #         'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_scene',
+    #         'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_scene'
+    #     }
+    #     month_coll_dict = {
+    #         'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_monthly',
+    #         'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_monthly',
+    #         'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_monthly',
+    #         # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_monthly',
+    #         'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_monthly',
+    #         'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_monthly',
+    #         'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_monthly',
+    #         'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_monthly',
+    #         'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_monthly',
+    #     }
+    #     default_value_dict = {
+    #         'CIMIS': 0.978,
+    #         'DAYMET': 0.978,
+    #         'GRIDMET': 0.978,
+    #         'TOPOWX': 0.978,
+    #         'CIMIS_MEDIAN_V1': 0.978,
+    #         'DAYMET_MEDIAN_V0': 0.978,
+    #         'DAYMET_MEDIAN_V1': 0.978,
+    #         'GRIDMET_MEDIAN_V1': 0.978,
+    #         'TOPOWX_MEDIAN_V0': 0.978
+    #     }
+    #
+    #     # Check Tmax source value
+    #     tmax_key = self._tmax_source.upper()
+    #     if tmax_key not in default_value_dict.keys():
+    #         logging.error(
+    #             '\nInvalid tmax_source: {} / {}\n'.format(
+    #                 self._tcorr_source, self._tmax_source))
+    #         sys.exit()
+    #
+    #     default_coll = ee.FeatureCollection([
+    #         ee.Feature(None, {'INDEX': 2, 'TCORR': default_value_dict[tmax_key]})])
+    #     month_coll = ee.FeatureCollection(month_coll_dict[tmax_key]) \
+    #         .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile) \
+    #         .filterMetadata('MONTH', 'equals', self._month)
+    #     if self._tcorr_source.upper() == 'SCENE':
+    #         scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key]) \
+    #             .filterMetadata('SCENE_ID', 'equals', self._scene_id)
+    #         tcorr_coll = ee.FeatureCollection(
+    #             default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
+    #     elif self._tcorr_source.upper() == 'MONTH':
+    #         tcorr_coll = ee.FeatureCollection(
+    #             default_coll.merge(month_coll)).sort('INDEX')
+    #     else:
+    #         raise ValueError(
+    #             'Invalid tcorr_source: {} / {}\n'.format(
+    #                 self._tcorr_source, self._tmax_source))
+    #
+    #     tcorr_ftr = ee.Feature(tcorr_coll.first())
+    #     tcorr = ee.Number(tcorr_ftr.get('TCORR'))
+    #     tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
+    #
+    #     return tcorr, tcorr_index
 
     @lazy_property
     def _tmax(self):

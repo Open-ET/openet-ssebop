@@ -456,6 +456,7 @@ def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
         # Test Tdiff buffer value masking
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [304, 0.10, 15, 50, 0.98, 310, 5, None],
+        [304, 0.10, '15', 50, 0.98, 310, 5, None],
     ]
 )
 def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
