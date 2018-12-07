@@ -18,8 +18,7 @@ import openet.ssebop as ssebop
 import utils
 
 
-def main(ini_path=None, overwrite_flag=False, delay=0,
-         key=None):
+def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     """Compute daily Tcorr images
 
     Parameters
@@ -76,65 +75,41 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
     tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
     tmax_coll = ee.ImageCollection(tmax_coll_id)
     tmax_img = ee.Image(tmax_coll.first())
-    #     .setMulti({'TMAX_SOURCE': tmax_source.upper(),
-    #                'TMAX_VERSION': tmax_version.upper()})
-    tmax_geo = ee.Image(tmax_img).projection().getInfo()['transform']
-    tmax_crs = ee.Image(tmax_img).projection().getInfo()['crs']
-    tmax_shape = ee.Image(tmax_img).getInfo()['bands'][0]['dimensions']
-    tmax_extent = [tmax_geo[2], tmax_geo[5] + tmax_shape[1] * tmax_geo[4],
-                   tmax_geo[2] + tmax_shape[0] * tmax_geo[0], tmax_geo[5]]
-    logging.debug('  Shape: {}'.format(tmax_shape))
-    logging.debug('  Extent: {}'.format(tmax_extent))
-    logging.debug('  Geo: {}'.format(tmax_geo))
-    logging.debug('  CRS: {}'.format(tmax_crs))
+    logging.debug('  Collection: {}'.format(tmax_coll_id))
+    logging.debug('  Source: {}'.format(tmax_source))
+    logging.debug('  Version: {}'.format(tmax_version))
 
-    # Study Area
     logging.debug('\nExport properties')
-    export_crs = 'EPSG:4326'
-    export_geom = ee.Geometry.Rectangle([-125, 24, -65, 50], proj=export_crs,
-                                        geodesic=False)  # CONUS
-    # export_geom = ee.Geometry.Rectangle([-124, 35, -119, 42], proj=export_crs,
-    #                                     geodesic=False)  # California
+    export_geo = ee.Image(tmax_img).projection().getInfo()['transform']
+    export_crs = ee.Image(tmax_img).projection().getInfo()['crs']
+    export_shape = ee.Image(tmax_img).getInfo()['bands'][0]['dimensions']
+    export_extent = [
+        export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
+        export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    logging.debug('  CRS: {}'.format(export_crs))
+    logging.debug('  Extent: {}'.format(export_extent))
+    logging.debug('  Geo: {}'.format(export_geo))
+    logging.debug('  Shape: {}'.format(export_shape))
 
-    # Adjust the output cellsize and recompute the transform and shape
+    # # Limit export to a user defined study area or geometry?
+    # export_geom = ee.Geometry.Rectangle(
+    #     [-125, 24, -65, 50], proj='EPSG:4326', geodesic=False)  # CONUS
+    # export_geom = ee.Geometry.Rectangle(
+    #     [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)  # California
+
+    # If cell_size parameter is set in the INI,
+    # adjust the output cellsize and recompute the transform and shape
     try:
         export_cs = float(ini['EXPORT']['cell_size'])
+        export_shape = [
+            int(math.ceil(abs((export_shape[0] * export_geo[0]) / export_cs))),
+            int(math.ceil(abs((export_shape[1] * export_geo[4]) / export_cs)))]
+        export_geo = [export_cs, 0.0, export_geo[2], 0.0, -export_cs, export_geo[5]]
+        logging.debug('  Custom export cell size: {}'.format(export_cs))
+        logging.debug('  Geo: {}'.format(export_geo))
+        logging.debug('  Shape: {}'.format(export_shape))
     except KeyError:
-        export_cs = tmax_geo[0]
-
-    # Recompute the shape based on the export cellsize
-    export_geo = [export_cs, 0.0, tmax_geo[2], 0.0, -export_cs, tmax_geo[5]]
-    export_shape = [
-        int(math.ceil(abs((tmax_shape[0] * tmax_geo[0]) / export_cs))),
-        int(math.ceil(abs((tmax_shape[1] * tmax_geo[4]) / export_cs)))]
-    logging.debug('  Shape: {}'.format(export_shape))
-    # logging.debug('  Extent: {}'.format(export_extent))
-    logging.debug('  Geo: {}'.format(export_geo))
-    logging.debug('  CRS: {}'.format(export_crs))
-
-    # # Compute clipped Tmax grid (why is this done using Earth Engine objects?)
-    # export_xy = ee.Array(export_geom.bounds(1, export_crs).coordinates()\
-    #                         .get(0)).transpose().toList()
-    # export_xmin = ee.Number(ee.List(export_xy.get(0)).reduce(ee.Reducer.min()))
-    # export_ymin = ee.Number(ee.List(export_xy.get(1)).reduce(ee.Reducer.min()))
-    # export_xmax = ee.Number(ee.List(export_xy.get(0)).reduce(ee.Reducer.max()))
-    # export_ymax = ee.Number(ee.List(export_xy.get(1)).reduce(ee.Reducer.max()))
-    # # Snap to Tmax grid
-    # export_xmin = export_xmin.subtract(tmax_extent[0]).divide(export_cs)\
-    #     .floor().multiply(export_cs).add(tmax_extent[0])
-    # export_ymin = export_ymin.subtract(tmax_extent[3]).divide(export_cs)\
-    #     .floor().multiply(export_cs).add(tmax_extent[3])
-    # export_xmax = export_xmax.subtract(tmax_extent[0]).divide(export_cs)\
-    #     .ceil().multiply(export_cs).add(tmax_extent[0])
-    # export_ymax = export_ymax.subtract(tmax_extent[3]).divide(export_cs)\
-    #     .ceil().multiply(export_cs).add(tmax_extent[3])
-    # #  Limit to Tmax grid
-    # export_xmin = export_xmin.max(tmax_extent[0]).min(tmax_extent[2])
-    # export_ymin = export_ymin.max(tmax_extent[1]).min(tmax_extent[3])
-    # export_xmax = export_xmax.min(tmax_extent[0]).max(tmax_extent[2])
-    # export_ymax = export_ymax.min(tmax_extent[1]).max(tmax_extent[3])
-
-
+        pass
 
     # Get current asset list
     if ini['EXPORT']['export_dest'].upper() == 'ASSET':
@@ -161,13 +136,19 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
         export_date = export_dt.strftime('%Y-%m-%d')
         logging.info('Date: {}'.format(export_date))
 
-        # Output name
+        if export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
+            logging.info('  Unsupported date, skipping')
+            continue
+        elif export_date < '1984-03-23':
+            logging.info('  No Landsat 5+ images before 1984-03-16, skipping')
+            continue
+
         export_id = ini['EXPORT']['export_id_fmt'] \
             .format(
                 product=ini['SSEBOP']['tmax_source'].lower(),
                 date=export_dt.strftime('%Y%m%d'),
                 export=ini['EXPORT']['export_dest'].lower())
-        logging.debug('  Export ID: {0}'.format(export_id))
+        logging.debug('  Export ID: {}'.format(export_id))
 
         if ini['EXPORT']['export_dest'] == 'ASSET':
             # DEADBEEF - daily is hardcoded in the asset_id for now
@@ -195,10 +176,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 continue
 
         # Build and merge the Landsat collections
+        #     .filterBounds(export_geom) \
         l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA')\
             .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
-            .filterBounds(tmax_img.geometry())\
-            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover']))\
             .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
@@ -207,20 +187,26 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
         l7_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_RT_TOA')\
             .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
             .filterBounds(tmax_img.geometry())\
-            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover']))\
             .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
         l5_coll = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA')\
             .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
             .filterBounds(tmax_img.geometry())\
-            .filterBounds(export_geom)\
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover']))\
             .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
             .filter(ee.Filter.lt('system:time_start',
                                  ee.Date('2011-12-31').millis()))
-        landsat_coll = ee.ImageCollection(l8_coll.merge(l7_coll).merge(l5_coll))
+        # l4_coll = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA')\
+        #     .filterDate(export_dt, export_dt + datetime.timedelta(days=1))\
+        #     .filterBounds(tmax_img.geometry())\
+        #     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
+        #                     float(ini['INPUTS']['cloud_cover']))\
+        #     .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
+
+        landsat_coll = ee.ImageCollection(
+            l8_coll.merge(l7_coll).merge(l5_coll))
         # pprint.pprint(landsat_coll.aggregate_histogram('system:index').getInfo())
         # pprint.pprint(ee.Image(landsat_coll.first()).getInfo())
         # input('ENTER')
@@ -241,34 +227,54 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 .cat(ee.String(scene_id.get(1))).cat('_') \
                 .cat(ee.String(scene_id.get(2)))
 
-            return ee.Image([
-                tmax_img.select([0], ['tcorr']).double().multiply(0).add(
-                    ee.Image.constant(tcorr)),
-                tmax_img.select([0], ['count']).double().multiply(0).add(
-                    ee.Image.constant(count))]) \
+            # return ee.Image([
+            #         tmax_img.select([0], ['tcorr']).multiply(0)\
+            #             .add(ee.Image.constant(tcorr)).float(),
+            #         tmax_img.select([0], ['count']).multiply(0)
+            #             .add(ee.Image.constant(count)).int()]) \
+            return tmax_img.select([0], ['tcorr'])\
+                .multiply(0).add(ee.Image.constant(tcorr))\
                 .clip(image.geometry()) \
                 .updateMask(1) \
                 .setMulti({
-                    # 'system:index': scene_id,
                     'system:time_start': image.get('system:time_start'),
                     'SCENE_ID': scene_id,
                     'WRS2_TILE': scene_id.slice(5, 11),
+                    'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
                     'TCORR': tcorr,
                     'COUNT': count,
             })
 
-        tcorr_img_coll = ee.ImageCollection(landsat_coll.map(tcorr_img_func)) \
+        tcorr_img_coll = ee.ImageCollection(landsat_coll.map(tcorr_img_func))\
             .filterMetadata('COUNT', 'not_less_than',
                             float(ini['TCORR']['min_pixel_count']))
         # pprint.pprint(tcorr_img_coll.aggregate_histogram('system:index').getInfo())
         # pprint.pprint(ee.Image(tcorr_img_coll.first()).getInfo())
         # input('ENTER')
 
-        tcorr_img = tcorr_img_coll.mean() \
+        # If there are no Tcorr values, return an empty image
+        tcorr_img = ee.Algorithms.If(
+            tcorr_img_coll.size().gt(0),
+            tcorr_img_coll.mean(),
+            tmax_img.multiply(0).updateMask(0))
+
+        # Is there a better way of building these strings?
+        wrs2_tile_list = ee.Algorithms.If(
+            tcorr_img_coll.size().gt(0),
+            ee.String(ee.List(ee.Dictionary(tcorr_img_coll \
+                .aggregate_histogram('WRS2_TILE')).keys()).join(',')),
+            ee.String(''))
+        landsat_list = ee.Algorithms.If(
+            tcorr_img_coll.size().gt(0),
+            ee.String(ee.List(ee.Dictionary(tcorr_img_coll\
+                .aggregate_histogram('SPACECRAFT_ID')).keys()).join(',')),
+            ee.String(''))
+
+        # Cast to float and set properties
+        tcorr_img = ee.Image(tcorr_img).rename(['tcorr']).float()\
             .setMulti({
                 'system:time_start': utils.millis(export_dt),
-                'WRS2_TILES': ee.String(ee.List(ee.Dictionary(
-                    tcorr_img_coll.aggregate_histogram('WRS2_TILE')).keys()).join(',')),
+                'WRS2_TILES': wrs2_tile_list,
                 'SSEBOP_VERSION': ssebop.__version__,
                 'TMAX_SOURCE': tmax_source.upper(),
                 'TMAX_VERSION': tmax_version.upper(),
@@ -278,6 +284,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 'MONTH': int(export_dt.month),
                 'DAY': int(export_dt.day),
                 'DOY': int(export_dt.strftime('%j')),
+                'LANDSAT': landsat_list
             })
         # pprint.pprint(tcorr_img.getInfo())
         # input('ENTER')
@@ -289,7 +296,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
                 image=ee.Image(tcorr_img),
                 description=export_id,
                 assetId=asset_id,
-                crs=tmax_crs,
+                crs=export_crs,
                 crsTransform='[' + ','.join(list(map(str, export_geo))) + ']',
                 dimensions='{0}x{1}'.format(*export_shape),
             )

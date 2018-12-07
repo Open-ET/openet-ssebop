@@ -7,7 +7,6 @@ import argparse
 from builtins import input
 import datetime
 import logging
-import math
 import os
 import pprint
 import sys
@@ -18,8 +17,7 @@ import openet.ssebop as ssebop
 import utils
 
 
-def main(ini_path=None, overwrite_flag=False, delay=0,
-         key=None):
+def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     """Compute monthly Tcorr images
 
     Parameters
@@ -68,13 +66,15 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
     tmax_name = ini['SSEBOP']['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
-
-    # Output Tcorr monthly image collection
-    tcorr_monthly_coll_id = '{}/{}_monthly'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+    tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
+    tmax_coll = ee.ImageCollection(tmax_coll_id)
+    tmax_img = ee.Image(tmax_coll.first())
+    logging.debug('  Collection: {}'.format(tmax_coll_id))
+    logging.debug('  Source: {}'.format(tmax_source))
+    logging.debug('  Version: {}'.format(tmax_version))
 
     # Get the Tcorr daily image collection properties
-    logging.debug('\nTcorr properties')
+    logging.debug('\nTcorr Image properties')
     tcorr_daily_coll_id = '{}/{}_daily'.format(
         ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
@@ -88,10 +88,14 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
     logging.debug('  Geo: {}'.format(tcorr_geo))
     logging.debug('  CRS: {}'.format(tcorr_crs))
 
+    # Output Tcorr monthly image collection
+    tcorr_monthly_coll_id = '{}/{}_monthly'.format(
+        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+
     # Get current asset list
     if ini['EXPORT']['export_dest'].upper() == 'ASSET':
         logging.debug('\nGetting asset list')
-        # DEADBEEF - monthly is hardcoded in the asset_id for now
+        # DEADBEEF - "monthly" is hardcoded in the asset_id for now
         asset_list = utils.get_ee_assets('{}/{}_monthly'.format(
             ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower()))
     else:
@@ -102,23 +106,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
     tasks = utils.get_ee_tasks()
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
-        # input('ENTER')
-
-    # iter_start_dt = datetime.datetime.strptime(
-    #     ini['INPUTS']['start_date'], '%Y-%m-%d')
-    # iter_end_dt = datetime.datetime.strptime(
-    #     ini['INPUTS']['end_date'], '%Y-%m-%d')
-    #
-    # # Monthly date ranges
-    # iter_dates = [
-    #     datetime.datetime(y, m, 1)
-    #     for y in range(iter_start_dt.year, iter_end_dt.year + 2)
-    #     for m in range(1, 13)
-    #     if datetime.datetime(y, m, 1) >= iter_start_dt]
-    # iter_dates = [
-    #     [dt, (iter_dates[i + 1] - datetime.timedelta(days=1))]
-    #     for i, dt in enumerate(iter_dates[:-1])
-    #     if (iter_dates[i + 1] - datetime.timedelta(days=1)) <= iter_end_dt]
+        input('ENTER')
 
     month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
     year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
@@ -132,22 +120,16 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
     # Iterate over date ranges
     for month in month_list:
         logging.info('\nMonth: {}'.format(month))
-        # iter_start_date = iter_start_dt.strftime('%Y-%m-%d')
-        # iter_end_date = iter_end_dt.strftime('%Y-%m-%d')
-        # iter_next_date = (iter_end_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-        # logging.info('\nStart Date: {}'.format(iter_start_date))
-        # logging.info('End Date:   {}'.format(iter_end_date))
 
-        # Output name
         export_id = ini['EXPORT']['export_id_fmt'] \
             .format(
                 product=ini['SSEBOP']['tmax_source'].lower(),
                 date='month{:02d}'.format(month),
                 export=ini['EXPORT']['export_dest'].lower())
-        logging.info('  Export ID: {0}'.format(export_id))
+        logging.info('  Export ID: {}'.format(export_id))
 
         if ini['EXPORT']['export_dest'] == 'ASSET':
-            # DEADBEEF - monthly is hardcoded in the asset_id for now
+            # DEADBEEF - "monthly" is hardcoded in the asset_id for now
             asset_id = '{}/{}'.format(
                 tcorr_monthly_coll_id, '{:02d}'.format(month))
             logging.info('  Asset ID: {}'.format(asset_id))
@@ -178,16 +160,22 @@ def main(ini_path=None, overwrite_flag=False, delay=0,
         # pprint.pprint(ee.Image(tcorr_img_coll.first()).getInfo())
         # input('ENTER')
 
-        #
+        # Initialize the monthly images with the default Tcorr value
+        #   and an index of 2
+        tcorr_img = tmax_img.multiply(0).add(float(ini['TCORR']['tcorr_default']))
+        index_img = tmax_img.multiply(0).add(2)
         count_img = tcorr_img_coll.select(['tcorr']).count()
         count_mask = count_img.gte(int(ini['TCORR']['min_scene_count']))
-        tcorr_img = tcorr_img_coll.select(['tcorr']).median()\
-            .where(count_mask.Not(), float(ini['TCORR']['tcorr_default']))
-        index_img = count_img.multiply(0).add(1) \
-            .where(count_mask.Not(), 2)
+
+        # Where the scene count is high enough, fill in with the median monthly
+        #   value and set the index to 1
+        tcorr_img = tcorr_img.where(
+            count_mask, tcorr_img_coll.select(['tcorr']).median())
+        index_img = index_img.where(count_mask, 1)
 
         # Mask pixels with counts below threshold
-        output_img = ee.Image([tcorr_img, count_img, index_img])\
+        output_img = ee.Image([
+                tcorr_img.float(), count_img.int16(), index_img.int8()])\
             .rename(['tcorr', 'count', 'index'])\
             .setMulti({
                 # 'system:time_start': utils.millis(iter_start_dt),
