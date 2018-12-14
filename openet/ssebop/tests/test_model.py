@@ -22,7 +22,7 @@ def toa_image(red=0.2, nir=0.7, bt=300):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
     return ee.Image.constant([red, nir, bt])\
         .rename(['red', 'nir', 'lst']) \
-        .setMulti({
+        .set({
             'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56)})
@@ -31,7 +31,7 @@ def toa_image(red=0.2, nir=0.7, bt=300):
 def default_image(lst=300, ndvi=0.8):
     # First construct a fake 'prepped' input image
     return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
-        .setMulti({
+        .set({
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).millis(),
     })
@@ -294,7 +294,7 @@ def test_Image_tcorr_source(tcorr_source, tmax_source, scene_id, month,
     logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
         .strftime('%Y-%m-%d')
-    input_image = ee.Image.constant(1).setMulti({
+    input_image = ee.Image.constant(1).set({
         'system:index': scene_id,
         'system:time_start': ee.Date(scene_date).millis()})
     s = ssebop.Image(input_image, tcorr_source=tcorr_source,
@@ -360,7 +360,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
     To test this, move the test date into the future
     """
     input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
-        .setMulti({
+        .set({
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
     output_img = ssebop.Image(input_img, tmax_source=tmax_source)._tmax

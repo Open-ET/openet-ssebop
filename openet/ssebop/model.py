@@ -226,7 +226,7 @@ class Image():
         etf = etf.updateMask(etf.lt(1.3)) \
             .clamp(0, 1.05) \
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
-            .setMulti({
+            .set({
                 'system:index': self._index,
                 'system:time_start': self._time_start,
                 'TCORR': tcorr,
@@ -577,7 +577,7 @@ class Image():
         input_image = input_image\
             .updateMask(common.landsat_c1_toa_cloud_mask(
                 toa_image, **cloudmask_args))\
-            .setMulti({
+            .set({
                 'system:index': toa_image.get('system:index'),
                 'system:time_start': toa_image.get('system:time_start')
             })
@@ -642,7 +642,7 @@ class Image():
         # Apply the cloud mask and add properties
         input_image = input_image\
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
-            .setMulti({
+            .set({
                 'system:index': sr_image.get('system:index'),
                 'system:time_start': sr_image.get('system:time_start')
             })
@@ -813,8 +813,8 @@ class Image():
             tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
-            .setMulti({'system:index': self._index,
-                       'system:time_start': self._time_start}) \
+            .set({'system:index': self._index,
+                  'system:time_start': self._time_start}) \
             .copyProperties(tmax, ['TMAX_SOURCE', 'TMAX_VERSION'])
 
     @lazy_property
