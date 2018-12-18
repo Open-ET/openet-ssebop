@@ -157,7 +157,7 @@ Dependencies
 ============
 
  * `earthengine-api <https://github.com/google/earthengine-api>`__
- * `openet <https://github.com/Open-ET/openet-core-beta>`__
+ * `openet-core <https://github.com/Open-ET/openet-core-beta>`__
 
 OpenET Namespace Package
 ========================
