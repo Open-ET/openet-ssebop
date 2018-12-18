@@ -46,7 +46,7 @@ def test_Image_default_parameters():
     s = ssebop.Image(default_image())
     assert s._dt_source == 'DAYMET_MEDIAN_V1'
     assert s._elev_source == 'SRTM'
-    assert s._tcorr_source == 'SCENE'
+    assert s._tcorr_source == 'FEATURE'
     assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert s._elr_flag == False
     assert s._tdiff_threshold == 15
@@ -72,6 +72,8 @@ def test_Image_date_properties():
     assert s._end_date.getInfo()['value'] == utils.millis(
         SCENE_DT + datetime.timedelta(days=1))
     assert s._doy.getInfo() == SCENE_DOY
+    assert s._cycle_day.getInfo() == (
+        (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
 
 
 def test_Image_scene_id_property():
@@ -253,43 +255,50 @@ def test_Image_elev_band_name():
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, month, expected',
     [
-        ['SCENE', 'CIMIS', SCENE_ID, 7, [0.9789, 0]],
-        ['SCENE', 'DAYMET', SCENE_ID, 7, [0.9825, 0]],
-        ['SCENE', 'GRIDMET', SCENE_ID, 7, [0.9835, 0]],
-        ['SCENE', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9742, 0]],
-        ['SCENE', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9764, 0]],
-        ['SCENE', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9762, 0]],
-        ['SCENE', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9750, 0]],
-        ['SCENE', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9752, 0]],
+        ['FEATURE', 'CIMIS', SCENE_ID, 7, [0.9789, 0]],
+        ['FEATURE', 'DAYMET', SCENE_ID, 7, [0.9825, 0]],
+        ['FEATURE', 'GRIDMET', SCENE_ID, 7, [0.9835, 0]],
+        ['FEATURE', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9742, 0]],
+        ['FEATURE', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9764, 0]],
+        ['FEATURE', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9762, 0]],
+        ['FEATURE', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9750, 0]],
+        ['FEATURE', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9752, 0]],
+        ['FEATURE', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9752, 0]],
         # If scene_id doesn't match, use monthly value
-        ['SCENE', 'CIMIS', 'XXXX_042035_20150713', 7, [0.9701, 1]],
-        ['SCENE', 'DAYMET', 'XXXX_042035_20150713', 7, [0.9718, 1]],
-        ['SCENE', 'GRIDMET', 'XXXX_042035_20150713', 7, [0.9743, 1]],
-        ['SCENE', 'CIMIS_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9694, 1]],
-        ['SCENE', 'DAYMET_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9727, 1]],
-        ['SCENE', 'DAYMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9717, 1]],
-        ['SCENE', 'GRIDMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9725, 1]],
-        ['SCENE', 'TOPOWX_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9720, 1]],
+        ['FEATURE', 'CIMIS', 'XXXX_042035_20150713', 7, [0.9701, 1]],
+        ['FEATURE', 'DAYMET', 'XXXX_042035_20150713', 7, [0.9718, 1]],
+        ['FEATURE', 'GRIDMET', 'XXXX_042035_20150713', 7, [0.9743, 1]],
+        ['FEATURE', 'CIMIS_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9694, 1]],
+        ['FEATURE', 'DAYMET_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9727, 1]],
+        ['FEATURE', 'DAYMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9717, 1]],
+        ['FEATURE', 'GRIDMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9725, 1]],
+        ['FEATURE', 'TOPOWX_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9720, 1]],
+        ['FEATURE', 'TOPOWX_MEDIAN_V0B', 'XXXX_042035_20150713', 7, [0.9723, 1]],
         # Get monthly value directly (ignore scene ID)
-        ['MONTH', 'CIMIS', SCENE_ID, 7, [0.9701, 1]],
-        ['MONTH', 'DAYMET', SCENE_ID, 7, [0.9718, 1]],
-        ['MONTH', 'GRIDMET', SCENE_ID, 7, [0.9743, 1]],
-        ['MONTH', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9694, 1]],
-        ['MONTH', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9727, 1]],
-        ['MONTH', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9717, 1]],
-        ['MONTH', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9725, 1]],
-        ['MONTH', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9720, 1]],
+        ['FEATURE_MONTH', 'CIMIS', SCENE_ID, 7, [0.9701, 1]],
+        ['FEATURE_MONTH', 'DAYMET', SCENE_ID, 7, [0.9718, 1]],
+        ['FEATURE_MONTH', 'GRIDMET', SCENE_ID, 7, [0.9743, 1]],
+        ['FEATURE_MONTH', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9694, 1]],
+        ['FEATURE_MONTH', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9727, 1]],
+        ['FEATURE_MONTH', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9717, 1]],
+        ['FEATURE_MONTH', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9725, 1]],
+        ['FEATURE_MONTH', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9720, 1]],
+        ['FEATURE_MONTH', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9723, 1]],
+        # Get annual value directly
+        # ['FEATURE_ANNUAL', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9786, 2]],
         # If scene_id and wrs2_tile/month don't match, use default value
         # Testing one Tmax source should be good
-        ['SCENE', 'DAYMET', 'XXXX_042035_20150713', 13, [0.9780, 2]],
-        ['MONTH', 'DAYMET', SCENE_ID, 13, [0.9780, 2]],
+        ['FEATURE', 'DAYMET', 'XXXX_042035_20150713', 13, [0.9780, 3]],
+        ['FEATURE_MONTH', 'DAYMET', SCENE_ID, 13, [0.9780, 3]],
         # Test a user defined Tcorr value
-        ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
-        [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 3]],
+        ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
+        [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
+        # Check that deprecated 'SCENE' source works
+        ['SCENE', 'CIMIS', SCENE_ID, 7, [0.9789, 0]],
     ]
 )
-def test_Image_tcorr_source(tcorr_source, tmax_source, scene_id, month,
-                            expected, tol=0.0001):
+def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
+                                expected, tol=0.0001):
     """Test getting Tcorr value and index for a single date at a real point"""
     logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
@@ -299,7 +308,7 @@ def test_Image_tcorr_source(tcorr_source, tmax_source, scene_id, month,
         'system:time_start': ee.Date(scene_date).millis()})
     s = ssebop.Image(input_image, tcorr_source=tcorr_source,
                      tmax_source=tmax_source)
-    # Overwrite the month property with test value
+    # Overwrite the month property with the test value
     s._month = ee.Number(month)
 
     # _tcorr returns a tuple of the tcorr and tcorr_index
@@ -309,6 +318,44 @@ def test_Image_tcorr_source(tcorr_source, tmax_source, scene_id, month,
 
     assert abs(tcorr - expected[0]) <= tol
     assert tcorr_index == expected[1]
+
+
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, scene_id, month, expected',
+    [
+        # Check image sources (TOPOWX median only for now)
+        ['IMAGE', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9752, 0]],
+        ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9723, 1]],
+        # Check that month filtering is based on MONTH property
+        ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', SCENE_ID, 8, [0.9769, 1]],
+        ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9786, 2]],
+    ]
+)
+def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
+                                  expected, tol=0.0001):
+    """Test getting Tcorr value and index for a single date at a real point"""
+    logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
+    scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
+        .strftime('%Y-%m-%d')
+    input_image = ee.Image.constant(1).set({
+        'system:index': scene_id,
+        'system:time_start': ee.Date(scene_date).millis()})
+    s = ssebop.Image(input_image, tcorr_source=tcorr_source,
+                     tmax_source=tmax_source)
+    # Overwrite the month property with the test value
+    s._month = ee.Number(month)
+
+    # Get the scene centroid point
+    pnt = ee.Image('LANDSAT/LC08/C01/T1_TOA/{}'.format(SCENE_ID)) \
+        .geometry().centroid().getInfo()['coordinates']
+
+    tcorr_img = s._tcorr
+
+    # Tcorr images are constant images and need to be queried at a point
+    tcorr = utils.point_image_value(ee.Image(tcorr_img.select(['tcorr'])), pnt)
+    index = utils.point_image_value(ee.Image(tcorr_img.select(['index'])), pnt)
+    assert abs(tcorr - expected[0]) <= tol
+    assert index == expected[1]
 
 
 def test_Image_tcorr_sources_exception():
