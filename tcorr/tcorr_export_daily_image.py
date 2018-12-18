@@ -144,23 +144,33 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     # Data from: https://landsat.usgs.gov/landsat_acq
     # I only need to use 8 cycle days because of 5/7 and 7/8 are offset
     cycle_dates = {
-        1:  '2000-01-06',
-        2:  '2000-01-07',
-        3:  '2000-01-08',
-        4:  '2000-01-09',
-        5:  '2000-01-10',
-        6:  '2000-01-11',
-        7:  '2000-01-12',
-        8:  '2000-01-13',
-        # 9:  '2000-01-14',
-        # 10: '2000-01-15',
-        # 11: '2000-01-16',
-        # 12: '2000-01-01',
-        # 13: '2000-01-02',
-        # 14: '2000-01-03',
-        # 15: '2000-01-04',
-        # 16: '2000-01-05',
+        7: '1970-01-01',
+        8: '1970-01-02',
+        1: '1970-01-03',
+        2: '1970-01-04',
+        3: '1970-01-05',
+        4: '1970-01-06',
+        5: '1970-01-07',
+        6: '1970-01-08',
     }
+    # cycle_dates = {
+    #     1:  '2000-01-06',
+    #     2:  '2000-01-07',
+    #     3:  '2000-01-08',
+    #     4:  '2000-01-09',
+    #     5:  '2000-01-10',
+    #     6:  '2000-01-11',
+    #     7:  '2000-01-12',
+    #     8:  '2000-01-13',
+    #     # 9:  '2000-01-14',
+    #     # 10: '2000-01-15',
+    #     # 11: '2000-01-16',
+    #     # 12: '2000-01-01',
+    #     # 13: '2000-01-02',
+    #     # 14: '2000-01-03',
+    #     # 15: '2000-01-04',
+    #     # 16: '2000-01-05',
+    # }
     cycle_base_dt = datetime.datetime.strptime(cycle_dates[1], '%Y-%m-%d')
 
     iter_start_dt = datetime.datetime.strptime(
@@ -264,8 +274,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
         def tcorr_img_func(image):
             t_stats = ssebop.Image.from_landsat_c1_toa(
-                ee.Image(image),
-                tdiff_threshold=float(ini['SSEBOP']['tdiff_threshold'])).tcorr_stats
+                    ee.Image(image),
+                    tdiff_threshold=float(ini['SSEBOP']['tdiff_threshold'])) \
+                .tcorr_stats
             t_stats = ee.Dictionary(t_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0},
                          overwrite=False)
