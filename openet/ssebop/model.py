@@ -155,6 +155,7 @@ class Image():
             (the default is False).
         tdiff_threshold : float, optional
             Cloud mask buffer using Tdiff [K] (the default is 15).
+            Pixels with (Tmax - LST) > Tdiff threshold will be masked.
         dt_min : float, optional
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
@@ -382,10 +383,9 @@ class Image():
             # Check Tmax source value
             tmax_key = self._tmax_source.upper()
             if tmax_key not in default_value_dict.keys():
-                logging.error(
-                    '\nInvalid tmax_source: {} / {}\n'.format(
+                raise ValueError(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
-                sys.exit()
 
             default_coll = ee.FeatureCollection([
                 ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
@@ -429,10 +429,9 @@ class Image():
             # Check Tmax source value
             tmax_key = self._tmax_source.upper()
             if tmax_key not in default_value_dict.keys():
-                logging.error(
+                raise ValueError(
                     '\nInvalid tmax_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
-                sys.exit()
 
             # Since the default will be to always use the daily Tcorr images
             # it seems okay to build all the images even if the user only wants

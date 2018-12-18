@@ -358,9 +358,30 @@ def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
     assert index == expected[1]
 
 
-def test_Image_tcorr_sources_exception():
+@pytest.mark.parametrize(
+    'tcorr_src',
+    [
+        '',
+        'FEATURE_DEADBEEF',
+        'IMAGE_DEADBEEF',
+    ]
+)
+def test_Image_tcorr_sources_exception(tcorr_src):
     with pytest.raises(ValueError):
-        ssebop.Image(default_image(), tcorr_source='')._tcorr.getInfo()
+        ssebop.Image(default_image(), tcorr_source=tcorr_src)._tcorr.getInfo()
+
+
+@pytest.mark.parametrize(
+    'tcorr_src, tmax_src',
+    [
+        ['FEATURE', 'DEADBEEF'],
+        ['IMAGE', 'DEADBEEF'],
+    ]
+)
+def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
+    with pytest.raises(ValueError):
+        ssebop.Image(default_image(), tcorr_source=tcorr_src,
+                     tmax_source=tmax_src)._tcorr.getInfo()
 
 
 @pytest.mark.parametrize(
@@ -444,11 +465,14 @@ def test_Image_tmax_properties(tmax_source, expected):
     # Note: These are made up values
     'lst, ndvi, dt, elev, tcorr, tmax, expected',
     [
+        # Basic ETf test
+        [308, 0.50, 10, 50, 0.98, 310, 0.58],
         # Test ETf clamp conditions
         [300, 0.80, 10, 50, 0.98, 310, None],
         [300, 0.80, 15, 50, 0.98, 310, 1.05],
+        [319, 0.80, 15, 50, 0.98, 310, 0.0],
         # Test dT high, max/min, and low clamp values
-        [305, 0.80, 29, 50, 0.98, 310, 0.952],
+        [305, 0.80, 26, 50, 0.98, 310, 0.952],
         [305, 0.80, 25, 50, 0.98, 310, 0.952],
         [305, 0.80, 6, 50, 0.98, 310, 0.8],
         [305, 0.80, 5, 50, 0.98, 310, 0.8],
@@ -500,7 +524,7 @@ def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
     # Note: These are made up values
     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
     [
-        # Test Tdiff buffer value masking
+        [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [304, 0.10, 15, 50, 0.98, 310, 5, None],
         [304, 0.10, '15', 50, 0.98, 310, 5, None],
@@ -513,10 +537,11 @@ def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
             tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff)\
         .etf
     output = utils.constant_image_value(ee.Image(output_img))
-    if output is None and expected is None:
-        assert True
-    else:
-        assert abs(output - expected) <= tol
+    assert output is None and expected is None
+    # if output is None and expected is None:
+    #     assert True
+    # else:
+    #     assert False
 
 
 def test_Image_etf_band_name():
