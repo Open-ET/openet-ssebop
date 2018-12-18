@@ -298,7 +298,7 @@ class Image():
             return tcorr, tcorr_index
 
         # DEADBEEF - Leaving 'SCENE' checking to be backwards compatible (for now)
-        if ('FEATURE' in self._tcorr_source.upper() or
+        elif ('FEATURE' in self._tcorr_source.upper() or
                 self._tcorr_source.upper() == 'SCENE'):
             # Lookup Tcorr collections by keyword value
             scene_coll_dict = {
@@ -443,6 +443,11 @@ class Image():
                         self._tcorr_source, self._tmax_source))
 
             return tcorr_img.rename(['tcorr', 'index'])
+
+        else:
+            raise ValueError('Unsupported tcorr_source: {}\n'.format(
+                self._tcorr_source))
+
 
     @lazy_property
     def _tmax(self):
