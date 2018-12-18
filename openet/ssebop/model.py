@@ -210,6 +210,12 @@ class Image():
     def etf(self):
         """Compute SSEBop ETf for a single image
 
+        Returns
+        -------
+        ee.Image
+
+        Notes
+        -----
         Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
 
         """
@@ -240,7 +246,19 @@ class Image():
 
     @lazy_property
     def _dt(self):
-        """"""
+        """
+
+
+        Returns
+        -------
+        ee.Image
+
+        Raises
+        ------
+        ValueError
+            If `self._dt_source` is not supported.
+
+        """
         if utils._is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
@@ -252,13 +270,24 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         else:
-            raise ValueError('Invalid dT: {}\n'.format(self._dt_source))
+            raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
         return dt_img.clamp(self._dt_min, self._dt_max)
 
     @lazy_property
     def _elev(self):
-        """"""
+        """
+
+        Returns
+        -------
+        ee.Image
+
+        Raises
+        ------
+        ValueError
+            If `self._elev_source` is not supported.
+
+        """
         if utils._is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
@@ -282,6 +311,16 @@ class Image():
     def _tcorr(self):
         """Get Tcorr from pre-computed assets for each Tmax source
 
+        Returns
+        -------
+
+        Raises
+        ------
+        ValueError
+            If `self._tcorr_source` is not supported.
+
+        Notes
+        -----
         Tcorr Index values indicate which level of Tcorr was used
           0 - Scene specific Tcorr
           1 - Mean monthly Tcorr per WRS2 tile
@@ -289,6 +328,7 @@ class Image():
             Annuals don't exist for feature Tcorr assets (yet)
           3 - Default Tcorr
           4 - User defined Tcorr
+
         """
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
@@ -448,10 +488,20 @@ class Image():
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
                 self._tcorr_source))
 
-
     @lazy_property
     def _tmax(self):
-        """Fall back on median Tmax if daily image does not exist"""
+        """Fall back on median Tmax if daily image does not exist
+
+        Returns
+        -------
+        ee.Image
+
+        Raises
+        ------
+        ValueError
+            If `self._tmax_source` is not supported.
+
+        """
         doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
         date_today = datetime.datetime.today().strftime('%Y-%m-%d')
 
