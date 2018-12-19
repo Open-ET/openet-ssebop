@@ -313,6 +313,7 @@ class Image():
         Returns
         -------
 
+
         Raises
         ------
         ValueError
@@ -479,7 +480,7 @@ class Image():
                     'Invalid tcorr_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
-            return tcorr_img.rename(['tcorr', 'index'])
+            return tcorr_img.select([0], ['tcorr']), tcorr_img.select([1], ['index'])
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(

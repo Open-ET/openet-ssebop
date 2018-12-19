@@ -349,11 +349,11 @@ def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
     pnt = ee.Image('LANDSAT/LC08/C01/T1_TOA/{}'.format(SCENE_ID)) \
         .geometry().centroid().getInfo()['coordinates']
 
-    tcorr_img = s._tcorr
+    tcorr_img, index_img = s._tcorr
 
     # Tcorr images are constant images and need to be queried at a point
-    tcorr = utils.point_image_value(ee.Image(tcorr_img.select(['tcorr'])), pnt)
-    index = utils.point_image_value(ee.Image(tcorr_img.select(['index'])), pnt)
+    tcorr = utils.point_image_value(ee.Image(tcorr_img), pnt)
+    index = utils.point_image_value(ee.Image(index_img), pnt)
     assert abs(tcorr - expected[0]) <= tol
     assert index == expected[1]
 
