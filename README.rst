@@ -4,9 +4,9 @@ OpenET - SSEBop
 
 |version| |build| |coverage|
 
-This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
+This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model. **(Current build is in BETA)**
 
-The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETo).
+The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr).
 The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on clear-sky net radiation balance principles.
 This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
 
@@ -59,7 +59,7 @@ SPACECRAFT_ID      - Used to determine which Landsat type
 Model Output
 ------------
 
-The primary output of the SSEBop model is the fraction of reference ET (ETf).  The actual ET can then be computed by multiplying the Landsat-based ETf image with the reference ET (e.g. from GRIDMET).
+The primary output of the SSEBop model is the fraction of reference ET (ETf).  The actual ET (ETa) can then be computed by multiplying the Landsat-based ETf image with the reference ET (e.g. ETr from GRIDMET).
 
 Example
 -------
@@ -109,7 +109,7 @@ Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
 
 Land Surface Temperature
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; (3) surface emissivity; and (4) land surface temperature. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
+Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; and (3) surface emissivity. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
 
 dT
 --
@@ -132,7 +132,7 @@ In order to correspond the maximum air temperature with cold/wet limiting enviro
 
 .. image:: docs/Tcorr_table.PNG
 
-The Tcorr value is read from precomputed Earth Engine feature collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the feature collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
+The Tcorr value is read from precomputed Earth Engine feature/image collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the Tcorr collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
 
 The Tcorr is a function of the maximum air temperature dataset, so separate Tcorr collections have been generated for each of the following air temperature datasets: CIMIS, DAYMET, GRIDMET, TopoWX.  The data source of the Tcorr collection needs to match the data source of the air temperature.
 
