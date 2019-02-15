@@ -4,7 +4,9 @@ OpenET - SSEBop
 
 |version| |build| |coverage|
 
-This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model. **(Current build is in BETA)**
+**WARNING: This model is in development, is being provided without support, and is subject to change at any time without notification**
+
+This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
 The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr).
 The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on clear-sky net radiation balance principles.
@@ -19,8 +21,8 @@ Input Collections
 
 SSEBop ET can currently only be computed for Landsat Collection 1 TOA image from the following Earth Engine image collections:
 
- * LANDSAT/LC08/C01/T1_RT_TOA or LANDSAT/LC08/C01/T1_TOA
- * LANDSAT/LE07/C01/T1_RT_TOA or LANDSAT/LE07/C01/T1_TOA
+ * LANDSAT/LC08/C01/T1_TOA or LANDSAT/LC08/C01/T1_RT_TOA
+ * LANDSAT/LE07/C01/T1_TOA or LANDSAT/LE07/C01/T1_RT_TOA
  * LANDSAT/LT05/C01/T1_TOA
 
 Note that scene specific Tcorr values have only been computed for Landsat images covering the contiguous United States (CONUS).  SSEBop estimates for Landsat images outside the CONUS will use the default c-factor value of 0.978 (see the `Tcorr (C-factor)`_ section for more details).
@@ -33,7 +35,7 @@ The primary component of the SSEBop model is the Image() class.  The Image class
 Landsat Collection 1 TOA Input Image
 ------------------------------------
 
-To instantiate the class for a Landsat Collection 1 TOA image, use the Image().from_landsat_c1_toa() method.
+To instantiate the class for a Landsat Collection 1 TOA image, use the Image.from_landsat_c1_toa() method.
 
 The input Landsat image must have the following bands and properties:
 
@@ -69,7 +71,7 @@ Example
     import openet.ssebop as ssebop
 
     landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
-    etf_img = ssebop.Image().from_landsat_c1_toa(landsat_img).etf
+    etf_img = ssebop.Image.from_landsat_c1_toa(landsat_img).etf
     eto_img = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('eto')
     eta_img = etf_img.multiply(eto_img)
 
@@ -171,7 +173,7 @@ Each OpenET model is stored in the "openet" folder (namespace).  The model can t
 Development and Testing
 =======================
 
-Please see the `CONTRIBUTING.rst <CONTRIBUTING.RST>`__.
+Please see the `CONTRIBUTING.rst <CONTRIBUTING.rst>`__.
 
 References
 ==========

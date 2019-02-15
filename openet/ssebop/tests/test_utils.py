@@ -6,6 +6,10 @@ import pytest
 import openet.ssebop.utils as utils
 
 
+def test_getinfo():
+    assert utils.getinfo(ee.Number(1)) == 1
+
+
 def test_constant_image_value(tol=0.000001):
     expected = 10.123456789
     input_img = ee.Image.constant(expected)
@@ -34,7 +38,7 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
 )
 def test_date_to_time_0utc(input, expected):
     input_img = ee.Date(input)
-    assert utils.date_to_time_0utc(input_img).getInfo() == expected
+    assert utils.getinfo(utils.date_to_time_0utc(input_img)) == expected
 
 
 @pytest.mark.parametrize(
@@ -54,3 +58,11 @@ def test_is_number(input, expected):
 
 def test_millis():
     assert utils.millis(datetime.datetime(2015, 7, 13)) == 1436745600000
+
+
+def test_valid_date():
+    assert utils.valid_date('2015-07-13') == True
+    assert utils.valid_date('2015-02-30') == False
+    assert utils.valid_date('20150713') == False
+    assert utils.valid_date('07/13/2015') == False
+    assert utils.valid_date('07-13-2015', '%m-%d-%Y') == True

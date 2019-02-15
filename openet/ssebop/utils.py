@@ -1,28 +1,12 @@
 import calendar
+import datetime
 import logging
 from time import sleep
 
 import ee
 
 
-# TODO: Import from common.utils
-# Should these be test fixtures instead?
-# I'm not sure how to make them fixtures and allow input parameters
-def constant_image_value(image, crs='EPSG:32613', scale=1):
-    """Extract the output value from a calculation done with constant images"""
-    return ee_getinfo(ee.Image(image).reduceRegion(
-        reducer=ee.Reducer.first(), scale=scale,
-        geometry=ee.Geometry.Rectangle([0, 0, 10, 10], crs, False)))
-
-
-def point_image_value(image, xy, scale=1):
-    """Extract the output value from a calculation at a point"""
-    return ee_getinfo(ee.Image(image).reduceRegion(
-        reducer=ee.Reducer.first(), geometry=ee.Geometry.Point(xy),
-        scale=scale))
-
-
-def ee_getinfo(ee_obj, n=4):
+def getinfo(ee_obj, n=4):
     """Make an exponential back off getInfo call on an Earth Engine object"""
     output = None
     for i in range(1, n):
@@ -35,6 +19,23 @@ def ee_getinfo(ee_obj, n=4):
         if output:
             break
     return output
+
+
+# TODO: Import from common.utils
+# Should these be test fixtures instead?
+# I'm not sure how to make them fixtures and allow input parameters
+def constant_image_value(image, crs='EPSG:32613', scale=1):
+    """Extract the output value from a calculation done with constant images"""
+    return getinfo(ee.Image(image).reduceRegion(
+        reducer=ee.Reducer.first(), scale=scale,
+        geometry=ee.Geometry.Rectangle([0, 0, 10, 10], crs, False)))
+
+
+def point_image_value(image, xy, scale=1):
+    """Extract the output value from a calculation at a point"""
+    return getinfo(ee.Image(image).reduceRegion(
+        reducer=ee.Reducer.first(), geometry=ee.Geometry.Point(xy),
+        scale=scale))
 
 
 def c_to_k(image):
@@ -93,3 +94,12 @@ def millis(input_dt):
 
     """
     return 1000 * int(calendar.timegm(input_dt.timetuple()))
+
+
+def valid_date(date_str, date_fmt='%Y-%m-%d'):
+    """Check if a datetime can be built from a date string and if it is valid"""
+    try:
+        datetime.datetime.strptime(date_str, date_fmt)
+        return True
+    except Exception as e:
+        return False
