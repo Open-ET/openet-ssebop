@@ -46,7 +46,7 @@ def test_Image_default_parameters():
     s = ssebop.Image(default_image())
     assert s._dt_source == 'DAYMET_MEDIAN_V1'
     assert s._elev_source == 'SRTM'
-    assert s._tcorr_source == 'FEATURE'
+    assert s._tcorr_source == 'IMAGE'
     assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert s._elr_flag == False
     assert s._tdiff_threshold == 15
@@ -104,7 +104,7 @@ def test_Image_ndvi_calculation(red, nir, expected, tol=0.000001):
     output = utils.constant_image_value(ssebop.Image._ndvi(toa))
     # logging.debug('\n  Target values: {}'.format(expected))
     # logging.debug('  Output values: {}'.format(output))
-    assert abs(output - expected) <= tol
+    assert abs(output['ndvi'] - expected) <= tol
 
 
 def test_Image_ndvi_band_name():
@@ -130,7 +130,7 @@ def test_Image_ndvi_band_name():
 def test_Image_emissivity_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
     output = utils.constant_image_value(ssebop.Image._emissivity(toa))
-    assert abs(output - expected) <= tol
+    assert abs(output['emissivity'] - expected) <= tol
 
 
 def test_Image_emissivity_band_name():
@@ -147,7 +147,7 @@ def test_Image_emissivity_band_name():
 def test_Image_lst_calculation(red, nir, bt, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir, bt=bt)
     output = utils.constant_image_value(ssebop.Image._lst(toa))
-    assert abs(output - expected) <= tol
+    assert abs(output['lst'] - expected) <= tol
 
 
 def test_Image_lst_band_name():
@@ -166,7 +166,7 @@ def test_Image_lst_band_name():
 def test_Image_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
     output = utils.constant_image_value(ssebop.Image._lapse_adjust(
         ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
-    assert abs(output - expected) <= tol
+    assert abs(output['constant'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -189,7 +189,7 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     s = ssebop.Image(default_image(), dt_source=dt_source)
     s._doy = doy
     output = utils.point_image_value(ee.Image(s._dt), xy)
-    assert abs(output - expected) <= tol
+    assert abs(output['dt'] - expected) <= tol
 
 
 def test_Image_dt_sources_exception():
@@ -239,7 +239,7 @@ def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
     output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev
     output = utils.point_image_value(ee.Image(output_img), xy)
-    assert abs(output - expected) <= tol
+    assert abs(output['elev'] - expected) <= tol
 
 
 def test_Image_elev_sources_exception():
@@ -354,8 +354,8 @@ def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
     # Tcorr images are constant images and need to be queried at a point
     tcorr = utils.point_image_value(ee.Image(tcorr_img), pnt)
     index = utils.point_image_value(ee.Image(index_img), pnt)
-    assert abs(tcorr - expected[0]) <= tol
-    assert index == expected[1]
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
 
 
 @pytest.mark.parametrize(
@@ -384,6 +384,9 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
                      tmax_source=tmax_src)._tcorr.getInfo()
 
 
+# TODO: Add test for when there is no Tcorr image for the Landsat date
+
+
 @pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
@@ -405,7 +408,7 @@ def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
     output_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
-    assert abs(output - expected) <= tol
+    assert abs(output['tmax'] - expected) <= tol
 
 
 def test_Image_tmax_sources_exception():
@@ -433,7 +436,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
             'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
     output_img = ssebop.Image(input_img, tmax_source=tmax_source)._tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
-    assert abs(output - expected) <= tol
+    assert abs(output['tmax'] - expected) <= tol
 
 
 today_dt = datetime.datetime.today()
@@ -468,7 +471,6 @@ def test_Image_tmax_properties(tmax_source, expected):
         # Basic ETf test
         [308, 0.50, 10, 50, 0.98, 310, 0.58],
         # Test ETf clamp conditions
-        [300, 0.80, 10, 50, 0.98, 310, None],
         [300, 0.80, 15, 50, 0.98, 310, 1.05],
         [319, 0.80, 15, 50, 0.98, 310, 0.0],
         # Test dT high, max/min, and low clamp values
@@ -487,17 +489,28 @@ def test_Image_tmax_properties(tmax_source, expected):
         [327, 0.08, 17, 50, 0.985, 308, 0.0],
     ]
 )
-def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, expected,
-                   tol=0.0001):
+def test_Image_etf_values(lst, ndvi, dt, elev, tcorr, tmax, expected,
+                          tol=0.0001):
     output_img = ssebop.Image(
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-            tcorr_source=tcorr, tmax_source=tmax)\
-        .etf
+            tcorr_source=tcorr, tmax_source=tmax).etf
     output = utils.constant_image_value(ee.Image(output_img))
-    if output is None and expected is None:
-        assert True
-    else:
-        assert abs(output - expected) <= tol
+    assert abs(output['etf'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'lst, ndvi, dt, elev, tcorr, tmax, expected',
+    [
+        [300, 0.80, 10, 50, 0.98, 310, None],
+    ]
+)
+def test_Image_etf_clamp_nodata(lst, ndvi, dt, elev, tcorr, tmax, expected):
+    """Test that ETf is set to nodata for ETf > 1.3"""
+    output_img = ssebop.Image(
+            default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+            tcorr_source=tcorr, tmax_source=tmax).etf
+    output = utils.constant_image_value(ee.Image(output_img))
+    assert output['etf'] is None and expected is None
 
 
 @pytest.mark.parametrize(
@@ -512,36 +525,32 @@ def test_Image_etf(lst, ndvi, dt, elev, tcorr, tmax, expected,
 )
 def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
                              tol=0.0001):
+    """Test that elr_flag works and changes ETf values"""
     output_img = ssebop.Image(
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-            tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr)\
-        .etf
+            tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr).etf
     output = utils.constant_image_value(ee.Image(output_img))
-    assert abs(output - expected) <= tol
+    assert abs(output['etf'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
-    # Note: These are made up values
     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
     [
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [304, 0.10, 15, 50, 0.98, 310, 5, None],
+        # CGM - Why is a string dt being tested in this test
         [304, 0.10, '15', 50, 0.98, 310, 5, None],
     ]
 )
 def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
-                               expected, tol=0.0001):
+                               expected):
+    """Test that ETf is set to nodata for tdiff values outside threshold"""
     output_img = ssebop.Image(
             default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-            tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff)\
-        .etf
+            tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).etf
     output = utils.constant_image_value(ee.Image(output_img))
-    assert output is None and expected is None
-    # if output is None and expected is None:
-    #     assert True
-    # else:
-    #     assert False
+    assert output['etf'] is None and expected is None
 
 
 def test_Image_etf_band_name():
@@ -555,6 +564,21 @@ def test_Image_etf_properties(tol=0.0001):
     output = etf_img.getInfo()['properties']
     assert output['system:index'] == SCENE_ID
     assert output['system:time_start'] == ee.Date(SCENE_DATE).millis().getInfo()
+
+
+def test_Image_etf_image_tcorr_properties(tol=0.0001):
+    """Test if Tcorr properties are set when tcorr_source is a feature"""
+    etf_img = ssebop.Image(default_image(), tcorr_source='IMAGE').etf
+    output = etf_img.getInfo()['properties']
+    assert 'TCORR' not in output.keys()
+    assert 'TCORR_INDEX' not in output.keys()
+
+
+def test_Image_etf_feature_tcorr_properties(tol=0.0001):
+    """Test if Tcorr properties are set when tcorr_source is a feature"""
+    etf_img = ssebop.Image(default_image(), tcorr_source='FEATURE').etf
+    output = etf_img.getInfo()['properties']
+    print(output)
     assert abs(output['TCORR'] - 0.9752) <= tol
     assert output['TCORR_INDEX'] == 0
 
@@ -633,10 +657,10 @@ def test_Image_tcorr_image(lst, ndvi, tmax, expected, tol=0.0001):
     output_img = ssebop.Image(default_image(lst=lst, ndvi=ndvi),
                               tmax_source=tmax).tcorr_image
     output = utils.constant_image_value(ee.Image(output_img))
-    if output is None and expected is None:
+    if output['tcorr'] is None and expected is None:
         assert True
     else:
-        assert abs(output - expected) <= tol
+        assert abs(output['tcorr'] - expected) <= tol
 
 
 def test_Image_tcorr_image_band_name():

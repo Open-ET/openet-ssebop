@@ -10,18 +10,18 @@ def test_constant_image_value(tol=0.000001):
     expected = 10.123456789
     input_img = ee.Image.constant(expected)
     output = utils.constant_image_value(input_img)
-    assert abs(output - expected) <= tol
+    assert abs(output['constant'] - expected) <= tol
 
 
 def test_point_image_value(tol=0.001):
     expected = 2364.351
     output = utils.point_image_value(ee.Image('USGS/NED'), [-106.03249, 37.17777])
-    assert abs(output - expected) <= tol
+    assert abs(output['elevation'] - expected) <= tol
 
 
 def test_c_to_k(c=20, k=293.15, tol=0.000001):
-    output = utils.constant_image_value(utils._c_to_k(ee.Image.constant(c)))
-    assert abs(output - k) <= tol
+    output = utils.constant_image_value(utils.c_to_k(ee.Image.constant(c)))
+    assert abs(output['constant'] - k) <= tol
 
 
 @pytest.mark.parametrize(
@@ -34,7 +34,7 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
 )
 def test_date_to_time_0utc(input, expected):
     input_img = ee.Date(input)
-    assert utils._date_to_time_0utc(input_img).getInfo() == expected
+    assert utils.date_to_time_0utc(input_img).getInfo() == expected
 
 
 @pytest.mark.parametrize(
@@ -49,7 +49,7 @@ def test_date_to_time_0utc(input, expected):
     ]
 )
 def test_is_number(input, expected):
-    assert utils._is_number(input) == expected
+    assert utils.is_number(input) == expected
 
 
 def test_millis():

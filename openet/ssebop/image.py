@@ -4,7 +4,6 @@ import ee
 
 from . import utils
 import openet.core.common as common
-import openet.core.interp as interp
 # TODO: import utils from common
 # import openet.core.utils as utils
 
@@ -24,96 +23,6 @@ def lazy_property(fn):
     return _lazy_property
 
 
-# TODO: Make this into a Collection class
-def collection(
-        variable,
-        collections,
-        start_date,
-        end_date,
-        t_interval,
-        geometry,
-        **kwargs
-    ):
-    """Earth Engine based SSEBop Image Collection
-
-    Parameters
-    ----------
-    variable : str
-        Variable to compute.
-    collections : list
-        GEE satellite image collection IDs.
-    start_date : str
-        ISO format inclusive start date (i.e. YYYY-MM-DD).
-    end_date : str
-        ISO format exclusive end date (i.e. YYYY-MM-DD).
-    t_interval : {'daily', 'monthly', 'annual', 'overpass'}
-        Time interval over which to interpolate and aggregate values.
-        Selecting 'overpass' will return values only for the overpass dates.
-    geometry : ee.Geometry
-        The geometry object will be used to filter the input collections.
-    kwargs : dict
-
-    """
-
-    # Should this be a global (or Collection class property)
-    landsat_c1_toa_collections = [
-        'LANDSAT/LC08/C01/T1_RT_TOA',
-        'LANDSAT/LE07/C01/T1_RT_TOA',
-        'LANDSAT/LC08/C01/T1_TOA',
-        'LANDSAT/LE07/C01/T1_TOA',
-        'LANDSAT/LT05/C01/T1_TOA',
-    ]
-
-    # Test whether the requested variable is supported
-    # Force variable to be lowercase for now
-    variable = variable.lower()
-    if variable.lower() not in dir(Image):
-        raise ValueError('unsupported variable: {}'.format(variable))
-    if variable.lower() not in ['etf']:
-        raise ValueError('unsupported variable: {}'.format(variable))
-
-    # Build the variable image collection
-    variable_coll = ee.ImageCollection([])
-    for coll_id in collections:
-        if coll_id in landsat_c1_toa_collections:
-            def compute(image):
-                model_obj = Image.from_landsat_c1_toa(
-                    toa_image=ee.Image(image))
-                return ee.Image(getattr(model_obj, variable))
-        else:
-            raise ValueError('unsupported collection: {}'.format(coll_id))
-
-        var_coll = ee.ImageCollection(coll_id) \
-            .filterDate(start_date, end_date) \
-            .filterBounds(geometry) \
-            .map(compute)
-
-        # TODO: Apply additional filter parameters from kwargs
-        #   (like CLOUD_COVER_LAND for Landsat)
-        # .filterMetadata() \
-
-        variable_coll = variable_coll.merge(var_coll)
-
-    # Interpolate/aggregate to t_interval
-    # TODO: Test whether the requested variable can/should be interpolated
-    # TODO: Only load ET reference collection if interpolating ET
-    # TODO: Get reference ET collection ID and band name from kwargs
-    # TODO:   or accept an ee.ImageCollection directly
-    # TODO: Get interp_days and interp_type from kwargs
-
-    # Hardcoding to GRIDMET for now
-    et_reference_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
-        .select(['etr'])\
-        .filterDate(start_date, end_date)
-
-    # Interpolate to a daily timestep
-    # This function is currently setup to always multiply
-    interp_coll = interp.daily(et_reference_coll, variable_coll,
-                               interp_days=32, interp_method='linear')
-
-    return interp_coll
-
-
 class Image():
     """Earth Engine based SSEBop Image"""
 
@@ -121,7 +30,7 @@ class Image():
             self, image,
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
-            tcorr_source='FEATURE',
+            tcorr_source='IMAGE',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
             tdiff_threshold=15,
@@ -143,7 +52,7 @@ class Image():
         tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
                         'IMAGE', 'IMAGE_MONTHLY', 'IMAGE_ANNUAL',
                         or float}, optional
-            Tcorr source keyword (the default is 'FEATURE').
+            Tcorr source keyword (the default is 'IMAGE').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
                        'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
                        'TOPOWX_MEDIAN_V0', or float}, optional
@@ -189,7 +98,7 @@ class Image():
         self._date = ee.Date(self._time_start)
         self._year = ee.Number(self._date.get('year'))
         self._month = ee.Number(self._date.get('month'))
-        self._start_date = ee.Date(utils._date_to_time_0utc(self._date))
+        self._start_date = ee.Date(utils.date_to_time_0utc(self._date))
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
         self._cycle_day = self._date.difference(
@@ -232,21 +141,25 @@ class Image():
         etf = lst.expression(
             '(lst * (-1) + tmax * tcorr + dt) / dt',
             {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
+
         etf = etf.updateMask(etf.lt(1.3)) \
             .clamp(0, 1.05) \
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
             .set({
                 'system:index': self._index,
-                'system:time_start': self._time_start,
-                'TCORR': tcorr,
-                'TCORR_INDEX': tcorr_index})
+                'system:time_start': self._time_start}) \
+            .rename(['etf'])
 
-        return ee.Image(etf).rename(['etf'])
+        # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
+        if (type(self._tcorr_source) is str and
+                'IMAGE' not in self._tcorr_source.upper()):
+            etf = etf.set({'TCORR': tcorr, 'TCORR_INDEX': tcorr_index})
+
+        return etf
 
     @lazy_property
     def _dt(self):
         """
-
 
         Returns
         -------
@@ -258,7 +171,7 @@ class Image():
             If `self._dt_source` is not supported.
 
         """
-        if utils._is_number(self._dt_source):
+        if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
@@ -271,7 +184,7 @@ class Image():
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
-        return dt_img.clamp(self._dt_min, self._dt_max)
+        return dt_img.clamp(self._dt_min, self._dt_max).rename('dt')
 
     @lazy_property
     def _elev(self):
@@ -287,7 +200,7 @@ class Image():
             If `self._elev_source` is not supported.
 
         """
-        if utils._is_number(self._elev_source):
+        if utils.is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
             elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
@@ -332,7 +245,7 @@ class Image():
         """
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
-        if utils._is_number(self._tcorr_source):
+        if utils.is_number(self._tcorr_source):
             tcorr = ee.Number(float(self._tcorr_source))
             tcorr_index = ee.Number(4)
             return tcorr, tcorr_index
@@ -503,14 +416,14 @@ class Image():
         doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
         date_today = datetime.datetime.today().strftime('%Y-%m-%d')
 
-        if utils._is_number(self._tmax_source):
+        if utils.is_number(self._tmax_source):
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
                 .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
             daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily') \
                 .filterDate(self._start_date, self._end_date) \
-                .select(['Tx'], ['tmax']).map(utils._c_to_k)
+                .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
             median_version = 'median_v1'
@@ -525,7 +438,7 @@ class Image():
             # Adding one extra date to end date to avoid errors
             daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
                 .filterDate(self._start_date, self._end_date.advance(1, 'day')) \
-                .select(['tmax']).map(utils._c_to_k)
+                .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
             median_version = 'median_v0'
@@ -893,8 +806,9 @@ class Image():
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
             .set({'system:index': self._index,
-                  'system:time_start': self._time_start}) \
-            .copyProperties(tmax, ['TMAX_SOURCE', 'TMAX_VERSION'])
+                  'system:time_start': self._time_start,
+                  'TMAX_SOURCE': tmax.get('TMAX_SOURCE'),
+                  'TMAX_VERSION': tmax.get('TMAX_VERSION')})
 
     @lazy_property
     def tcorr_stats(self):
@@ -913,7 +827,7 @@ class Image():
             reducer=ee.Reducer.percentile([5]).combine(ee.Reducer.count(), '', True),
             crs=image_crs,
             crsTransform=image_geo,
-            geometry=self.image.geometry().buffer(1000),
+            geometry=ee.Image(self.image).geometry().buffer(1000),
             bestEffort=False,
             maxPixels=2*10000*10000,
             tileScale=1)
