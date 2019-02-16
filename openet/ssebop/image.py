@@ -28,6 +28,8 @@ class Image():
 
     def __init__(
             self, image,
+            etr_source='IDAHO_EPSCOR/GRIDMET',
+            etr_band='etr',
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
@@ -45,6 +47,10 @@ class Image():
             A "prepped" SSEBop input image.
             Image must have bands "ndvi" and "lst".
             Image must have 'system:index' and 'system:time_start' properties.
+        etr_source : str, float, optional
+            Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
+        etr_band : str, optional
+            Reference ET band name (the default is 'etr').
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
@@ -81,6 +87,7 @@ class Image():
         self.ndvi = self.image.select('ndvi')
 
         # Copy system properties
+        self._id = self.image.get('system:id')
         self._index = self.image.get('system:index')
         self._time_start = self.image.get('system:time_start')
 
@@ -104,7 +111,11 @@ class Image():
         self._cycle_day = self._date.difference(
             ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1)
 
-        # Input parameters
+        #
+        self.etr_source = etr_source
+        self.etr_band = etr_band
+
+        # Model input parameters
         self._dt_source = dt_source
         self._elev_source = elev_source
         self._tcorr_source = tcorr_source
@@ -113,6 +124,40 @@ class Image():
         self._tdiff_threshold = float(tdiff_threshold)
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
+
+    def calculate(self, variables=['et', 'etr', 'etf']):
+        """Return a multiband image of calculated variables
+
+        Parameters
+        ----------
+        variables : list
+
+        Returns
+        -------
+        ee.Image
+
+        """
+        output_images = []
+        for v in variables:
+            if v.lower() == 'et':
+                output_images.append(self.et)
+            elif v.lower() == 'etr':
+                output_images.append(self.etr)
+            elif v.lower() == 'etf':
+                output_images.append(self.etf)
+            elif v.lower() == 'ndvi':
+                output_images.append(self.ndvi)
+            # elif v.lower() == 'qa':
+            #     output_images.append(self.qa)
+            # elif v.lower() == 'quality':
+            #     output_images.append(self.quality)
+            else:
+                raise ValueError('unsupported variable: {}'.format(v))
+
+        return ee.Image(output_images).set({
+            'system:index': self._index,
+            'system:time_start': self._time_start,
+            'IMAGE_ID': self._id})
 
     @lazy_property
     def etf(self):
@@ -147,7 +192,8 @@ class Image():
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
             .set({
                 'system:index': self._index,
-                'system:time_start': self._time_start}) \
+                'system:time_start': self._time_start,
+                'IMAGE_ID': self._id}) \
             .rename(['etf'])
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
@@ -156,6 +202,83 @@ class Image():
             etf = etf.set({'TCORR': tcorr, 'TCORR_INDEX': tcorr_index})
 
         return etf
+
+    @lazy_property
+    def etr(self):
+        """Compute reference ET for the image date"""
+        if utils.is_number(self.etr_source):
+            # Interpret numbers as constant images
+            # CGM - Should we use the ee_types here instead?
+            #   i.e. ee.ee_types.isNumber(self.etr_source)
+            etr_img = ee.Image.constant(self.etr_source)
+        elif type(self.etr_source) is str:
+            # Assume a string source is an image collection ID (not an image ID)
+            etr_img = ee.Image(
+                ee.ImageCollection(self.etr_source) \
+                    .filterDate(self._start_date, self._end_date) \
+                    .select([self.etr_band]) \
+                    .first())
+        # elif type(self.etr_source) is list:
+        #     # Interpret as list of image collection IDs to composite/mosaic
+        #     #   i.e. Spatial CIMIS and GRIDMET
+        #     # CGM - Need to check the order of the collections
+        #     etr_coll = ee.ImageCollection([])
+        #     for coll_id in self.etr_source:
+        #         coll = ee.ImageCollection(coll_id) \
+        #             .select([self.etr_band]) \
+        #             .filterDate(self.start_date, self.end_date)
+        #         etr_img = etr_coll.merge(coll)
+        #     etr_img = etr_coll.mosaic()
+        # elif isinstance(self.etr_source, computedobject.ComputedObject):
+        #     # Interpret computed objects as image collections
+        #     etr_coll = ee.ImageCollection(self.etr_source) \
+        #         .select([self.etr_band]) \
+        #         .filterDate(self.start_date, self.end_date)
+        else:
+            raise ValueError('unsupported etr_source: {}'.format(
+                self.etr_source))
+
+        # Map ETr values directly to the input (i.e. Landsat) image pixels
+        # The benefit of this is the ETr image is now in the same crs as the
+        #   input image.  Not all models may want this though.
+        # CGM - Should the output band name match the input ETr band name?
+        return self.ndvi.multiply(0).add(etr_img) \
+            .rename(['etr']) \
+            .set({
+                'system:index': self._index,
+                'system:time_start': self._time_start,
+                'IMAGE_ID': self._id})
+
+    @lazy_property
+    def et(self):
+        """Compute actual ET as fraction of reference times reference"""
+        return self.etf.multiply(self.etr) \
+            .rename(['et']) \
+            .set({
+                'system:index': self._index,
+                'system:time_start': self._time_start,
+                'IMAGE_ID': self._id})
+
+    # @lazy_property
+    # def quality(self):
+    #     """Set quality to 1 for all active pixels (for now)"""
+    #     return self.etf.multiply(0).add(1) \
+    #         .rename(['quality']) \
+    #         .set({
+    #             'system:index': self._index,
+    #             'system:time_start': self._time_start,
+    #             'IMAGE_ID': self._id})
+
+    # @lazy_property
+    # def ndvi(self):
+    #     """Return NDVI image
+    #
+    #     Setting as a lazy property in order to return custom properties
+    #     """
+    #     return self.image.select(['ndvi']).set({
+    #         'system:index': self._index,
+    #         'system:time_start': self._time_start,
+    #         'IMAGE_ID': self._id})
 
     @lazy_property
     def _dt(self):
@@ -571,7 +694,8 @@ class Image():
                 toa_image, **cloudmask_args))\
             .set({
                 'system:index': toa_image.get('system:index'),
-                'system:time_start': toa_image.get('system:time_start')
+                'system:time_start': toa_image.get('system:time_start'),
+                'system:id': toa_image.get('system:id'),
             })
 
         # Instantiate the class
@@ -636,7 +760,8 @@ class Image():
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
             .set({
                 'system:index': sr_image.get('system:index'),
-                'system:time_start': sr_image.get('system:time_start')
+                'system:time_start': sr_image.get('system:time_start'),
+                'system:id': sr_image.get('system:id'),
             })
 
         # Instantiate the class
