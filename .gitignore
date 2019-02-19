@@ -26,8 +26,9 @@ dist/
 privatekey.json
 privatekey.b64
 
-# Coveralls
+# Coverage
 .coveralls.yml
+coverage.xml
 
 # Miscellaneous files
 notes.txt
