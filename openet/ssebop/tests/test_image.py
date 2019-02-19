@@ -598,7 +598,7 @@ def test_Image_etr_band_name():
 def test_Image_etr_properties():
     """Test if properties are set on the ETr image"""
     output_img = ssebop.Image(default_image()).etr
-    output = output_img.getInfo()['properties']
+    output =  utils.getinfo(output_img)['properties']
     assert output['system:index'] == SCENE_ID
     assert output['system:time_start'] == SCENE_TIME
     assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
@@ -634,7 +634,7 @@ def test_Image_et_band_name():
 def test_Image_et_properties(tol=0.0001):
     """Test if properties are set on the ET image"""
     output_img = ssebop.Image(default_image()).et
-    output = output_img.getInfo()['properties']
+    output =  utils.getinfo(output_img)['properties']
     assert output['system:index'] == SCENE_ID
     assert output['system:time_start'] == SCENE_TIME
     assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
