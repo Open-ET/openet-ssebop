@@ -45,7 +45,7 @@ setup(
 		model_name.lower(), version),
     install_requires=['earthengine-api', 'oauth2client', 'openet-core'],
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'],
+    tests_require=['pytest', 'pytest-cov'],
     packages=['openet.{}'.format(model_name.lower())],
     keywords='{} OpenET Evapotranspiration Earth Engine'.format(model_name),
     classifiers = [
