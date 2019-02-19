@@ -2,7 +2,7 @@
 OpenET - SSEBop
 ===============
 
-|version| |build| |coverage|
+|version| |build| |codecov|
 
 **WARNING: This model is in development, is being provided without support, and is subject to change at any time without notification**
 
@@ -199,6 +199,6 @@ References
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
-.. |coverage| image:: https://coveralls.io/repos/github/Open-ET/openet-ssebop-beta/badge.svg?branch=master
+.. |codecov| image:: https://codecov.io/gh/Open-ET/openet-ssebop-beta/branch/master/graphs/badge.svg
    :alt: Coverage Status
-   :target: https://coveralls.io/github/Open-ET/openet-ssebop-beta
+   :target: https://codecov.io/gh/Open-ET/openet-ssebop-beta
