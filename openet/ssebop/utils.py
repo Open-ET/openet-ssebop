@@ -12,12 +12,18 @@ def getinfo(ee_obj, n=4):
     for i in range(1, n):
         try:
             output = ee_obj.getInfo()
-        except Exception as e:
-            logging.info('    Resending query ({}/10)'.format(i))
-            logging.debug('    {}'.format(e))
-            sleep(i ** 2)
+        except ee.ee_exception.EEException as e:
+            if 'Earth Engine memory capacity exceeded' in str(e):
+                logging.info('    Resending query ({}/10)'.format(i))
+                logging.debug('    {}'.format(e))
+                sleep(i ** 2)
+            else:
+                raise e
+
         if output:
             break
+
+    # output = ee_obj.getInfo()
     return output
 
 
@@ -36,6 +42,26 @@ def point_image_value(image, xy, scale=1):
     return getinfo(ee.Image(image).reduceRegion(
         reducer=ee.Reducer.first(), geometry=ee.Geometry.Point(xy),
         scale=scale))
+
+
+def point_coll_value(coll, xy, scale=1):
+    """Extract the output value from a calculation at a point"""
+    output = getinfo(coll.getRegion(ee.Geometry.Point(xy), scale=scale))
+
+    # Structure output to easily be converted to a Pandas dataframe
+    # First key is band name, second key is the date string
+    col_dict = {}
+    info_dict = {}
+    for i, k in enumerate(output[0][4:]):
+        col_dict[k] = i + 4
+        info_dict[k] = {}
+    for row in output[1:]:
+        date = datetime.datetime.utcfromtimestamp(row[3] / 1000.0).strftime(
+            '%Y-%m-%d')
+        for k, v in col_dict.items():
+            info_dict[k][date] = row[col_dict[k]]
+    return info_dict
+    # return pd.DataFrame.from_dict(info_dict)
 
 
 def c_to_k(image):

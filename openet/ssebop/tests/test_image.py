@@ -78,7 +78,7 @@ def test_Image_date_properties():
     assert utils.getinfo(s._end_date)['value'] == utils.millis(
         SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(s._doy) == SCENE_DOY
-    assert utils.getinfo(s._cycle_day) == (
+    assert utils.getinfo(s._cycle_day) == int(
         (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
 
 
@@ -106,7 +106,7 @@ def test_Image_scene_id_property():
         [0.1, 0.9, 0.8],
     ]
 )
-def test_Image_ndvi_calculation(red, nir, expected, tol=0.000001):
+def test_Image_static_ndvi_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
     output = utils.constant_image_value(ssebop.Image._ndvi(toa))
     # logging.debug('\n  Target values: {}'.format(expected))
@@ -114,7 +114,7 @@ def test_Image_ndvi_calculation(red, nir, expected, tol=0.000001):
     assert abs(output['ndvi'] - expected) <= tol
 
 
-def test_Image_ndvi_band_name():
+def test_Image_static_ndvi_band_name():
     output = utils.getinfo(ssebop.Image._ndvi(toa_image()))
     assert output['bands'][0]['id'] == 'ndvi'
 
@@ -134,13 +134,13 @@ def test_Image_ndvi_band_name():
         [0.1, 17.0 / 30, 0.99],      # 0.7
     ]
 )
-def test_Image_emissivity_calculation(red, nir, expected, tol=0.000001):
-    toa = toa_image(red=red, nir=nir)
-    output = utils.constant_image_value(ssebop.Image._emissivity(toa))
+def test_Image_static_emissivity_calculation(red, nir, expected, tol=0.000001):
+    output = utils.constant_image_value(
+        ssebop.Image._emissivity(toa_image(red=red, nir=nir)))
     assert abs(output['emissivity'] - expected) <= tol
 
 
-def test_Image_emissivity_band_name():
+def test_Image_static_emissivity_band_name():
     output = utils.getinfo(ssebop.Image._emissivity(toa_image()))
     assert output['bands'][0]['id'] == 'emissivity'
 
@@ -151,13 +151,13 @@ def test_Image_emissivity_band_name():
         [0.2, 0.7, 300, 303.471031],
     ]
 )
-def test_Image_lst_calculation(red, nir, bt, expected, tol=0.000001):
-    toa = toa_image(red=red, nir=nir, bt=bt)
-    output = utils.constant_image_value(ssebop.Image._lst(toa))
+def test_Image_static_lst_calculation(red, nir, bt, expected, tol=0.000001):
+    output = utils.constant_image_value(
+        ssebop.Image._lst(toa_image(red=red, nir=nir, bt=bt)))
     assert abs(output['lst'] - expected) <= tol
 
 
-def test_Image_lst_band_name():
+def test_Image_static_lst_band_name():
     output = utils.getinfo(ssebop.Image._lst(toa_image()))
     assert output['bands'][0]['id'] == 'lst'
 
@@ -170,10 +170,36 @@ def test_Image_lst_band_name():
         [305, 500, 0, 303.5],
     ]
 )
-def test_Image_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
+def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
     output = utils.constant_image_value(ssebop.Image._lapse_adjust(
         ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
     assert abs(output['constant'] - expected) <= tol
+
+
+def test_Image_ndvi_band_name():
+    output = utils.getinfo(ssebop.Image(default_image()).ndvi)
+    assert output['bands'][0]['id'] == 'ndvi'
+
+
+def test_Image_ndvi_properties():
+    """Test if properties are set on the NDVI image"""
+    output = utils.getinfo(ssebop.Image(default_image()).ndvi)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
+def test_Image_lst_band_name():
+    output = utils.getinfo(ssebop.Image(default_image()).lst)
+    assert output['bands'][0]['id'] == 'lst'
+
+
+def test_Image_lst_properties():
+    """Test if properties are set on the LST image"""
+    output = utils.getinfo(ssebop.Image(default_image()).lst)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
 
 
 @pytest.mark.parametrize(
@@ -243,8 +269,8 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 )
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), elev_source=elev_source)._elev
-    output = utils.point_image_value(ee.Image(output_img), xy)
+    output = utils.point_image_value(
+        ssebop.Image(default_image(), elev_source=elev_source)._elev, xy)
     assert abs(output['elev'] - expected) <= tol
 
 
@@ -306,7 +332,6 @@ def test_Image_elev_band_name():
 def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
                                 expected, tol=0.0001):
     """Test getting Tcorr value and index for a single date at a real point"""
-    logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
         .strftime('%Y-%m-%d')
     input_image = ee.Image.constant(1).set({
@@ -340,7 +365,6 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
 def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
                                   expected, tol=0.0001):
     """Test getting Tcorr value and index for a single date at a real point"""
-    logging.debug('\n  {} {}'.format(tcorr_source, tmax_source))
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
         .strftime('%Y-%m-%d')
     input_image = ee.Image.constant(1).set({
@@ -465,10 +489,10 @@ today_dt = datetime.datetime.today()
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
-    tmax_img = ssebop.Image(default_image(), tmax_source=tmax_source)._tmax
-    output = utils.getinfo(tmax_img)['properties']
-    assert output['TMAX_SOURCE'] == tmax_source
-    assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
+    output = utils.getinfo(
+        ssebop.Image(default_image(), tmax_source=tmax_source)._tmax)
+    assert output['properties']['TMAX_SOURCE'] == tmax_source
+    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
 
 
 @pytest.mark.parametrize(
@@ -567,63 +591,52 @@ def test_Image_etf_band_name():
 
 def test_Image_etf_properties():
     """Test if properties are set on the ETf image"""
-    etf_img = ssebop.Image(default_image()).etf
-    output = utils.getinfo(etf_img)['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == SCENE_TIME
+    output = utils.getinfo(ssebop.Image(default_image()).etf)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
 
 
 def test_Image_etf_image_tcorr_properties():
     """Test if Tcorr properties are set when tcorr_source is a feature"""
-    etf_img = ssebop.Image(default_image(), tcorr_source='IMAGE').etf
-    output = utils.getinfo(etf_img)['properties']
-    assert 'TCORR' not in output.keys()
-    assert 'TCORR_INDEX' not in output.keys()
+    output = utils.getinfo(
+        ssebop.Image(default_image(), tcorr_source='IMAGE').etf)
+    assert 'TCORR' not in output['properties'].keys()
+    assert 'TCORR_INDEX' not in output['properties'].keys()
 
 
 def test_Image_etf_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
-    etf_img = ssebop.Image(default_image(), tcorr_source='FEATURE').etf
-    output = utils.getinfo(etf_img)['properties']
-    assert abs(output['TCORR'] - 0.9752) <= tol
-    assert output['TCORR_INDEX'] == 0
+    output = utils.getinfo(
+        ssebop.Image(default_image(), tcorr_source='FEATURE').etf)
+    assert abs(output['properties']['TCORR'] - 0.9752) <= tol
+    assert output['properties']['TCORR_INDEX'] == 0
 
 
 def test_Image_etr_band_name():
-    input_args = {'image': default_image()}
-    output = utils.getinfo(ssebop.Image(**input_args).etr)
+    output = utils.getinfo(ssebop.Image(**{'image': default_image()}).etr)
     assert output['bands'][0]['id'] == 'etr'
 
 
 def test_Image_etr_properties():
     """Test if properties are set on the ETr image"""
-    output_img = ssebop.Image(default_image()).etr
-    output =  utils.getinfo(output_img)['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == SCENE_TIME
-    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+    output =  utils.getinfo(ssebop.Image(default_image()).etr)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
 
 
-def test_Image_etf_constant(expected=0.8, tol=0.0001):
-    output_img = ssebop.Image(
-        default_image(), dt_source=6, elev_source=50, tcorr_source=0.98,
-        tmax_source=310).etf
-    output = utils.constant_image_value(output_img)
-    assert abs(output['etf'] - expected) <= tol
+def test_Image_etr_values(tol=0.0001):
+    output = utils.constant_image_value(
+        ssebop.Image(default_image(), etr_source=10).etr)
+    assert abs(output['etr'] - 10) <= tol
 
 
-def test_Image_etr_constant(expected=10.0, tol=0.0001):
-    output_img = ssebop.Image(default_image(), etr_source=expected).etr
-    output = utils.constant_image_value(output_img)
-    assert abs(output['etr'] - expected) <= tol
-
-
-def test_Image_et_constant(expected=5.8, tol=0.0001):
+def test_Image_et_values(tol=0.0001):
     output_img = ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310, etr_source=10).et
     output = utils.constant_image_value(output_img)
-    assert abs(output['et'] - expected) <= tol
+    assert abs(output['et'] - 5.8) <= tol
 
 
 def test_Image_et_band_name():
@@ -633,18 +646,52 @@ def test_Image_et_band_name():
 
 def test_Image_et_properties(tol=0.0001):
     """Test if properties are set on the ET image"""
-    output_img = ssebop.Image(default_image()).et
-    output =  utils.getinfo(output_img)['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == SCENE_TIME
-    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+    output =  utils.getinfo(ssebop.Image(default_image()).et)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
+def test_Image_calculate_variables_default():
+    output = utils.getinfo(ssebop.Image(default_image()).calculate())
+    assert sorted([x['id'] for x in output['bands']]) == ['et', 'etf', 'etr']
+
+
+def test_Image_calculate_variables_custom():
+    output = utils.getinfo(ssebop.Image(default_image()).calculate(['ndvi']))
+    assert output['bands'][0]['id'] == 'ndvi'
+
+
+def test_Image_calculate_properties():
+    """Test if properties are set on the output image"""
+    output =  utils.getinfo(ssebop.Image(default_image()).calculate(['ndvi']))
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
+def test_Image_calculate_values(tol=0.0001):
+    """Test if the calculate method returns ET, ETr, and ETf values"""
+    output_img = ssebop.Image(
+            default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+            tcorr_source=0.98, tmax_source=310, etr_source=10)\
+        .calculate(['et', 'etr', 'etf'])
+    output = utils.constant_image_value(output_img)
+    assert abs(output['et'] - 5.8) <= tol
+    assert abs(output['etr'] - 10) <= tol
+    assert abs(output['etf'] - 0.58) <= tol
+
+
+def test_Image_calculate_variables_valueerror():
+    """Test if calculate method raises a valueerror for invalid variables"""
+    with pytest.raises(ValueError):
+        utils.getinfo(ssebop.Image(default_image()).calculate(['FOO']))
 
 
 # How should these @classmethods be tested?
 def test_Image_from_landsat_c1_toa_default_image():
     """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_toa(
-        ee.Image('LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'))
+    output = ssebop.Image.from_landsat_c1_toa(ee.Image(COLL_ID + SCENE_ID))
     assert type(output) == type(ssebop.Image(default_image()))
 
 
@@ -658,24 +705,43 @@ def test_Image_from_landsat_c1_toa_default_image():
         'LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
     ]
 )
-def test_Image_from_landsat_c1_toa_landsat_image(image_id):
-    """Test instantiating the class from a real Landsat images"""
+def test_Image_from_landsat_c1_toa_image_id(image_id):
+    """Test instantiating the class from a Landsat image ID"""
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).ndvi)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_toa_image():
+    """Test instantiating the class from a Landsat ee.Image"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
     output = utils.getinfo(
         ssebop.Image.from_landsat_c1_toa(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-# DEADBEEF - This call isn't raising an exception
-# def test_Image_from_landsat_c1_toa_exception():
-#     """Test instantiating the class for an invalid image ID"""
-#     with pytest.raises(Exception):
-#         utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image('DEADBEEF'))._index)
+def test_Image_from_landsat_c1_toa_etf():
+    """Test if ETf can be built for a Landsat images"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).etf)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_toa_et():
+    """Test if ET can be built for a Landsat images"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).et)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_toa_exception():
+    with pytest.raises(Exception):
+        utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi)
 
 
 def test_Image_from_landsat_c1_sr_default_image():
     """Test that the classmethod is returning a class object"""
     output = ssebop.Image.from_landsat_c1_sr(
-        ee.Image('LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'))
+        ee.Image(COLL_ID + SCENE_ID))
     assert type(output) == type(ssebop.Image(default_image()))
 
 
@@ -689,39 +755,84 @@ def test_Image_from_landsat_c1_sr_default_image():
         'LANDSAT/LT05/C01/T1_SR/LT05_044033_20110716',
     ]
 )
-def test_Image_from_landsat_c1_sr_landsat_image(image_id):
-    """Test instantiating the class from a real Landsat images"""
-    output = utils.getinfo(
-        ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
+def test_Image_from_landsat_c1_sr_image_id(image_id):
+    """Test instantiating the class from a Landsat image ID"""
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-# DEADBEEF - This call isn't raising an exception
-# def test_Image_from_landsat_c1_sr_exception():
-#     """Test instantiating the class for an invalid image ID"""
-#     with pytest.raises(Exception):
-#         utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('DEADBEEF'))._index)
+def test_Image_from_landsat_c1_sr_image():
+    """Test instantiating the class from a Landsat ee.Image"""
+    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_sr_etf():
+    """Test if ETf can be built for a Landsat images"""
+    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).etf)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_sr_et():
+    """Test if ET can be built for a Landsat images"""
+    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).et)
+    assert output['properties']['system:index'] == image_id.split('/')[-1]
+
+
+def test_Image_from_landsat_c1_sr_exception():
+    """Test instantiating the class for an invalid image ID"""
+    with pytest.raises(Exception):
+        utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
+
+
+# @pytest.mark.parametrize(
+#     'image_id',
+#     [
+#         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+#         'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
+#     ]
+# )
+# def test_Image_from_image_id(image_id):
+#     """Test instantiating the class using the from_image_id method"""
+#     output = utils.getinfo(ssebop.Image.from_image_id(image_id).ndvi)
+#     assert output['properties']['system:index'] == image_id.split('/')[-1]
+#     assert output['properties']['IMAGE_ID'] == image_id
+
+
+def test_Image_from_method_kwargs():
+    """Test that the init parameters can be passed through the helper methods"""
+    assert ssebop.Image.from_landsat_c1_toa(
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+        elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
+    assert ssebop.Image.from_landsat_c1_sr(
+        'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
+        elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
+
+
+def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
+                                  tol=0.0001):
+    output = utils.constant_image_value(ssebop.Image(
+        default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
+    assert abs(output['tcorr'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
     # Note: These are made up values
     'lst, ndvi, tmax, expected',
     [
-        [300, 0.80, 306, 0.9804],
         [300, 0.69, 306, None],  # NDVI < 0.7
         [269, 0.69, 306, None],  # LST < 270
         [290, 0.20, 306, None],  # Tdiff > 15
         [307, 0.20, 306, None],  # Tdiff < 0
     ]
 )
-def test_Image_tcorr_image(lst, ndvi, tmax, expected, tol=0.0001):
-    output_img = ssebop.Image(default_image(lst=lst, ndvi=ndvi),
-                              tmax_source=tmax).tcorr_image
-    output = utils.constant_image_value(ee.Image(output_img))
-    if output['tcorr'] is None and expected is None:
-        assert True
-    else:
-        assert abs(output['tcorr'] - expected) <= tol
+def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
+    output = utils.constant_image_value(ssebop.Image(
+        default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
+    assert output['tcorr'] is None and expected is None
 
 
 def test_Image_tcorr_image_band_name():
@@ -732,12 +843,11 @@ def test_Image_tcorr_image_band_name():
 def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
                                       expected={'TMAX_VERSION': 'median_v0'}):
     """Test if properties are set on the tcorr image"""
-    tcorr_img = ssebop.Image(default_image()).tcorr_image
-    output = utils.getinfo(tcorr_img)['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == SCENE_TIME
-    assert output['TMAX_SOURCE'] == tmax_source
-    assert output['TMAX_VERSION'] == expected['TMAX_VERSION']
+    output = utils.getinfo(ssebop.Image(default_image()).tcorr_image)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['TMAX_SOURCE'] == tmax_source
+    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
 
 
 def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
@@ -767,7 +877,7 @@ def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):
-    input = ssebop.Image.from_landsat_c1_toa(ee.Image(image_id))
-    output = utils.getinfo(input.tcorr_stats)
+    output = utils.getinfo(
+        ssebop.Image.from_landsat_c1_toa(ee.Image(image_id)).tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']

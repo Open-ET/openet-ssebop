@@ -82,14 +82,19 @@ class Image():
         """
         self.image = ee.Image(image)
 
-        # Unpack the input bands as properties
-        self.lst = self.image.select('lst')
-        self.ndvi = self.image.select('ndvi')
+        # Set as "lazy_property" below in order to return custom properties
+        # self.lst = self.image.select('lst')
+        # self.ndvi = self.image.select('ndvi')
 
         # Copy system properties
         self._id = self.image.get('system:id')
         self._index = self.image.get('system:index')
         self._time_start = self.image.get('system:time_start')
+        self._properties = {
+            'system:index': self._index,
+            'system:time_start': self._time_start,
+            'IMAGE_ID': self._id,
+        }
 
         # Build SCENE_ID from the (possibly merged) system:index
         scene_id = ee.List(ee.String(self._index).split('_')).slice(-3)
@@ -108,8 +113,8 @@ class Image():
         self._start_date = ee.Date(utils.date_to_time_0utc(self._date))
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
-        self._cycle_day = self._date.difference(
-            ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1)
+        self._cycle_day = self._start_date.difference(
+            ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
         #
         self.etr_source = etr_source
@@ -154,10 +159,17 @@ class Image():
             else:
                 raise ValueError('unsupported variable: {}'.format(v))
 
-        return ee.Image(output_images).set({
-            'system:index': self._index,
-            'system:time_start': self._time_start,
-            'IMAGE_ID': self._id})
+        return ee.Image(output_images).set(self._properties)
+
+    @lazy_property
+    def lst(self):
+        """Return land surface temperature (LST) image"""
+        return self.image.select(['lst']).set(self._properties)
+
+    @lazy_property
+    def ndvi(self):
+        """Return NDVI image"""
+        return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
     def etf(self):
@@ -190,10 +202,7 @@ class Image():
         etf = etf.updateMask(etf.lt(1.3)) \
             .clamp(0, 1.05) \
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
-            .set({
-                'system:index': self._index,
-                'system:time_start': self._time_start,
-                'IMAGE_ID': self._id}) \
+            .set(self._properties) \
             .rename(['etf'])
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
@@ -243,42 +252,19 @@ class Image():
         #   input image.  Not all models may want this though.
         # CGM - Should the output band name match the input ETr band name?
         return self.ndvi.multiply(0).add(etr_img) \
-            .rename(['etr']) \
-            .set({
-                'system:index': self._index,
-                'system:time_start': self._time_start,
-                'IMAGE_ID': self._id})
+            .rename(['etr']).set(self._properties)
 
     @lazy_property
     def et(self):
         """Compute actual ET as fraction of reference times reference"""
         return self.etf.multiply(self.etr) \
-            .rename(['et']) \
-            .set({
-                'system:index': self._index,
-                'system:time_start': self._time_start,
-                'IMAGE_ID': self._id})
+            .rename(['et']).set(self._properties)
 
     # @lazy_property
     # def quality(self):
     #     """Set quality to 1 for all active pixels (for now)"""
     #     return self.etf.multiply(0).add(1) \
-    #         .rename(['quality']) \
-    #         .set({
-    #             'system:index': self._index,
-    #             'system:time_start': self._time_start,
-    #             'IMAGE_ID': self._id})
-
-    # @lazy_property
-    # def ndvi(self):
-    #     """Return NDVI image
-    #
-    #     Setting as a lazy property in order to return custom properties
-    #     """
-    #     return self.image.select(['ndvi']).set({
-    #         'system:index': self._index,
-    #         'system:time_start': self._time_start,
-    #         'IMAGE_ID': self._id})
+    #         .rename(['quality']).set(self._properties)
 
     @lazy_property
     def _dt(self):
@@ -639,6 +625,49 @@ class Image():
                 self._tmax_source))
 
         return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
+
+    # @classmethod
+    # def from_image_id(cls, image_id, **kwargs):
+    #     """Constructs an SSEBop Image instance from an image ID
+    #
+    #     Parameters
+    #     ----------
+    #     image_id : str
+    #         An earth engine image ID.
+    #         (i.e. 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
+    #     kwargs
+    #         Keyword arguments to pass through to model init.
+    #
+    #     Returns
+    #     -------
+    #     new instance of Image class
+    #
+    #     """
+    #     # DEADBEEF - Should the supported image collection IDs and helper
+    #     # function mappings be set in a property or method of the Image class?
+    #     collection_methods = {
+    #         'LANDSAT/LC08/C01/T1_RT_TOA': 'from_landsat_c1_toa',
+    #         'LANDSAT/LE07/C01/T1_RT_TOA': 'from_landsat_c1_toa',
+    #         'LANDSAT/LC08/C01/T1_TOA': 'from_landsat_c1_toa',
+    #         'LANDSAT/LE07/C01/T1_TOA': 'from_landsat_c1_toa',
+    #         'LANDSAT/LT05/C01/T1_TOA': 'from_landsat_c1_toa',
+    #         # 'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
+    #         'LANDSAT/LC08/C01/T1_SR': 'from_landsat_c1_sr',
+    #         'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
+    #         'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
+    #         # 'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
+    #     }
+    #
+    #     try:
+    #         method_name = collection_methods[image_id.rsplit('/', 1)[0]]
+    #     except KeyError:
+    #         raise ValueError('unsupported collection ID: {}'.format(image_id))
+    #     except Exception as e:
+    #         raise Exception('unhandled exception: {}'.format(e))
+    #
+    #     method = getattr(Image, method_name)
+    #
+    #     return method(ee.Image(image_id), **kwargs)
 
     @classmethod
     def from_landsat_c1_toa(cls, toa_image, cloudmask_args={}, **kwargs):

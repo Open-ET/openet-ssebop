@@ -27,6 +27,7 @@ privatekey.json
 privatekey.b64
 
 # Coverage
+.codecov.yml
 .coveralls.yml
 coverage.xml
 

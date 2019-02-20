@@ -69,7 +69,6 @@ class Collection():
             Maximum cloud cover percentage (the default is 70%).
                 - Landsat TOA: CLOUD_COVER_LAND
                 - Landsat SR: CLOUD_COVER_LAND
-                - Sentinel2: CLOUDY_PIXEL_PERCENTAGE
         filter_args : dict
             Image collection filter keyword arguments (the default is None).
             Organize filter arguments as a nested dictionary with the primary
@@ -194,7 +193,7 @@ class Collection():
                     .filterMetadata(
                         'CLOUD_COVER_LAND', 'less_than', self.cloud_cover_max)
 
-                # DEADBEEF - Need to come up with a better system for applying
+                # DEADBEEF - Need to come up with a system for applying
                 #   generic filter arguments to the collections
                 # What if DATA_TYPE was a list instead of string?
                 # For now, always filter DATA_TYPE == L1TP
@@ -208,7 +207,8 @@ class Collection():
                         toa_image=ee.Image(image), **self.model_args)
                     return model_obj.calculate(variables)
 
-                variable_coll = variable_coll.merge(input_coll.map(compute_ltoa))
+                variable_coll = variable_coll.merge(
+                    ee.ImageCollection(input_coll.map(compute_ltoa)))
 
             elif coll_id in self._landsat_c1_sr_collections:
                 input_coll = ee.ImageCollection(coll_id) \
@@ -222,7 +222,8 @@ class Collection():
                         sr_image=ee.Image(image), **self.model_args)
                     return model_obj.calculate(variables)
 
-                variable_coll = variable_coll.merge(input_coll.map(compute_lsr))
+                variable_coll = variable_coll.merge(
+                    ee.ImageCollection(input_coll.map(compute_lsr)))
 
             else:
                 raise ValueError('unsupported collection: {}'.format(coll_id))
@@ -455,7 +456,7 @@ class Collection():
                     image_list.append(ndvi_img)
 
                 return ee.Image(image_list).set({
-                    'system:index': ee.Date(agg_start_date).format('YYYYmm'),
+                    'system:index': ee.Date(agg_start_date).format('YYYYMM'),
                     'system:time_start': ee.Date(agg_start_date).millis(),
                 })
 
@@ -465,20 +466,21 @@ class Collection():
             # CGM - All of this code is almost identical to the monthly function above
             def year_gen(iter_start_dt, iter_end_dt):
                 iter_dt = iter_start_dt
-                while iter_dt <= iter_end_dt:
+                while iter_dt < iter_end_dt:
                     yield iter_dt.strftime('%Y-%m-%d')
                     iter_dt += relativedelta(years=+1)
             year_list = list(year_gen(start_dt, end_dt))
 
             def aggregate_annual(agg_start_date):
-                add_end_date = agg_start_date + relativedelta(years=+1)
-                et_img = daily_coll.filterDate(agg_start_date, add_end_date) \
-                    .sum().rename('et')
-                etr_img = daily_coll.filterDate(agg_start_date, add_end_date) \
-                    .sum().rename('etr')
-                etf_img = et_img.divide(etr_img).rename('etr')
-                ndvi_img = daily_coll.filterDate(agg_start_date, add_end_date) \
-                    .mean().rename('ndvi')
+                agg_end_date = ee.Date(agg_start_date).advance(1, 'year')
+                if 'et' in variables or 'etf' in variables:
+                    et_img = daily_coll.select(['et']) \
+                        .filterDate(agg_start_date, agg_end_date) \
+                        .sum()
+                if 'etr' in variables or 'etf' in variables:
+                    etr_img = daily_coll.select(['etr']) \
+                        .filterDate(agg_start_date, agg_end_date) \
+                        .sum()
 
                 image_list = []
                 if 'et' in variables:
@@ -486,32 +488,36 @@ class Collection():
                 if 'etr' in variables:
                     image_list.append(etr_img)
                 if 'etf' in variables:
+                    etf_img = et_img.divide(etr_img).rename('etf')
                     image_list.append(etf_img)
                 if 'ndvi' in variables:
+                    ndvi_img = daily_coll \
+                        .filterDate(agg_start_date, agg_end_date) \
+                        .mean().select(['ndvi'])
                     image_list.append(ndvi_img)
 
                 return ee.Image(image_list).set({
-                    'system:index': ee.Date(agg_start_date).format('YYYYmm'),
+                    'system:index': ee.Date(agg_start_date).format('YYYY'),
                     'system:time_start': ee.Date(agg_start_date).millis(),
                 })
 
             return ee.ImageCollection(ee.List(year_list).map(aggregate_annual))
 
 
-    # def get_image_ids(self):
-    #     """Return image IDs of the input images
-    #
-    #     Returns
-    #     -------
-    #     list
-    #
-    #     """
-    #     # DEADBEEF - This doesn't return the extra images used for interpolation
-    #     #   and may not be that useful of a method
-    #     # CGM - Could the build function and Image class support returning
-    #     #   the system:index?
-    #     output = list(self._build(variables=['ndvi'])\
-    #         .aggregate_histogram('IMAGE_ID').getInfo().keys())
-    #     return sorted(output)
-    #     # Strip merge indices (this works for Landsat and Sentinel image IDs
-    #     # return sorted(['_'.join(x.split('_')[-3:]) for x in output])
+    def get_image_ids(self):
+        """Return image IDs of the input images
+
+        Returns
+        -------
+        list
+
+        """
+        # DEADBEEF - This doesn't return the extra images used for interpolation
+        #   and may not be that useful of a method
+        # CGM - Could the build function and Image class support returning
+        #   the system:index?
+        output = list(self._build(variables=['ndvi'])\
+            .aggregate_histogram('IMAGE_ID').getInfo().keys())
+        return sorted(output)
+        # Strip merge indices (this works for Landsat image IDs
+        # return sorted(['_'.join(x.split('_')[-3:]) for x in output])

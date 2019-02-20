@@ -23,6 +23,13 @@ def test_point_image_value(tol=0.001):
     assert abs(output['elevation'] - expected) <= tol
 
 
+def point_coll_value(tol=0.001):
+    expected = 2364.351
+    output = utils.point_coll_value(
+        ee.ImageCollection([ee.Image('USGS/NED')]), [-106.03249, 37.17777])
+    assert abs(output['elevation']['2012-04-04'] - expected) <= tol
+
+
 def test_c_to_k(c=20, k=293.15, tol=0.000001):
     output = utils.constant_image_value(utils.c_to_k(ee.Image.constant(c)))
     assert abs(output['constant'] - k) <= tol

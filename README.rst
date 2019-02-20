@@ -4,7 +4,7 @@ OpenET - SSEBop
 
 |version| |build| |codecov|
 
-**WARNING: This model is in development, is being provided without support, and is subject to change at any time without notification**
+**WARNING: This code is in development, is being provided without support, and is subject to change at any time without notification**
 
 This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
