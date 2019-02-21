@@ -248,8 +248,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         # pprint.pprint(wrs2_coll.getInfo())
         # input('ENTER')
 
-        tcorr_daily_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tcorr_image/topowx_median_v0_daily') \
+        tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id) \
             .filter(ee.Filter.inList('DATE', date_list))
         #     .filterMetadata('CYCLE_DAY', 'equals', cycle_day)
 

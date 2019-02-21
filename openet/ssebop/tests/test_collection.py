@@ -268,17 +268,22 @@ def test_Collection_interpolate_t_interval_monthly():
         y['id'] for x in output['features'] for y in x['bands']])))
 
 
-def test_Collection_interpolate_t_interval_annual():
-    """Test if the annual time interval parameter works"""
-    args = default_coll_args()
-    args['start_date'] = '2017-01-01'
-    args['end_date'] = '2018-01-01'
-    output = utils.getinfo(ssebop.Collection(**args)
-        .interpolate(t_interval='annual'))
-    assert output['type'] == 'ImageCollection'
-    assert parse_scene_id(output) == ['2017']
-    assert VARIABLES == sorted(list(set([
-        y['id'] for x in output['features'] for y in x['bands']])))
+# CGM - Commenting out since it takes a really long time to run
+#   This function could probably be be tested for a shorter time period
+# def test_Collection_interpolate_t_interval_annual():
+#     """Test if the annual time interval parameter works"""
+#     args = default_coll_args()
+#     args['start_date'] = '2017-01-01'
+#     args['end_date'] = '2018-01-01'
+#     output = utils.getinfo(ssebop.Collection(**args)
+#         .interpolate(t_interval='annual'))
+#     assert output['type'] == 'ImageCollection'
+#     assert parse_scene_id(output) == ['2017']
+#     assert VARIABLES == sorted(list(set([
+#         y['id'] for x in output['features'] for y in x['bands']])))
+
+
+# TODO: Write test for annual interpolation with a date range that is too short
 
 
 # def test_Collection_interpolate_interp_days():

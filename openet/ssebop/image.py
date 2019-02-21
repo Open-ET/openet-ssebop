@@ -1,4 +1,5 @@
 import datetime
+import pprint
 
 import ee
 
@@ -32,7 +33,7 @@ class Image():
             etr_band='etr',
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
-            tcorr_source='IMAGE',
+            tcorr_source='IMAGE_DAILY',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
             tdiff_threshold=15,
@@ -56,9 +57,9 @@ class Image():
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
         tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
-                        'IMAGE', 'IMAGE_MONTHLY', 'IMAGE_ANNUAL',
-                        or float}, optional
-            Tcorr source keyword (the default is 'IMAGE').
+                        'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
+                        'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
+            Tcorr source keyword (the default is 'IMAGE_DAILY').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
                        'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
                        'TOPOWX_MEDIAN_V0', or float}, optional
@@ -445,76 +446,102 @@ class Image():
 
         elif 'IMAGE' in self._tcorr_source.upper():
             # Lookup Tcorr collections by keyword value
-            daily_coll_dict = {
+            daily_dict = {
                 'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_daily'
             }
-            month_coll_dict = {
+            month_dict = {
                 'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_monthly',
             }
-            annual_coll_dict = {
+            annual_dict = {
                 'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_annual',
             }
-            default_value_dict = {
-                'TOPOWX_MEDIAN_V0': 0.978
+            default_dict = {
+                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_default'
             }
 
             # Check Tmax source value
             tmax_key = self._tmax_source.upper()
-            if tmax_key not in default_value_dict.keys():
+            if tmax_key not in default_dict.keys():
                 raise ValueError(
                     '\nInvalid tmax_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
-            # Since the default will be to always use the daily Tcorr images
-            # it seems okay to build all the images even if the user only wants
-            # monthly or annual.
-            annual_img = ee.Image(
-                ee.ImageCollection(annual_coll_dict[tmax_key]) \
-                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day)
+            default_img = ee.Image(default_dict[tmax_key])
+            mask_img = default_img.updateMask(0)
+
+            if (self._tcorr_source.upper() == 'IMAGE' or
+                    'DAILY' in self._tcorr_source.upper()):
+                daily_coll = ee.ImageCollection(daily_dict[tmax_key]) \
+                    .filterDate(self._start_date, self._end_date) \
                     .select(['tcorr'])
-                    .first())
-            month_img = ee.Image(
-                ee.ImageCollection(month_coll_dict[tmax_key]) \
+                daily_coll = daily_coll.merge(ee.ImageCollection(mask_img))
+                daily_img = ee.Image(daily_coll.mosaic())
+                # .filterMetadata('DATE', 'equals', self._date)
+            if (self._tcorr_source.upper() == 'IMAGE' or
+                    'MONTH' in self._tcorr_source.upper()):
+                month_coll = ee.ImageCollection(month_dict[tmax_key]) \
                     .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day) \
-                    .filterMetadata('MONTH', 'equals', self._month)
+                    .filterMetadata('MONTH', 'equals', self._month) \
                     .select(['tcorr'])
-                    .first())
-            daily_img = ee.Image(
-                ee.ImageCollection(daily_coll_dict[tmax_key]) \
-                    .filterDate(self._start_date, self._end_date)
+                month_coll = month_coll.merge(ee.ImageCollection(mask_img))
+                month_img = ee.Image(month_coll.mosaic())
+            if (self._tcorr_source.upper() == 'IMAGE' or
+                    'ANNUAL' in self._tcorr_source.upper()):
+                annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
+                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day) \
                     .select(['tcorr'])
-                    .first())
-            #         .filterMetadata('DATE', 'equals', self._date)
+                annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
+                annual_img = ee.Image(annual_coll.mosaic())
 
-            default_img = annual_img.multiply(0).add(
-                default_value_dict[tmax_key])
-            # default_img = ee.Image.constant([default_value_dict[tmax_key]])
-
-            if self._tcorr_source.upper() in ['IMAGE']:
-                tcorr_img = ee.ImageCollection([
+            if self._tcorr_source.upper() == 'IMAGE':
+                # Composite Tcorr images to ensure that a value is returned
+                #   (even if the daily image doesn't exist)
+                composite_img = ee.ImageCollection([
                         default_img.addBands(default_img.multiply(0).add(3).uint8()),
                         annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
                         month_img.addBands(month_img.multiply(0).add(1).uint8()),
                         daily_img.addBands(daily_img.multiply(0).uint8())]) \
-                    .mosaic()
+                    .mosaic().rename(['tcorr', 'index'])
+                tcorr_img = composite_img.select(['tcorr'])
+                index_img = composite_img.select(['index'])
+            elif 'DAILY' in self._tcorr_source.upper():
+                tcorr_img = daily_img
+                index_img = daily_img.multiply(0).uint8()
             elif 'MONTH' in self._tcorr_source.upper():
-                tcorr_img = ee.ImageCollection([
-                        default_img.addBands(default_img.multiply(0).add(3).uint8()),
-                        annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-                        month_img.addBands(month_img.multiply(0).add(1).uint8())]) \
-                    .mosaic()
+                tcorr_img = month_img
+                index_img = month_img.multiply(0).add(1).uint8()
             elif 'ANNUAL' in self._tcorr_source.upper():
-                tcorr_img = ee.ImageCollection([
-                        default_img.addBands(default_img.multiply(0).add(3).uint8()),
-                        annual_img.addBands(annual_img.multiply(0).add(2).uint8())]) \
-                    .mosaic()
+                tcorr_img = annual_img
+                index_img = annual_img.multiply(0).add(2).uint8()
+            elif 'DEFAULT' in self._tcorr_source.upper():
+                tcorr_img = default_img
+                index_img = default_img.multiply(0).add(3).uint8()
             else:
                 raise ValueError(
                     'Invalid tcorr_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
-            return tcorr_img.select([0], ['tcorr']), tcorr_img.select([1], ['index'])
+            return tcorr_img, index_img.rename(['index'])
 
+            # # Construct Tcorr images as composites
+            # elif 'DAILY' in self._tcorr_source.upper():
+            #     tcorr_img = ee.ImageCollection([
+            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
+            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
+            #             month_img.addBands(month_img.multiply(0).add(1).uint8()),
+            #             daily_img.addBands(daily_img.multiply(0).uint8())]) \
+            #         .mosaic()
+            # elif 'MONTH' in self._tcorr_source.upper():
+            #     tcorr_img = ee.ImageCollection([
+            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
+            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
+            #             month_img.addBands(month_img.multiply(0).add(1).uint8())]) \
+            #         .mosaic()
+            # elif 'ANNUAL' in self._tcorr_source.upper():
+            #     tcorr_img = ee.ImageCollection([
+            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
+            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8())]) \
+            #         .mosaic()
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
                 self._tcorr_source))

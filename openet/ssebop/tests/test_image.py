@@ -1,5 +1,4 @@
 import datetime
-import logging
 
 import ee
 import pytest
@@ -16,7 +15,13 @@ SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
 SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
 SCENE_DOY = int(SCENE_DT.strftime('%j'))
 SCENE_TIME = utils.millis(SCENE_DT)
+SCENE_POINT = (-119.5, 36.0)
+TEST_POINT = (-19.44252382373145, 36.04047742246546)
+
 # SCENE_TIME = utils.getinfo(ee.Date(SCENE_DATE).millis())
+# SCENE_POINT = (-19.44252382373145, 36.04047742246546)
+# SCENE_POINT = utils.getinfo(
+#     ee.Image(COLL_ID + SCENE_ID).geometry().centroid())['coordinates']
 
 
 # Should these be test fixtures instead?
@@ -374,41 +379,88 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
 
 
 @pytest.mark.parametrize(
-    'tcorr_source, tmax_source, scene_id, month, expected',
+    'tcorr_source, tmax_source, scene_id, expected',
     [
         # Check image sources (TOPOWX median only for now)
-        ['IMAGE', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9752, 0]],
-        ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9723, 1]],
-        # Check that month filtering is based on MONTH property
-        ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', SCENE_ID, 8, [0.9769, 1]],
-        ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9786, 2]],
+        ['IMAGE', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
+        ['IMAGE_DAILY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
+        ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9723, 1]],
+        ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9786, 2]],
+        ['IMAGE_DEFAULT', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.978, 3]],
     ]
 )
-def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id, month,
+def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
                                   expected, tol=0.0001):
     """Test getting Tcorr value and index for a single date at a real point"""
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
         .strftime('%Y-%m-%d')
     input_image = ee.Image.constant(1).set({
-        'system:index': scene_id,
         'system:time_start': ee.Date(scene_date).millis()})
-    s = ssebop.Image(input_image, tcorr_source=tcorr_source,
-                     tmax_source=tmax_source)
-    # Overwrite the month property with the test value
-    s._month = ee.Number(month)
-
-    # Get the scene centroid point
-    pnt = utils.getinfo(
-        ee.Image('LANDSAT/LC08/C01/T1_TOA/{}'.format(SCENE_ID)) \
-            .geometry().centroid())['coordinates']
-
-    tcorr_img, index_img = s._tcorr
+    tcorr_img, index_img = ssebop.Image(
+        input_image, tcorr_source=tcorr_source, tmax_source=tmax_source)._tcorr
 
     # Tcorr images are constant images and need to be queried at a point
-    tcorr = utils.point_image_value(ee.Image(tcorr_img), pnt)
-    index = utils.point_image_value(ee.Image(index_img), pnt)
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
     assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_image_month(expected=[0.9723, 1], tol=0.0001):
+    """Test getting monthly Tcorr from composite when daily is missing"""
+    # Setting start date to well before beginning of daily Tcorr images
+    # 1980-07-04 should have the same cycle_day value as previous tests
+    input_image = ee.Image.constant(1).set({
+        'system:time_start': ee.Date('1980-07-04').millis()})
+    s = ssebop.Image(input_image, tcorr_source='IMAGE',
+                     tmax_source='TOPOWX_MEDIAN_V0')
+    tcorr_img, index_img = s._tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_image_annual(expected=[0.9786, 2], tol=0.0001):
+    """Test getting annual Tcorr from composite when monthly/daily are missing"""
+    input_image = ee.Image.constant(1).set({
+        'system:time_start': ee.Date('1980-07-04').millis()})
+    s = ssebop.Image(input_image, tcorr_source='IMAGE',
+                     tmax_source='TOPOWX_MEDIAN_V0')
+    s._month = ee.Number(9999)
+    tcorr_img, index_img = s._tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_image_default(expected=[0.978, 3], tol=0.0001):
+    """Test getting default Tcorr from composite"""
+    input_image = ee.Image.constant(1).set({
+        'system:time_start': ee.Date('1980-07-04').millis()})
+    s = ssebop.Image(input_image, tcorr_source='IMAGE',
+                     tmax_source='TOPOWX_MEDIAN_V0')
+    s._month = ee.Number(9999)
+    s._cycle_day = ee.Number(9999)
+    tcorr_img, index_img = s._tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_image_daily():
+    """Tcorr should be masked for date outside range with IMAGE_DAILY"""
+    input_image = ee.Image.constant(1).set({
+        'system:time_start': ee.Date('1980-07-04').millis()})
+    s = ssebop.Image(input_image, tcorr_source='IMAGE_DAILY',
+                     tmax_source='TOPOWX_MEDIAN_V0')
+    tcorr_img, index_img = s._tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert tcorr['tcorr'] is None
+    assert index['index'] is None
 
 
 @pytest.mark.parametrize(
