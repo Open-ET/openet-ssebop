@@ -202,6 +202,28 @@ def test_Image_lst_properties():
     assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
 
 
+def test_Image_time_values():
+    # The time image is currently being built from the etf image, so all the
+    #   ancillary values must be set for the constant_image_value to work.
+    output = utils.constant_image_value(ssebop.Image(
+        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).time)
+    assert output['time'] == SCENE_TIME
+
+
+def test_Image_time_band_name():
+    output = utils.getinfo(ssebop.Image(default_image()).time)
+    assert output['bands'][0]['id'] == 'time'
+
+
+def test_Image_time_properties():
+    """Test if properties are set on the time image"""
+    output = utils.getinfo(ssebop.Image(default_image()).time)['properties']
+    assert output['system:index'] == SCENE_ID
+    assert output['system:time_start'] == SCENE_TIME
+    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
@@ -654,12 +676,20 @@ def test_Image_et_properties(tol=0.0001):
 
 def test_Image_calculate_variables_default():
     output = utils.getinfo(ssebop.Image(default_image()).calculate())
-    assert sorted([x['id'] for x in output['bands']]) == ['et', 'etf', 'etr']
+    assert set([x['id'] for x in output['bands']]) == set(['et', 'etr', 'etf'])
 
 
 def test_Image_calculate_variables_custom():
-    output = utils.getinfo(ssebop.Image(default_image()).calculate(['ndvi']))
-    assert output['bands'][0]['id'] == 'ndvi'
+    variables = set(['ndvi'])
+    output = utils.getinfo(ssebop.Image(default_image()).calculate(variables))
+    assert set([x['id'] for x in output['bands']]) == variables
+
+
+def test_Image_calculate_variables_all():
+    variables = set(['ndvi', 'et', 'etr', 'etf', 'time'])
+    output = utils.getinfo(
+        ssebop.Image(default_image()).calculate(variables=list(variables)))
+    assert set([x['id'] for x in output['bands']]) == variables
 
 
 def test_Image_calculate_properties():

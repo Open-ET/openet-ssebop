@@ -146,16 +146,18 @@ class Image():
         for v in variables:
             if v.lower() == 'et':
                 output_images.append(self.et)
-            elif v.lower() == 'etr':
-                output_images.append(self.etr)
             elif v.lower() == 'etf':
                 output_images.append(self.etf)
+            elif v.lower() == 'etr':
+                output_images.append(self.etr)
             elif v.lower() == 'ndvi':
                 output_images.append(self.ndvi)
             # elif v.lower() == 'qa':
             #     output_images.append(self.qa)
             # elif v.lower() == 'quality':
             #     output_images.append(self.quality)
+            elif v.lower() == 'time':
+                output_images.append(self.time)
             else:
                 raise ValueError('unsupported variable: {}'.format(v))
 
@@ -170,6 +172,15 @@ class Image():
     def ndvi(self):
         """Return NDVI image"""
         return self.image.select(['ndvi']).set(self._properties)
+
+    @lazy_property
+    def time(self):
+        """Return 0 UTC time image (in milliseconds)"""
+        return self.etf\
+            .double().multiply(0).add(utils.date_to_time_0utc(self._date)) \
+            .rename(['time']).set(self._properties)
+        # return ee.Image.constant(utils.date_to_time_0utc(self._date)) \
+        #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
     def etf(self):

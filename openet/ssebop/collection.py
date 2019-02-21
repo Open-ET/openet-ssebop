@@ -367,13 +367,18 @@ class Collection():
 
         # Only interpolate variables that can be interpolated
         interp_vars = list(set(self._interp_vars) & set(variables))
+
         # To return ET, the ETf must be interpolated
         if 'et' in variables and 'etf' not in interp_vars:
             interp_vars.append('etf')
+
         # With the current interp.daily() function,
         #   something has to be interpolated in order to return etr
         if 'etr' in variables and 'etf' not in interp_vars:
             interp_vars.append('etf')
+
+        # The time band is always needed for interpolation
+        interp_vars.append('time')
 
         # Build initial scene image collection
         scene_coll = self._build(

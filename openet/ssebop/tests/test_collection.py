@@ -275,7 +275,6 @@ def test_Collection_interpolate_t_interval_annual():
     args['end_date'] = '2018-01-01'
     output = utils.getinfo(ssebop.Collection(**args)
         .interpolate(t_interval='annual'))
-    pprint.pprint(output)
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output) == ['2017']
     assert VARIABLES == sorted(list(set([
