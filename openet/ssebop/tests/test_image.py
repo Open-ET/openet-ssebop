@@ -57,7 +57,7 @@ def test_Image_default_parameters():
     assert s.etr_band == 'etr'
     assert s._dt_source == 'DAYMET_MEDIAN_V1'
     assert s._elev_source == 'SRTM'
-    assert s._tcorr_source == 'IMAGE'
+    assert s._tcorr_source == 'IMAGE_DAILY'
     assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert s._elr_flag == False
     assert s._tdiff_threshold == 15
