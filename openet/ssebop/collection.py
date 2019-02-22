@@ -47,7 +47,7 @@ class Collection():
 
         Parameters
         ----------
-        collections : list
+        collections : list, str
             GEE satellite image collection IDs.
         start_date : str
             ISO format inclusive start date (i.e. YYYY-MM-DD).
@@ -110,14 +110,18 @@ class Collection():
             'LANDSAT/LC08/C01/T1_SR',
             'LANDSAT/LE07/C01/T1_SR',
             'LANDSAT/LT05/C01/T1_SR',
-            'LANDSAT/LT04/C01/T1_SR',
+            # 'LANDSAT/LT04/C01/T1_SR',
         ]
 
+        # If collections is a string, place in a list
+        if type(self.collections) is str:
+            self.collections = [self.collections]
+
         # Check that collection IDs are supported
-        for coll_id in collections:
+        for coll_id in self.collections:
             if (coll_id not in self._landsat_c1_toa_collections and
                     coll_id not in self._landsat_c1_sr_collections):
-                raise ValueError('unsupported collection')
+                raise ValueError('unsupported collection: {}'.format(coll_id))
 
         # Check that collections don't have "duplicates"
         #   (i.e TOA and SR or TOA and TOA_RT for same Landsat)
@@ -140,10 +144,26 @@ class Collection():
         elif self.cloud_cover_max < 0 or self.cloud_cover_max > 100:
             raise ValueError('cloud_cover_max must be in the range 0 to 100')
 
-        # Check geometry?
-        # if not isinstance(self.geometry, computedobject.ComputedObject):
-        #     raise ValueError()
+        # # Attempt to cast string geometries to ee.Geometry
+        # # This should work for geojson
+        # if isinstance(self.geometry, ee.computedobject.ComputedObject):
+        #     pass
+        # elif type(self.geometry) is str:
+        #     self.geometry = ee.Geometry(self.geometry())
 
+        # Filter collection list based on start/end dates
+        # if self.end_date <= '1982-01-01':
+        #     self.collections = [c for c in self.collections if 'LT04' not in c]
+        # if self.start_date >= '1994-01-01':
+        #     self.collections = [c for c in self.collections if 'LT04' not in c]
+        if self.end_date <= '1984-01-01':
+            self.collections = [c for c in self.collections if 'LT05' not in c]
+        if self.start_date >= '2012-01-01':
+            self.collections = [c for c in self.collections if 'LT05' not in c]
+        if self.end_date <= '1999-01-01':
+            self.collections = [c for c in self.collections if 'LE07' not in c]
+        if self.end_date <= '2013-04-01':
+            self.collections = [c for c in self.collections if 'LC08' not in c]
 
     def _build(self, variables=None, start_date=None, end_date=None):
         """Build a merged model variable image collection
@@ -183,24 +203,22 @@ class Collection():
         # Build the variable image collection
         variable_coll = ee.ImageCollection([])
         for coll_id in self.collections:
-
             # DEADBEEF - Move to separate methods/functions for each type
             if coll_id in self._landsat_c1_toa_collections:
                 input_coll = ee.ImageCollection(coll_id) \
                     .filterDate(start_date, end_date) \
                     .filterBounds(self.geometry) \
                     .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
-                    .filterMetadata(
-                        'CLOUD_COVER_LAND', 'less_than', self.cloud_cover_max)
+                    .filterMetadata('CLOUD_COVER_LAND', 'less_than',
+                                    self.cloud_cover_max)
 
-                # DEADBEEF - Need to come up with a system for applying
+                # TODO: Need to come up with a system for applying
                 #   generic filter arguments to the collections
-                # What if DATA_TYPE was a list instead of string?
-                # For now, always filter DATA_TYPE == L1TP
-                # try:
-                #     coll_filter_args = self.filter_args[coll_id]
-                # except:
-                #     coll_filter_args = {}
+                if coll_id in self.filter_args.keys():
+                    for f in self.filter_args[coll_id]:
+                        filter_type = f.pop('type')
+                        if filter_type.lower() == 'equals':
+                            input_coll = input_coll.filter(ee.Filter.equals(**f))
 
                 def compute_ltoa(image):
                     model_obj = Image.from_landsat_c1_toa(
@@ -214,8 +232,16 @@ class Collection():
                 input_coll = ee.ImageCollection(coll_id) \
                     .filterDate(start_date, end_date) \
                     .filterBounds(self.geometry) \
-                    .filterMetadata(
-                        'CLOUD_COVER_LAND', 'less_than', self.cloud_cover_max)
+                    .filterMetadata('CLOUD_COVER_LAND', 'less_than',
+                                    self.cloud_cover_max)
+
+                # TODO: Need to come up with a system for applying
+                #   generic filter arguments to the collections
+                if coll_id in self.filter_args.keys():
+                    for f in self.filter_args[coll_id]:
+                        filter_type = f.pop('type')
+                        if filter_type.lower() == 'equals':
+                            input_coll = input_coll.filter(ee.Filter.equals(**f))
 
                 def compute_lsr(image):
                     model_obj = Image.from_landsat_c1_sr(
@@ -230,7 +256,7 @@ class Collection():
 
         return variable_coll
 
-    def overpass(self, variables=None):
+    def overpass(self, variables=None, **kwargs):
         """Return a collection of computed values for the overpass images
 
         Parameters
@@ -258,8 +284,8 @@ class Collection():
 
         return self._build(variables=variables)
 
-    def interpolate(self, variables=None, t_interval='monthly',
-                    interp_method='linear', interp_days=32):
+    def interpolate(self, variables=None, t_interval='custom',
+                    interp_method='linear', interp_days=32, **kwargs):
         """
 
         Parameters
@@ -268,7 +294,7 @@ class Collection():
             List of variables that will be returned in the Image Collection.
             If variables is not set here it must be specified in the class
             instantiation call.
-        t_interval : {'daily', 'monthly', 'annual'}, optional
+        t_interval : {'daily', 'monthly', 'annual', 'custom'}, optional
             Time interval over which to interpolate and aggregate values
             (the default is 'monthly').
         interp_method : {'linear}, optional
@@ -293,7 +319,7 @@ class Collection():
 
         """
         # Check that the input parameters are valid
-        if t_interval.lower() not in ['daily', 'monthly', 'annual']:
+        if t_interval.lower() not in ['daily', 'monthly', 'annual', 'custom']:
             raise ValueError('unsupported t_interval: {}'.format(t_interval))
         elif interp_method.lower() not in ['linear']:
             raise ValueError('unsupported interp_method: {}'.format(
@@ -416,7 +442,6 @@ class Collection():
                 # et_img = img.select(['etf']).multiply(etr_img).rename('et')
                 # return img.addBands(et_img)
             daily_coll = daily_coll.map(compute_et)
-        # pprint.pprint(daily_coll.first().getInfo())
 
         # DEADBEEF - Some of this functionality could be moved to core
         #   The monthly and annual aggregation code is almost identical
@@ -438,13 +463,13 @@ class Collection():
             def aggregate_monthly(agg_start_date):
                 agg_end_date = ee.Date(agg_start_date).advance(1, 'month')
                 if 'et' in variables or 'etf' in variables:
-                    et_img = daily_coll.select(['et'])\
+                    et_img = daily_coll\
                         .filterDate(agg_start_date, agg_end_date)\
-                        .sum()
+                        .select(['et']).sum()
                 if 'etr' in variables or 'etf' in variables:
-                    etr_img = daily_coll.select(['etr'])\
+                    etr_img = daily_coll\
                         .filterDate(agg_start_date, agg_end_date)\
-                        .sum()
+                        .select(['etr']).sum()
 
                 image_list = []
                 if 'et' in variables:
@@ -456,9 +481,14 @@ class Collection():
                     image_list.append(etf_img)
                 if 'ndvi' in variables:
                     ndvi_img = daily_coll\
-                        .filterDate(agg_start_date, agg_end_date) \
-                        .mean().select(['ndvi'])
+                        .filterDate(agg_start_date, agg_end_date)\
+                        .select(['ndvi']).mean()
                     image_list.append(ndvi_img)
+                if 'count' in variables:
+                    count_img = aggregate_coll \
+                        .filterDate(agg_start_date, agg_end_date) \
+                        .select(['mask']).count()
+                    image_list.append(count_img)
 
                 return ee.Image(image_list).set({
                     'system:index': ee.Date(agg_start_date).format('YYYYMM'),
@@ -479,12 +509,12 @@ class Collection():
             def aggregate_annual(agg_start_date):
                 agg_end_date = ee.Date(agg_start_date).advance(1, 'year')
                 if 'et' in variables or 'etf' in variables:
-                    et_img = daily_coll.select(['et']) \
-                        .filterDate(agg_start_date, agg_end_date) \
+                    et_img = daily_coll.select(['et'])\
+                        .filterDate(agg_start_date, agg_end_date)\
                         .sum()
                 if 'etr' in variables or 'etf' in variables:
-                    etr_img = daily_coll.select(['etr']) \
-                        .filterDate(agg_start_date, agg_end_date) \
+                    etr_img = daily_coll.select(['etr'])\
+                        .filterDate(agg_start_date, agg_end_date)\
                         .sum()
 
                 image_list = []
@@ -496,10 +526,15 @@ class Collection():
                     etf_img = et_img.divide(etr_img).rename('etf')
                     image_list.append(etf_img)
                 if 'ndvi' in variables:
-                    ndvi_img = daily_coll \
-                        .filterDate(agg_start_date, agg_end_date) \
-                        .mean().select(['ndvi'])
+                    ndvi_img = daily_coll\
+                        .filterDate(agg_start_date, agg_end_date)\
+                        .select(['ndvi']).mean()
                     image_list.append(ndvi_img)
+                if 'count' in variables:
+                    count_img = aggregate_coll \
+                        .filterDate(agg_start_date, agg_end_date) \
+                        .select(['mask']).count()
+                    image_list.append(count_img)
 
                 return ee.Image(image_list).set({
                     'system:index': ee.Date(agg_start_date).format('YYYY'),
@@ -508,6 +543,40 @@ class Collection():
 
             return ee.ImageCollection(ee.List(year_list).map(aggregate_annual))
 
+        elif t_interval == 'custom':
+            if 'et' in variables or 'etf' in variables:
+                et_img = daily_coll.select(['et'])\
+                    .filterDate(start_date, end_date)\
+                    .sum()
+            if 'etr' in variables or 'etf' in variables:
+                etr_img = daily_coll.select(['etr'])\
+                    .filterDate(start_date, end_date)\
+                    .sum()
+
+            image_list = []
+            if 'et' in variables:
+                image_list.append(et_img)
+            if 'etr' in variables:
+                image_list.append(etr_img)
+            if 'etf' in variables:
+                etf_img = et_img.divide(etr_img).rename('etf')
+                image_list.append(etf_img)
+            if 'ndvi' in variables:
+                ndvi_img = daily_coll\
+                    .filterDate(start_date, end_date)\
+                    .select(['ndvi']).mean()
+                image_list.append(ndvi_img)
+            if 'count' in variables:
+                count_img = aggregate_coll\
+                    .filterDate(start_date, end_date)\
+                    .select(['mask']).count()
+                image_list.append(count_img)
+
+            # Returning an ImageCollection to be consistent
+            return ee.ImageCollection(ee.Image(image_list).set({
+                'system:index': ee.Date(start_date).format('YYYYMMdd'),
+                'system:time_start': ee.Date(start_date).millis(),
+            }))
 
     def get_image_ids(self):
         """Return image IDs of the input images

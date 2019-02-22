@@ -64,7 +64,7 @@ class Image():
                        'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
                        'TOPOWX_MEDIAN_V0', or float}, optional
             Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
-        elr_flag : bool, optional
+        elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
         tdiff_threshold : float, optional
@@ -131,6 +131,16 @@ class Image():
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
+        # Convert elr_flag from string to bool if necessary
+        if type(self._elr_flag) is str:
+            if self._elr_flag.upper() in ['TRUE']:
+                self._elr_flag = True
+            elif self._elr_flag.upper() in ['FALSE']:
+                self._elr_flag = False
+            else:
+                raise ValueError('elr_flag "{}" could not be interpreted as '
+                                 'bool'.format(self._elr_flag))
+
     def calculate(self, variables=['et', 'etr', 'etf']):
         """Return a multiband image of calculated variables
 
@@ -151,6 +161,8 @@ class Image():
                 output_images.append(self.etf)
             elif v.lower() == 'etr':
                 output_images.append(self.etr)
+            elif v.lower() == 'mask':
+                output_images.append(self.mask)
             elif v.lower() == 'ndvi':
                 output_images.append(self.ndvi)
             # elif v.lower() == 'qa':
@@ -173,15 +185,6 @@ class Image():
     def ndvi(self):
         """Return NDVI image"""
         return self.image.select(['ndvi']).set(self._properties)
-
-    @lazy_property
-    def time(self):
-        """Return 0 UTC time image (in milliseconds)"""
-        return self.etf\
-            .double().multiply(0).add(utils.date_to_time_0utc(self._date)) \
-            .rename(['time']).set(self._properties)
-        # return ee.Image.constant(utils.date_to_time_0utc(self._date)) \
-        #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
     def etf(self):
@@ -272,11 +275,26 @@ class Image():
         return self.etf.multiply(self.etr) \
             .rename(['et']).set(self._properties)
 
+    @lazy_property
+    def mask(self):
+        """Mask of all active pixels (based on the final etf)"""
+        return self.etf.multiply(0).add(1).updateMask(1)\
+            .rename(['mask']).set(self._properties)
+
     # @lazy_property
     # def quality(self):
     #     """Set quality to 1 for all active pixels (for now)"""
-    #     return self.etf.multiply(0).add(1) \
+    #     return self.mask \
     #         .rename(['quality']).set(self._properties)
+
+    @lazy_property
+    def time(self):
+        """Return an image of the 0 UTC time (in milliseconds)"""
+        return self.mask\
+            .double().multiply(0).add(utils.date_to_time_0utc(self._date)) \
+            .rename(['time']).set(self._properties)
+        # return ee.Image.constant(utils.date_to_time_0utc(self._date)) \
+        #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
     def _dt(self):
@@ -496,14 +514,14 @@ class Image():
             if self._tcorr_source.upper() == 'IMAGE':
                 # Composite Tcorr images to ensure that a value is returned
                 #   (even if the daily image doesn't exist)
-                composite_img = ee.ImageCollection([
-                        default_img.addBands(default_img.multiply(0).add(3).uint8()),
-                        annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-                        month_img.addBands(month_img.multiply(0).add(1).uint8()),
-                        daily_img.addBands(daily_img.multiply(0).uint8())]) \
-                    .mosaic().rename(['tcorr', 'index'])
-                tcorr_img = composite_img.select(['tcorr'])
-                index_img = composite_img.select(['index'])
+                composite_coll = ee.ImageCollection([
+                    default_img.addBands(default_img.multiply(0).add(3).uint8()),
+                    annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
+                    month_img.addBands(month_img.multiply(0).add(1).uint8()),
+                    daily_img.addBands(daily_img.multiply(0).uint8())])
+                composite_img = composite_coll.mosaic()
+                tcorr_img = composite_img.select([0], ['tcorr'])
+                index_img = composite_img.select([1], ['index'])
             elif 'DAILY' in self._tcorr_source.upper():
                 tcorr_img = daily_img
                 index_img = daily_img.multiply(0).uint8()
@@ -523,25 +541,6 @@ class Image():
 
             return tcorr_img, index_img.rename(['index'])
 
-            # # Construct Tcorr images as composites
-            # elif 'DAILY' in self._tcorr_source.upper():
-            #     tcorr_img = ee.ImageCollection([
-            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
-            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-            #             month_img.addBands(month_img.multiply(0).add(1).uint8()),
-            #             daily_img.addBands(daily_img.multiply(0).uint8())]) \
-            #         .mosaic()
-            # elif 'MONTH' in self._tcorr_source.upper():
-            #     tcorr_img = ee.ImageCollection([
-            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
-            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-            #             month_img.addBands(month_img.multiply(0).add(1).uint8())]) \
-            #         .mosaic()
-            # elif 'ANNUAL' in self._tcorr_source.upper():
-            #     tcorr_img = ee.ImageCollection([
-            #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
-            #             annual_img.addBands(annual_img.multiply(0).add(2).uint8())]) \
-            #         .mosaic()
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
                 self._tcorr_source))
@@ -664,48 +663,48 @@ class Image():
 
         return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
 
-    # @classmethod
-    # def from_image_id(cls, image_id, **kwargs):
-    #     """Constructs an SSEBop Image instance from an image ID
-    #
-    #     Parameters
-    #     ----------
-    #     image_id : str
-    #         An earth engine image ID.
-    #         (i.e. 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
-    #     kwargs
-    #         Keyword arguments to pass through to model init.
-    #
-    #     Returns
-    #     -------
-    #     new instance of Image class
-    #
-    #     """
-    #     # DEADBEEF - Should the supported image collection IDs and helper
-    #     # function mappings be set in a property or method of the Image class?
-    #     collection_methods = {
-    #         'LANDSAT/LC08/C01/T1_RT_TOA': 'from_landsat_c1_toa',
-    #         'LANDSAT/LE07/C01/T1_RT_TOA': 'from_landsat_c1_toa',
-    #         'LANDSAT/LC08/C01/T1_TOA': 'from_landsat_c1_toa',
-    #         'LANDSAT/LE07/C01/T1_TOA': 'from_landsat_c1_toa',
-    #         'LANDSAT/LT05/C01/T1_TOA': 'from_landsat_c1_toa',
-    #         # 'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
-    #         'LANDSAT/LC08/C01/T1_SR': 'from_landsat_c1_sr',
-    #         'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
-    #         'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
-    #         # 'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
-    #     }
-    #
-    #     try:
-    #         method_name = collection_methods[image_id.rsplit('/', 1)[0]]
-    #     except KeyError:
-    #         raise ValueError('unsupported collection ID: {}'.format(image_id))
-    #     except Exception as e:
-    #         raise Exception('unhandled exception: {}'.format(e))
-    #
-    #     method = getattr(Image, method_name)
-    #
-    #     return method(ee.Image(image_id), **kwargs)
+    @classmethod
+    def from_image_id(cls, image_id, **kwargs):
+        """Constructs an SSEBop Image instance from an image ID
+
+        Parameters
+        ----------
+        image_id : str
+            An earth engine image ID.
+            (i.e. 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
+        kwargs
+            Keyword arguments to pass through to model init.
+
+        Returns
+        -------
+        new instance of Image class
+
+        """
+        # DEADBEEF - Should the supported image collection IDs and helper
+        # function mappings be set in a property or method of the Image class?
+        collection_methods = {
+            'LANDSAT/LC08/C01/T1_RT_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LE07/C01/T1_RT_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LC08/C01/T1_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LE07/C01/T1_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LT05/C01/T1_TOA': 'from_landsat_c1_toa',
+            # 'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LC08/C01/T1_SR': 'from_landsat_c1_sr',
+            'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
+            'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
+            # 'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
+        }
+
+        try:
+            method_name = collection_methods[image_id.rsplit('/', 1)[0]]
+        except KeyError:
+            raise ValueError('unsupported collection ID: {}'.format(image_id))
+        except Exception as e:
+            raise Exception('unhandled exception: {}'.format(e))
+
+        method = getattr(Image, method_name)
+
+        return method(ee.Image(image_id), **kwargs)
 
     @classmethod
     def from_landsat_c1_toa(cls, toa_image, cloudmask_args={}, **kwargs):
@@ -733,6 +732,7 @@ class Image():
         # Rename bands to generic names
         # Rename thermal band "k" coefficients to generic names
         input_bands = ee.Dictionary({
+            # 'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1',
                           'BQA'],
@@ -740,10 +740,12 @@ class Image():
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
                         'BQA']
         k1 = ee.Dictionary({
+            # 'LANDSAT_4': 'K1_CONSTANT_BAND_6',
             'LANDSAT_5': 'K1_CONSTANT_BAND_6',
             'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
         k2 = ee.Dictionary({
+            # 'LANDSAT_4': 'K2_CONSTANT_BAND_6',
             'LANDSAT_5': 'K2_CONSTANT_BAND_6',
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
@@ -799,18 +801,22 @@ class Image():
         # TODO: Follow up with Simon about adding K1/K2 to SR collection
         # Hardcode values for now
         k1 = ee.Dictionary({
+            # 'LANDSAT_4': 607.76,
             'LANDSAT_5': 607.76, 'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853})
         k2 = ee.Dictionary({
+            # 'LANDSAT_4': 1260.56,
             'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
         prep_image = sr_image \
             .select(input_bands.get(spacecraft_id), output_bands) \
             .set('k1_constant', ee.Number(k1.get(spacecraft_id))) \
             .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
         # k1 = ee.Dictionary({
+        #     # 'LANDSAT_4': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
         #     'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
         # k2 = ee.Dictionary({
+        #     # 'LANDSAT_4': 'K2_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K2_CONSTANT_BAND_6',
         #     'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
         #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})

@@ -62,6 +62,34 @@ def test_Collection_init_default_parameters():
     assert n._interp_vars == ['ndvi', 'etf']
 
 
+def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C01/T1_TOA'):
+    """Test if ValueError is raised for invalid end date formats"""
+    args = default_coll_args()
+    args['collections'] = coll_id
+    assert ssebop.Collection(**args).collections == [coll_id]
+
+
+@pytest.mark.parametrize(
+    'coll_id, start_date, end_date',
+    [
+        # ['LANDSAT/LT04/C01/T1_TOA', '1981-01-01', '1982-01-01'],
+        # ['LANDSAT/LT04/C01/T1_TOA', '1994-01-01', '1995-01-01'],
+        ['LANDSAT/LT05/C01/T1_TOA', '1983-01-01', '1984-01-01'],
+        ['LANDSAT/LT05/C01/T1_TOA', '2012-01-01', '2013-01-01'],
+        ['LANDSAT/LE07/C01/T1_TOA', '1998-01-01', '1999-01-01'],
+        ['LANDSAT/LC08/C01/T1_TOA', '2012-01-01', '2013-01-01'],
+    ]
+)
+def test_Collection_init_collection_filter(coll_id, start_date, end_date):
+    """Test that collection IDs are filtered based on start/end dates"""
+    # The target collection ID should be removed from the collections lists
+    args = default_coll_args()
+    args['collections'] = [coll_id]
+    args['start_date'] = start_date
+    args['end_date'] = end_date
+    assert ssebop.Collection(**args).collections == []
+
+
 def test_Collection_init_startdate_valueerror():
     """Test if ValueError is raised for invalid start date formats"""
     args = default_coll_args()
@@ -121,6 +149,23 @@ def test_Collection_init_cloud_cover_valueerror():
     args['cloud_cover_max'] = 101
     with pytest.raises(ValueError):
         ssebop.Collection(**args)
+
+
+# # TODO: Test for Error if geometry is not ee.Geometry
+# def test_Collection_init_geometry_valueerror():
+#     """Test that the system:index from a merged collection is parsed"""
+#     args = default_coll_args()
+#     args['geometry'] = 'DEADBEEF'
+#     s = ssebop.Collection(**args)
+#     assert utils.getinfo(s.geometry) ==
+
+
+# TODO: Test if a geojson string can be passed for the geometry
+# def test_Collection_init_geometry_geojson():
+#     """Test that the system:index from a merged collection is parsed"""
+#     args = default_coll_args()
+#     s = ssebop.Collection(**args)
+#     assert utils.getinfo(s._scene_id) == SCENE_ID
 
 
 def test_Collection_build_default():
@@ -183,12 +228,26 @@ def test_Collection_build_cloud_cover():
     assert 'LE07_044033_20170724' not in parse_scene_id(output)
 
 
-def test_Collection_build_model_vars():
-    """Test if the end_date is exclusive"""
+# DEADBEEF - I'm not sure what this test was supposed to do
+#   It appears to be identical to the exclusive_enddate test above
+# def test_Collection_build_model_args():
+#     """Test if the end_date is exclusive"""
+#     args = default_coll_args()
+#     args['end_date'] = '2017-07-24'
+#     output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
+#     assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
+
+
+def test_Collection_build_filter_args():
     args = default_coll_args()
-    args['end_date'] = '2017-07-24'
+    coll_id = 'LANDSAT/LC08/C01/T1_SR'
+    args['collections'] = [coll_id]
+    args['geometry'] = ee.Geometry.Rectangle(-125, 35, -120, 40)
+    args['filter_args'] = {coll_id: [
+        {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': 44},
+        {'type': 'equals', 'leftField': 'WRS_ROW', 'rightValue': 33}]}
     output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
-    assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
+    assert set([x[5:11] for x in parse_scene_id(output)]) == set(['044033'])
 
 
 def test_Collection_build_variable_valueerror():
@@ -232,15 +291,16 @@ def test_Collection_overpass_no_variables_valueerror():
 
 
 def test_Collection_interpolate_default():
+    """Default t_interval should be custom"""
     output = utils.getinfo(ssebop.Collection(**default_coll_args())
         .interpolate())
     assert output['type'] == 'ImageCollection'
-    assert parse_scene_id(output) == ['201707']
+    assert parse_scene_id(output) == ['20170701']
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
 
 
-def test_Collection_interpolate_variables():
+def test_Collection_interpolate_variables_custom():
     output = utils.getinfo(ssebop.Collection(**default_coll_args())
         .interpolate(variables=['et']))
     assert ['et'] == sorted(list(set([
@@ -281,6 +341,16 @@ def test_Collection_interpolate_t_interval_monthly():
 #     assert parse_scene_id(output) == ['2017']
 #     assert VARIABLES == sorted(list(set([
 #         y['id'] for x in output['features'] for y in x['bands']])))
+
+
+def test_Collection_interpolate_t_interval_custom():
+    """Test if the custom time interval parameter works"""
+    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+        .interpolate(t_interval='custom'))
+    assert output['type'] == 'ImageCollection'
+    assert parse_scene_id(output) == ['20170701']
+    assert VARIABLES == sorted(list(set([
+        y['id'] for x in output['features'] for y in x['bands']])))
 
 
 # TODO: Write test for annual interpolation with a date range that is too short

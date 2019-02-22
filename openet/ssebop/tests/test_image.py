@@ -66,7 +66,7 @@ def test_Image_default_parameters():
 
 
 # Todo: Break these up into separate functions?
-def test_Image_calculated_properties():
+def test_Image_init_calculated_properties():
     s = ssebop.Image(default_image())
     assert utils.getinfo(s._time_start) == SCENE_TIME
     assert utils.getinfo(s._scene_id) == SCENE_ID
@@ -74,7 +74,7 @@ def test_Image_calculated_properties():
         SCENE_ID.split('_')[1][:3], SCENE_ID.split('_')[1][3:])
 
 
-def test_Image_date_properties():
+def test_Image_init_date_properties():
     s = ssebop.Image(default_image())
     assert utils.getinfo(s._date)['value'] == SCENE_TIME
     assert utils.getinfo(s._year) == int(SCENE_DATE.split('-')[0])
@@ -87,15 +87,21 @@ def test_Image_date_properties():
         (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
 
 
-def test_Image_scene_id_property():
+def test_Image_init_scene_id_property():
     """Test that the system:index from a merged collection is parsed"""
     input_img = default_image()
     s = ssebop.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
     assert utils.getinfo(s._scene_id) == SCENE_ID
 
 
-# Test the static methods of the class first
-# Do these need to be inside the TestClass?
+def test_Image_init_elr_flag_str():
+    """Test that the elr_flag can be read as a string"""
+    assert ssebop.Image(default_image(), elr_flag='FALSE')._elr_flag == False
+    assert ssebop.Image(default_image(), elr_flag='true')._elr_flag == True
+    with pytest.raises(ValueError):
+        utils.getinfo(ssebop.Image(default_image(), elr_flag='FOO')._elr_flag)
+
+
 @pytest.mark.parametrize(
     'red, nir, expected',
     [
@@ -205,28 +211,6 @@ def test_Image_lst_properties():
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
-
-
-def test_Image_time_values():
-    # The time image is currently being built from the etf image, so all the
-    #   ancillary values must be set for the constant_image_value to work.
-    output = utils.constant_image_value(ssebop.Image(
-        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).time)
-    assert output['time'] == SCENE_TIME
-
-
-def test_Image_time_band_name():
-    output = utils.getinfo(ssebop.Image(default_image()).time)
-    assert output['bands'][0]['id'] == 'time'
-
-
-def test_Image_time_properties():
-    """Test if properties are set on the time image"""
-    output = utils.getinfo(ssebop.Image(default_image()).time)['properties']
-    assert output['system:index'] == SCENE_ID
-    assert output['system:time_start'] == SCENE_TIME
-    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
 
 
 @pytest.mark.parametrize(
@@ -726,6 +710,49 @@ def test_Image_et_properties(tol=0.0001):
     assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
 
 
+def test_Image_mask_values():
+    output_img = ssebop.Image(
+        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).mask
+    output = utils.constant_image_value(output_img)
+    assert output['mask'] == 1
+
+
+def test_Image_mask_band_name():
+    output = utils.getinfo(ssebop.Image(default_image()).mask)
+    assert output['bands'][0]['id'] == 'mask'
+
+
+def test_Image_mask_properties():
+    """Test if properties are set on the time image"""
+    output = utils.getinfo(ssebop.Image(default_image()).mask)['properties']
+    assert output['system:index'] == SCENE_ID
+    assert output['system:time_start'] == SCENE_TIME
+    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
+def test_Image_time_values():
+    # The time image is currently being built from the etf image, so all the
+    #   ancillary values must be set for the constant_image_value to work.
+    output = utils.constant_image_value(ssebop.Image(
+        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).time)
+    assert output['time'] == SCENE_TIME
+
+
+def test_Image_time_band_name():
+    output = utils.getinfo(ssebop.Image(default_image()).time)
+    assert output['bands'][0]['id'] == 'time'
+
+
+def test_Image_time_properties():
+    """Test if properties are set on the time image"""
+    output = utils.getinfo(ssebop.Image(default_image()).time)['properties']
+    assert output['system:index'] == SCENE_ID
+    assert output['system:time_start'] == SCENE_TIME
+    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+
+
 def test_Image_calculate_variables_default():
     output = utils.getinfo(ssebop.Image(default_image()).calculate())
     assert set([x['id'] for x in output['bands']]) == set(['et', 'etr', 'etf'])
@@ -738,7 +765,7 @@ def test_Image_calculate_variables_custom():
 
 
 def test_Image_calculate_variables_all():
-    variables = set(['ndvi', 'et', 'etr', 'etf', 'time'])
+    variables = set(['et', 'etf', 'etr', 'mask', 'ndvi', 'time'])
     output = utils.getinfo(
         ssebop.Image(default_image()).calculate(variables=list(variables)))
     assert set([x['id'] for x in output['bands']]) == variables
