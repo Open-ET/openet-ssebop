@@ -1,5 +1,5 @@
 #--------------------------------
-# Name:         tcorr_export_default_asset.py
+# Name:         tcorr_export_default_from_daily.py
 # Purpose:      Compute/Export default Tcorr image asset
 #--------------------------------
 
@@ -14,7 +14,7 @@ import sys
 import ee
 
 import openet.ssebop as ssebop
-import utils
+from . import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
