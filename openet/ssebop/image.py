@@ -179,12 +179,12 @@ class Image():
     @lazy_property
     def lst(self):
         """Return land surface temperature (LST) image"""
-        return self.image.select(['lst']).set(self._properties)
+        return self.image.select(['lst']).set(self._properties).double()
 
     @lazy_property
     def ndvi(self):
         """Return NDVI image"""
-        return self.image.select(['ndvi']).set(self._properties)
+        return self.image.select(['ndvi']).set(self._properties).double()
 
     @lazy_property
     def etf(self):
@@ -217,8 +217,7 @@ class Image():
         etf = etf.updateMask(etf.lt(1.3)) \
             .clamp(0, 1.05) \
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
-            .set(self._properties) \
-            .rename(['etf'])
+            .set(self._properties).rename(['etf']).double()
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
@@ -273,13 +272,13 @@ class Image():
     def et(self):
         """Compute actual ET as fraction of reference times reference"""
         return self.etf.multiply(self.etr) \
-            .rename(['et']).set(self._properties)
+            .rename(['et']).set(self._properties).double()
 
     @lazy_property
     def mask(self):
         """Mask of all active pixels (based on the final etf)"""
         return self.etf.multiply(0).add(1).updateMask(1)\
-            .rename(['mask']).set(self._properties)
+            .rename(['mask']).set(self._properties).uint8()
 
     # @lazy_property
     # def quality(self):

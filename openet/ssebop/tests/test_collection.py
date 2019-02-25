@@ -63,10 +63,17 @@ def test_Collection_init_default_parameters():
 
 
 def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C01/T1_TOA'):
-    """Test if ValueError is raised for invalid end date formats"""
+    """Test if a single coll_id str is converted to a single item list"""
     args = default_coll_args()
     args['collections'] = coll_id
     assert ssebop.Collection(**args).collections == [coll_id]
+
+
+def test_Image_init_cloud_cover_max_str():
+    """Test if cloud_cover_max strings are converted to float"""
+    args = default_coll_args()
+    args['cloud_cover_max'] = '70'
+    assert ssebop.Collection(**args).cloud_cover_max == 70
 
 
 @pytest.mark.parametrize(
@@ -90,8 +97,8 @@ def test_Collection_init_collection_filter(coll_id, start_date, end_date):
     assert ssebop.Collection(**args).collections == []
 
 
-def test_Collection_init_startdate_valueerror():
-    """Test if ValueError is raised for invalid start date formats"""
+def test_Collection_init_startdate_exception():
+    """Test if Exception is raised for invalid start date formats"""
     args = default_coll_args()
     args['start_date'] = '1/1/2000'
     args['end_date'] = '2000-01-02'
@@ -99,8 +106,8 @@ def test_Collection_init_startdate_valueerror():
         ssebop.Collection(**args)
 
 
-def test_Collection_init_enddate_valueerror():
-    """Test if ValueError is raised for invalid end date formats"""
+def test_Collection_init_enddate_exception():
+    """Test if Exception is raised for invalid end date formats"""
     args = default_coll_args()
     args['start_date'] = '2000-01-01'
     args['end_date'] = '1/2/2000'
@@ -108,8 +115,8 @@ def test_Collection_init_enddate_valueerror():
         ssebop.Collection(**args)
 
 
-def test_Collection_init_swapped_date_valueerror():
-    """Test if ValueError is raised when start_date == end_date"""
+def test_Collection_init_swapped_date_exception():
+    """Test if Exception is raised when start_date == end_date"""
     args = default_coll_args()
     args['start_date'] = '2017-01-01'
     args['end_date'] = '2017-01-01'
@@ -117,16 +124,16 @@ def test_Collection_init_swapped_date_valueerror():
         ssebop.Collection(**args)
 
 
-def test_Collection_init_invalid_collections_valueerror():
-    """Test if ValueError is raised for an invalid collection ID"""
+def test_Collection_init_invalid_collections_exception():
+    """Test if Exception is raised for an invalid collection ID"""
     args = default_coll_args()
     args['collections'] = ['FOO']
     with pytest.raises(ValueError):
         ssebop.Collection(**args)
 
 
-def test_Collection_init_duplicate_collections_valueerror():
-    """Test if ValueError is raised for duplicate Landsat types"""
+def test_Collection_init_duplicate_collections_exception():
+    """Test if Exception is raised for duplicate Landsat types"""
     args = default_coll_args()
     args['collections'] = ['LANDSAT/LC08/C01/T1_RT_TOA',
                            'LANDSAT/LC08/C01/T1_TOA']
@@ -137,11 +144,11 @@ def test_Collection_init_duplicate_collections_valueerror():
         ssebop.Collection(**args)
 
 
-def test_Collection_init_cloud_cover_valueerror():
-    """Test if ValueError is raised for an invalid cloud_cover_max"""
+def test_Collection_init_cloud_cover_exception():
+    """Test if Exception is raised for an invalid cloud_cover_max"""
     args = default_coll_args()
     args['cloud_cover_max'] = 'A'
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         ssebop.Collection(**args)
     args['cloud_cover_max'] = -1
     with pytest.raises(ValueError):
@@ -152,8 +159,8 @@ def test_Collection_init_cloud_cover_valueerror():
 
 
 # # TODO: Test for Error if geometry is not ee.Geometry
-# def test_Collection_init_geometry_valueerror():
-#     """Test that the system:index from a merged collection is parsed"""
+# def test_Collection_init_geometry_exception():
+#     """Test if Exception is raised for an invalid geometry"""
 #     args = default_coll_args()
 #     args['geometry'] = 'DEADBEEF'
 #     s = ssebop.Collection(**args)
@@ -251,7 +258,7 @@ def test_Collection_build_filter_args():
 
 
 def test_Collection_build_variable_valueerror():
-    """Test if ValueError is raised for an invalid variable"""
+    """Test if Exception is raised for an invalid variable"""
     args = default_coll_args()
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**args)._build(variables=['FOO']))
@@ -283,7 +290,7 @@ def test_Collection_overpass_method_variables():
 
 
 def test_Collection_overpass_no_variables_valueerror():
-    """Test if ValueError is raised if variables is not set in init or method"""
+    """Test if Exception is raised if variables is not set in init or method"""
     args = default_coll_args()
     del args['variables']
     with pytest.raises(ValueError):
@@ -361,37 +368,37 @@ def test_Collection_interpolate_t_interval_custom():
 #     # Is there any way to test this without pulling values at a point?
 
 
-def test_Collection_interpolate_etr_source_valueerror():
-    """Test if ValueError is raised if etr_source is not a string"""
+def test_Collection_interpolate_etr_source_exception():
+    """Test if Exception is raised if etr_source is not a string"""
     args = default_coll_args()
     args['etr_source'] = []
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**args).interpolate())
 
 
-def test_Collection_interpolate_t_interval_valueerror():
-    """Test if ValueError is raised for an invalid t_interval parameter"""
+def test_Collection_interpolate_t_interval_exception():
+    """Test if Exception is raised for an invalid t_interval parameter"""
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**default_coll_args()) \
             .interpolate(t_interval='DEADBEEF'))
 
 
-def test_Collection_interpolate_interp_method_valueerror():
-    """Test if ValueError is raised for an invalid interp_method parameter"""
+def test_Collection_interpolate_interp_method_exception():
+    """Test if Exception is raised for an invalid interp_method parameter"""
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**default_coll_args()) \
             .interpolate(interp_method='DEADBEEF'))
 
 
-def test_Collection_interpolate_interp_days_valueerror():
-    """Test if ValueError is raised for an invalid interp_days parameter"""
+def test_Collection_interpolate_interp_days_exception():
+    """Test if Exception is raised for an invalid interp_days parameter"""
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**default_coll_args()) \
             .interpolate(interp_days=0))
 
 
-def test_Collection_interpolate_no_variables_valueerror():
-    """Test if ValueError is raised if variables is not set in init or method"""
+def test_Collection_interpolate_no_variables_exception():
+    """Test if Exception is raised if variables is not set in init or method"""
     args = default_coll_args()
     del args['variables']
     with pytest.raises(ValueError):

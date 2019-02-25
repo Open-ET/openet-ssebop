@@ -86,7 +86,7 @@ def ee_task_start(task, n=10):
             task.start()
             break
         except Exception as e:
-            logging.info('    Resending query ({}/10)'.format(i))
+            logging.info('    Resending query ({}/{})'.format(i, n))
             logging.debug('    {}'.format(e))
             time.sleep(i ** 2)
     return task
