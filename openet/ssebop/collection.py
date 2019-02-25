@@ -38,12 +38,14 @@ class Collection():
             end_date,
             geometry,
             variables=None,
-            etr_source='IDAHO_EPSCOR/GRIDMET',
-            etr_band='etr',
             cloud_cover_max=70,
-            filter_args={},
-            model_args={},
-            **kwargs
+            etr_source=None,
+            etr_band=None,
+            filter_args=None,
+            model_args=None,
+            # model_args={'etr_source': 'IDAHO_EPSCOR/GRIDMET',
+            #             'etr_band': 'etr'},
+            # **kwargs
         ):
         """Earth Engine based SSEBop Image Collection
 
@@ -62,22 +64,23 @@ class Collection():
             using the ee.ImageCollection.filterBounds() method.
         variables : list, optional
             Output variables can also be specified in the method calls.
-        etr_source : str, float, optional
-            Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
-            If source is a list,
-        etr_band : str, optional
-            Reference ET band name (the default is 'etr').
         cloud_cover_max : float, str
             Maximum cloud cover percentage (the default is 70%).
                 - Landsat TOA: CLOUD_COVER_LAND
                 - Landsat SR: CLOUD_COVER_LAND
+        etr_source : str, float, optional
+            Reference ET source (the default is None).  Parameter must be
+            set here, in class init, or in model_args (searched in that order).
+        etr_band : str, optional
+            Reference ET band name (the default is None).  Parameter must be
+            set here, in class init, or in model_args (searched in that order).
         filter_args : dict
             Image collection filter keyword arguments (the default is None).
             Organize filter arguments as a nested dictionary with the primary
             key being the collection ID.
         model_args : dict
             Model Image initialization keyword arguments (the default is None).
-        kwargs : dict
+            Dictionary will be passed through to model Image init.
 
         """
         self.collections = collections
@@ -86,14 +89,24 @@ class Collection():
         self.end_date = end_date
         self.geometry = geometry
         self.cloud_cover_max = cloud_cover_max
-        self.model_args = model_args
-        self.filter_args = filter_args
+
+        # CGM - Should we check that model_args and filter_args are dict?
+        if model_args is not None:
+            self.model_args = model_args
+        else:
+            self.model_args = {}
+        if filter_args is not None:
+            self.filter_args = filter_args
+        else:
+            self.filter_args = {}
 
         # Pass the ETr parameters through as model keyword arguments
         self.etr_source = etr_source
         self.etr_band = etr_band
-        self.model_args['etr_source'] = etr_source
-        self.model_args['etr_band'] = etr_band
+        if etr_source is not None:
+            self.model_args['etr_source'] = etr_source
+        if etr_band is not None:
+            self.model_args['etr_band'] = etr_band
 
         # Model specific variables that can be interpolated to a daily timestep
         # Should this be specified in the interpolation method instead?
@@ -172,7 +185,7 @@ class Collection():
         if self.end_date <= '2013-04-01':
             self.collections = [c for c in self.collections if 'LC08' not in c]
 
-        # CGM - Could this be in the init instead?
+        # CGM - Could this be in the openet.ssebop init.py instead?
         self.model_name = 'SSEBOP'
 
     def _build(self, variables=None, start_date=None, end_date=None):
@@ -209,6 +222,23 @@ class Collection():
             start_date = self.start_date
         if end_date is None :
             end_date = self.end_date
+
+        # def custom_filter(coll, filter_args):
+        #     for f in self.filter_args[coll_id]:
+        #         try:
+        #             filter_type = f.pop('type')
+        #         except KeyError:
+        #             continue
+        #         if filter_type.lower() == 'equals':
+        #             input_coll = input_coll.filter(ee.Filter.equals(**f))
+        #         elif filter_type.lower() == 'less_than':
+        #             input_coll = input_coll.filter(ee.Filter.lessThan(**f))
+        #         elif filter_type.lower() == 'greater_than':
+        #             input_coll = input_coll.filter(ee.Filter.greaterThan(**f))
+        #         elif filter_type.lower() == 'in_list':
+        #             input_coll = input_coll.filter(ee.Filter.inList(**f))
+        #
+        #     return coll.filter(filter)
 
         # Build the variable image collection
         variable_coll = ee.ImageCollection([])
@@ -301,7 +331,8 @@ class Collection():
         return self._build(variables=variables)
 
     def interpolate(self, variables=None, t_interval='custom',
-                    interp_method='linear', interp_days=32):
+                    interp_method='linear', interp_days=32,
+                    etr_source=None, etr_band=None):
         """
 
         Parameters
@@ -318,6 +349,12 @@ class Collection():
         interp_days : int, str, optional
             Number of extra days before the start date and after the end date
             to include in the interpolation calculation. (the default is 32).
+        etr_source : str, float, optional
+            Reference ET source (the default is None).  Parameter must be
+            set here, in class init, or in model_args (searched in that order).
+        etr_band : str, optional
+            Reference ET band name (the default is None).  Parameter must be
+            set here, in class init, or in model_args (searched in that order).
 
         Returns
         -------
@@ -381,37 +418,52 @@ class Collection():
         interp_end_dt = end_dt + datetime.timedelta(days=interp_days)
         interp_start_date = interp_start_dt.date().isoformat()
         interp_end_date = interp_end_dt.date().isoformat()
-        # print('Start date: {}'.format(start_date))
-        # print('End date:   {}'.format(end_date))
-        # print('Interp start date: {}'.format(interp_start_date))
-        # print('Interp end date:   {}'.format(interp_end_date))
 
-        if type(self.etr_source) is str:
+        # Get ETr source and band name
+        if etr_source is not None:
+            pass
+        elif self.etr_source is not None:
+            etr_source  = self.etr_source
+        elif 'etr_source' in self.model_args.keys():
+            etr_source = self.model_args['etr_source']
+        else:
+            raise ValueError('etr_source was not set')
+
+        # Get ETr band name
+        if etr_band is not None:
+            pass
+        elif self.etr_band is not None:
+            etr_band  = self.etr_band
+        elif 'etr_band' in self.model_args.keys():
+            etr_band = self.model_args['etr_band']
+        else:
+            raise ValueError('etr_band was not set')
+
+        if type(etr_source) is str:
             # Assume a string source is an single image collection ID
             #   not an list of collection IDs or ee.ImageCollection
-            daily_et_reference_coll = ee.ImageCollection(self.etr_source) \
+            daily_et_reference_coll = ee.ImageCollection(etr_source) \
                 .filterDate(start_date, end_date) \
-                .select([self.etr_band], ['etr'])
-        # elif type(self.etr_source) is list:
+                .select([etr_band], ['etr'])
+        # elif type(etr_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
         #     # CGM - The following from the Image class probably won't work
         #     #   I think the two collections will need to be joined together,
         #     #   probably in some sort of mapped function
         #     daily_et_reference_coll = ee.ImageCollection([])
-        #     for coll_id in self.etr_source:
+        #     for coll_id in etr_source:
         #         coll = ee.ImageCollection(coll_id) \
-        #             .select([self.etr_band]) \
+        #             .select([etr_band]) \
         #             .filterDate(self.start_date, self.end_date)
         #         daily_et_reference_coll = daily_et_reference_coll.merge(coll)
-        # elif isinstance(self.etr_source, computedobject.ComputedObject):
+        # elif isinstance(etr_source, computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     daily_et_reference_coll = ee.ImageCollection(self.etr_source) \
-        #         .select([self.etr_band]) \
+        #     daily_et_reference_coll = ee.ImageCollection(etr_source) \
+        #         .select([etr_band]) \
         #         .filterDate(self.start_date, self.end_date)
         else:
-            raise ValueError('unsupported etr_source: {}'.format(
-                self.etr_source))
+            raise ValueError('unsupported etr_source: {}'.format(etr_source))
 
         # Initialize variable list to only variables that can be interpolated
         interp_vars = list(set(self._interp_vars) & set(variables))
@@ -437,16 +489,12 @@ class Collection():
         scene_coll = self._build(
             variables=interp_vars, start_date=interp_start_date,
             end_date=interp_end_date)
-        # print('\nSCENE')
-        # pprint.pprint(scene_coll.first().getInfo())
 
-        # Compute composite/mosaic images for each image date
-        aggregate_coll = interp.aggregate_daily(
-            image_coll=scene_coll,
-            start_date=interp_start_date,
-            end_date=interp_end_date)
-        # print('\nAGGREGATE')
-        # pprint.pprint(aggregate_coll.first().getInfo())
+        # For count, compute the composite/mosaic image for the mask band only
+        if 'count' in variables:
+            aggregate_coll = interp.aggregate_daily(
+                image_coll=scene_coll.select(['mask']),
+                start_date=start_date, end_date=end_date)
 
         # Including count/mask causes problems in interp.daily() function.
         # Issues with mask being an int but the values need to be double.
@@ -459,10 +507,32 @@ class Collection():
         #   but is returning the target (ETr) band
         daily_coll = interp.daily(
             target_coll=daily_et_reference_coll,
-            source_coll=aggregate_coll.select(interp_vars),
+            source_coll=scene_coll.select(interp_vars),
             interp_method=interp_method,  interp_days=interp_days)
-        # print('\nDAILY')
-        # pprint.pprint(daily_coll.first().getInfo())
+
+        # DEADBEEF - Originally all variables were being aggregated
+        # It may be sufficient to only aggregate the mask/count variable,
+        #   since all other variables will be interpolated using the 0 UTC time
+        #
+        # # Compute composite/mosaic images for each image date
+        # aggregate_coll = interp.aggregate_daily(
+        #     image_coll=scene_coll,
+        #     start_date=interp_start_date,
+        #     end_date=interp_end_date)
+        #
+        # # Including count/mask causes problems in interp.daily() function.
+        # # Issues with mask being an int but the values need to be double.
+        # # Casting the mask band to a double would fix this problem also.
+        # if 'mask' in interp_vars:
+        #     interp_vars.remove('mask')
+        #
+        # # Interpolate to a daily time step
+        # # NOTE: the daily function is not computing ET (ETf x ETr)
+        # #   but is returning the target (ETr) band
+        # daily_coll = interp.daily(
+        #     target_coll=daily_et_reference_coll,
+        #     source_coll=aggregate_coll.select(interp_vars),
+        #     interp_method=interp_method,  interp_days=interp_days)
 
         # Compute ET from ETf and ETr (if necessary)
         if 'et' in variables:
@@ -480,7 +550,7 @@ class Collection():
                 # return img.addBands(et_img)
             daily_coll = daily_coll.map(compute_et)
 
-        # DEADBEEF - Some of the following functionality could be moved to core
+        # DEADBEEF - The following could probably be combined or moved to core,
         #   since the functionality is basically identical for all t_interval
         interp_properties = {
             'CLOUD_COVER': self.cloud_cover_max,
@@ -489,6 +559,7 @@ class Collection():
             'INTERP_METHOD': interp_method,
             'MODEL_VERSION': openet.ssebop.__version__,
         }
+        interp_properties.update(self.model_args)
 
         # Combine input, interpolated, and derived values
         if t_interval.lower() == 'daily':

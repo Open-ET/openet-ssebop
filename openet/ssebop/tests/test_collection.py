@@ -29,7 +29,8 @@ def default_coll_args():
         'geometry': ee.Geometry.Point(SCENE_POINT),
         'variables': VARIABLES,
         'etr_source': 'IDAHO_EPSCOR/GRIDMET',
-        'etr_band': 'etr'}
+        'etr_band': 'etr',
+    }
 
 
 # CGM - Should this be a fixture?
@@ -57,8 +58,10 @@ def test_Collection_init_default_parameters():
 
     assert n.variables == None
     assert n.cloud_cover_max == 70
-    assert n.etr_source == 'IDAHO_EPSCOR/GRIDMET'
-    assert n.etr_band == 'etr'
+    assert n.etr_source == None
+    assert n.etr_band == None
+    assert n.model_args == {}
+    assert n.filter_args == {}
     assert n._interp_vars == ['ndvi', 'etf']
 
 
@@ -368,12 +371,62 @@ def test_Collection_interpolate_t_interval_custom():
 #     # Is there any way to test this without pulling values at a point?
 
 
-def test_Collection_interpolate_etr_source_exception():
-    """Test if Exception is raised if etr_source is not a string"""
+# This is already being tested by test_Collection_interpolate_default() above
+# def test_Collection_interpolate_etr_source_init():
+#     """Test setting etr_source in the class init"""
+#     args = default_coll_args()
+#     args.update({'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr'})
+#     output = utils.getinfo(ndvi_et.Collection(**args).interpolate())
+#     assert VARIABLES == sorted(list(set([
+#         y['id'] for x in output['features'] for y in x['bands']])))
+
+
+def test_Collection_interpolate_etr_source_model_args():
+    """Test setting etr_source in the model_args"""
     args = default_coll_args()
-    args['etr_source'] = []
+    del args['etr_source']
+    del args['etr_band']
+    args['model_args'] = {'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr'}
+    output = utils.getinfo(ssebop.Collection(**args).interpolate())
+    assert VARIABLES == sorted(list(set([
+        y['id'] for x in output['features'] for y in x['bands']])))
+
+
+def test_Collection_interpolate_etr_source_method():
+    """Test setting etr_source in the interpolate call"""
+    args = default_coll_args()
+    del args['etr_source']
+    del args['etr_band']
+    etr_kwargs = {'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr'}
+    output = utils.getinfo(ssebop.Collection(**args).interpolate(**etr_kwargs))
+    assert VARIABLES == sorted(list(set([
+        y['id'] for x in output['features'] for y in x['bands']])))
+
+
+def test_Collection_interpolate_etr_source_not_set():
+    """Test if Exception is raised if etr_source is not set"""
+    args = default_coll_args()
+    del args['etr_source']
+    del args['etr_band']
     with pytest.raises(ValueError):
         utils.getinfo(ssebop.Collection(**args).interpolate())
+
+
+# def test_Collection_interpolate_etr_source_exception():
+#     """Test if Exception is raised if etr_source is invalid"""
+#     args = default_coll_args()
+#     args['model_args'] = {'etr_source': 'DEADBEEF', 'etr_band': 'etr'}
+#     with pytest.raises(ValueError):
+#         utils.getinfo(ssebop.Collection(**args).interpolate())
+
+
+# def test_Collection_interpolate_etr_band_exception():
+#     """Test if Exception is raised if etr_band is invalid"""
+#     args = default_coll_args()
+#     args['model_args'] = {'etr_source': 'IDAHO_EPSCOR/GRIDMET',
+#                           'etr_band': 'DEADBEEF'}
+#     with pytest.raises(ValueError):
+#         utils.getinfo(ssebop.Collection(**args).interpolate())
 
 
 def test_Collection_interpolate_t_interval_exception():

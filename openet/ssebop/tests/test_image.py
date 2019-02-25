@@ -33,7 +33,8 @@ def toa_image(red=0.1, nir=0.9, bt=305):
         .set({
             'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
-            'k2_constant': ee.Number(1260.56)})
+            'k2_constant': ee.Number(1260.56),
+        })
 
 
 def default_image(lst=305, ndvi=0.8):
@@ -43,7 +44,7 @@ def default_image(lst=305, ndvi=0.8):
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).millis(),
             'system:id': COLL_ID + SCENE_ID,
-    })
+        })
 
 
 def test_ee_init():
