@@ -553,11 +553,12 @@ class Collection():
         # DEADBEEF - The following could probably be combined or moved to core,
         #   since the functionality is basically identical for all t_interval
         interp_properties = {
-            'CLOUD_COVER': self.cloud_cover_max,
-            'ET_MODEL': self.model_name,
-            'INTERP_DAYS': interp_days,
-            'INTERP_METHOD': interp_method,
-            'MODEL_VERSION': openet.ssebop.__version__,
+            'cloud_cover_max': self.cloud_cover_max,
+            'collections': ', '.join(self.collections),
+            'interp_days': interp_days,
+            'interp_method': interp_method,
+            'model_name': self.model_name,
+            'model_version': openet.ssebop.__version__,
         }
         interp_properties.update(self.model_args)
 
@@ -733,7 +734,7 @@ class Collection():
         # CGM - Could the build function and Image class support returning
         #   the system:index?
         output = list(self._build(variables=['ndvi'])\
-            .aggregate_histogram('IMAGE_ID').getInfo().keys())
+            .aggregate_histogram('image_id').getInfo().keys())
         return sorted(output)
         # Strip merge indices (this works for Landsat image IDs
         # return sorted(['_'.join(x.split('_')[-3:]) for x in output])

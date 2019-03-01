@@ -58,7 +58,7 @@ def test_Image_default_parameters():
     assert s.etr_band == 'etr'
     assert s._dt_source == 'DAYMET_MEDIAN_V1'
     assert s._elev_source == 'SRTM'
-    assert s._tcorr_source == 'IMAGE_DAILY'
+    assert s._tcorr_source == 'IMAGE'
     assert s._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert s._elr_flag == False
     assert s._tdiff_threshold == 15
@@ -188,30 +188,22 @@ def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
     assert abs(output['constant'] - expected) <= tol
 
 
-def test_Image_ndvi_band_name():
-    output = utils.getinfo(ssebop.Image(default_image()).ndvi)
-    assert output['bands'][0]['id'] == 'ndvi'
-
-
 def test_Image_ndvi_properties():
     """Test if properties are set on the NDVI image"""
     output = utils.getinfo(ssebop.Image(default_image()).ndvi)
+    assert output['bands'][0]['id'] == 'ndvi'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
-
-
-def test_Image_lst_band_name():
-    output = utils.getinfo(ssebop.Image(default_image()).lst)
-    assert output['bands'][0]['id'] == 'lst'
+    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_lst_properties():
     """Test if properties are set on the LST image"""
     output = utils.getinfo(ssebop.Image(default_image()).lst)
+    assert output['bands'][0]['id'] == 'lst'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
 @pytest.mark.parametrize(
@@ -659,16 +651,16 @@ def test_Image_etf_image_tcorr_properties():
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
         ssebop.Image(default_image(), tcorr_source='IMAGE').etf)
-    assert 'TCORR' not in output['properties'].keys()
-    assert 'TCORR_INDEX' not in output['properties'].keys()
+    assert 'tcorr' not in output['properties'].keys()
+    assert 'tcorr_index' not in output['properties'].keys()
 
 
 def test_Image_etf_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
         ssebop.Image(default_image(), tcorr_source='FEATURE').etf)
-    assert abs(output['properties']['TCORR'] - 0.9752) <= tol
-    assert output['properties']['TCORR_INDEX'] == 0
+    assert abs(output['properties']['tcorr'] - 0.9752) <= tol
+    assert output['properties']['tcorr_index'] == 0
 
 
 def test_Image_etr_band_name():
@@ -681,7 +673,7 @@ def test_Image_etr_properties():
     output =  utils.getinfo(ssebop.Image(default_image()).etr)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_etr_values(tol=0.0001):
@@ -708,7 +700,7 @@ def test_Image_et_properties(tol=0.0001):
     output =  utils.getinfo(ssebop.Image(default_image()).et)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_mask_values():
@@ -729,7 +721,7 @@ def test_Image_mask_properties():
     output = utils.getinfo(ssebop.Image(default_image()).mask)['properties']
     assert output['system:index'] == SCENE_ID
     assert output['system:time_start'] == SCENE_TIME
-    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_time_values():
@@ -751,7 +743,7 @@ def test_Image_time_properties():
     output = utils.getinfo(ssebop.Image(default_image()).time)['properties']
     assert output['system:index'] == SCENE_ID
     assert output['system:time_start'] == SCENE_TIME
-    assert output['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_calculate_variables_default():
@@ -777,7 +769,7 @@ def test_Image_calculate_properties():
     output =  utils.getinfo(ssebop.Image(default_image()).calculate(['ndvi']))
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['IMAGE_ID'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
 def test_Image_calculate_values(tol=0.0001):
@@ -909,7 +901,7 @@ def test_Image_from_landsat_c1_sr_exception():
 #     """Test instantiating the class using the from_image_id method"""
 #     output = utils.getinfo(ssebop.Image.from_image_id(image_id).ndvi)
 #     assert output['properties']['system:index'] == image_id.split('/')[-1]
-#     assert output['properties']['IMAGE_ID'] == image_id
+#     assert output['properties']['image_id'] == image_id
 
 
 def test_Image_from_method_kwargs():

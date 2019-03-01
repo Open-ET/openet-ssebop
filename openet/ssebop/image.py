@@ -33,7 +33,7 @@ class Image():
             etr_band='etr',
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
-            tcorr_source='IMAGE_DAILY',
+            tcorr_source='IMAGE',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
             tdiff_threshold=15,
@@ -59,7 +59,7 @@ class Image():
         tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
                         'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
                         'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
-            Tcorr source keyword (the default is 'IMAGE_DAILY').
+            Tcorr source keyword (the default is 'IMAGE').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
                        'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
                        'TOPOWX_MEDIAN_V0', or float}, optional
@@ -94,7 +94,7 @@ class Image():
         self._properties = {
             'system:index': self._index,
             'system:time_start': self._time_start,
-            'IMAGE_ID': self._id,
+            'image_id': self._id,
         }
 
         # Build SCENE_ID from the (possibly merged) system:index
@@ -161,14 +161,16 @@ class Image():
                 output_images.append(self.etf)
             elif v.lower() == 'etr':
                 output_images.append(self.etr)
+            elif v.lower() == 'lst':
+                output_images.append(self.lst)
             elif v.lower() == 'mask':
                 output_images.append(self.mask)
             elif v.lower() == 'ndvi':
                 output_images.append(self.ndvi)
             # elif v.lower() == 'qa':
             #     output_images.append(self.qa)
-            # elif v.lower() == 'quality':
-            #     output_images.append(self.quality)
+            elif v.lower() == 'quality':
+                output_images.append(self.quality)
             elif v.lower() == 'time':
                 output_images.append(self.time)
             else:
@@ -222,7 +224,7 @@ class Image():
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
                 'IMAGE' not in self._tcorr_source.upper()):
-            etf = etf.set({'TCORR': tcorr, 'TCORR_INDEX': tcorr_index})
+            etf = etf.set({'tcorr': tcorr, 'tcorr_index': tcorr_index})
 
         return etf
 
@@ -280,11 +282,12 @@ class Image():
         return self.etf.multiply(0).add(1).updateMask(1)\
             .rename(['mask']).set(self._properties).uint8()
 
-    # @lazy_property
-    # def quality(self):
-    #     """Set quality to 1 for all active pixels (for now)"""
-    #     return self.mask \
-    #         .rename(['quality']).set(self._properties)
+    @lazy_property
+    def quality(self):
+        """Set quality to 1 for all active pixels (for now)"""
+        tcorr, tcorr_index = self._tcorr
+        return self.mask \
+            .rename(['quality']).set(self._properties)
 
     @lazy_property
     def time(self):
