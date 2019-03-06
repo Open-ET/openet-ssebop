@@ -37,18 +37,21 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     ini = utils.read_ini(ini_path)
 
-    if (ini['SSEBOP']['tmax_source'].upper() == 'CIMIS' and
+    model_name = 'SSEBOP'
+    # model_name = ini['INPUTS']['et_model'].upper()
+
+    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini['SSEBOP']['tmax_source'].upper() == 'DAYMET' and
+    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
             ini['INPUTS']['end_date'] > '2017-12-31'):
         logging.warning(
             '\nDAYMET is not currently available past 2017-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini['SSEBOP']['tmax_source'].upper() == 'TOPOWX' and
+    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
@@ -65,11 +68,11 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     # Output Tcorr daily image collection
     tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+        ini['EXPORT']['export_coll'], tmax_name.lower())
 
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
-    tmax_name = ini['SSEBOP']['tmax_source']
+    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
@@ -196,7 +199,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
         export_id = ini['EXPORT']['export_id_fmt'] \
             .format(
-                product=ini['SSEBOP']['tmax_source'].lower(),
+                product=tmax_name.lower(),
                 date=export_dt.strftime('%Y%m%d'),
                 export=ini['EXPORT']['export_dest'].lower())
         logging.debug('  Export ID: {}'.format(export_id))
@@ -275,7 +278,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         def tcorr_img_func(image):
             t_stats = ssebop.Image.from_landsat_c1_toa(
                     ee.Image(image),
-                    tdiff_threshold=float(ini['SSEBOP']['tdiff_threshold'])) \
+                    tdiff_threshold=float(ini[model_name]['tdiff_threshold'])) \
                 .tcorr_stats
             t_stats = ee.Dictionary(t_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0},
@@ -302,11 +305,11 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                 .clip(image.geometry()) \
                 .set({
                     'system:time_start': image.get('system:time_start'),
-                    'SCENE_ID': scene_id,
-                    'WRS2_TILE': scene_id.slice(5, 11),
-                    'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
-                    'TCORR': tcorr,
-                    'COUNT': count,
+                    'scene_id': scene_id,
+                    'wrs2_tile': scene_id.slice(5, 11),
+                    'spacecraft_id': image.get('SPACECRAFT_ID'),
+                    'tcorr': tcorr,
+                    'count': count,
                 })
 
         # # Test for one image
@@ -316,7 +319,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         # input('ENTER')
 
         tcorr_img_coll = ee.ImageCollection(landsat_coll.map(tcorr_img_func)) \
-            .filterMetadata('COUNT', 'not_less_than',
+            .filterMetadata('count', 'not_less_than',
                             float(ini['TCORR']['min_pixel_count']))
         # pprint.pprint(tcorr_img_coll.aggregate_histogram('system:index').getInfo())
         # pprint.pprint(ee.Image(tcorr_img_coll.first()).getInfo())
@@ -339,9 +342,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
             return ee.String(ee.List(ee.Dictionary(
                 coll.aggregate_histogram(property)).keys()).join(','))
         wrs2_tile_list = ee.String('').cat(unique_properties(
-            tcorr_img_coll, 'WRS2_TILE'))
+            tcorr_img_coll, 'wrs2_tile'))
         landsat_list = ee.String('').cat(unique_properties(
-            tcorr_img_coll, 'SPACECRAFT_ID'))
+            tcorr_img_coll, 'spacecraft_id'))
 
         # # Is there a better way of building these strings?
         # wrs2_tile_list = ee.Algorithms.If(
@@ -359,18 +362,19 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         tcorr_img = ee.Image(tcorr_img).rename(['tcorr']).double() \
             .set({
                 'system:time_start': utils.millis(export_dt),
-                'LANDSAT': landsat_list,
-                'WRS2_TILES': wrs2_tile_list,
-                'DATE': export_dt.strftime('%Y-%m-%d'),
-                'YEAR': int(export_dt.year),
-                'MONTH': int(export_dt.month),
-                'DAY': int(export_dt.day),
-                'DOY': int(export_dt.strftime('%j')),
-                'CYCLE_DAY': ((export_dt - cycle_base_dt).days % 8) + 1,
-                'SSEBOP_VERSION': ssebop.__version__,
-                'TMAX_SOURCE': tmax_source.upper(),
-                'TMAX_VERSION': tmax_version.upper(),
-                'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d'),
+                'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+                'date': export_dt.strftime('%Y-%m-%d'),
+                'year': int(export_dt.year),
+                'month': int(export_dt.month),
+                'day': int(export_dt.day),
+                'doy': int(export_dt.strftime('%j')),
+                'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
+                'landsat': landsat_list,
+                'model_name': model_name,
+                'model_version': ssebop.__version__,
+                'tmax_source': tmax_source.upper(),
+                'tmax_version': tmax_version.upper(),
+                'wrs2_tiles': wrs2_tile_list,
             })
         # pprint.pprint(tcorr_img.getInfo())
         # input('ENTER')
@@ -417,8 +421,9 @@ def arg_parse():
     args = parser.parse_args()
 
     # Prompt user to select an INI file if not set at command line
-    if not args.ini:
-        args.ini = utils.get_ini_path(os.getcwd())
+    # if not args.ini:
+    #     args.ini = utils.get_ini_path(os.getcwd())
+
     return args
 
 

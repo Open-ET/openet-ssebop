@@ -36,18 +36,21 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     ini = utils.read_ini(ini_path)
 
-    if (ini['SSEBOP']['tmax_source'].upper() == 'CIMIS' and
+    model_name = 'SSEBOP'
+    # model_name = ini['INPUTS']['et_model'].upper()
+
+    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini['SSEBOP']['tmax_source'].upper() == 'DAYMET' and
+    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
             ini['INPUTS']['end_date'] > '2017-12-31'):
         logging.warning(
             '\nDAYMET is not currently available past 2017-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini['SSEBOP']['tmax_source'].upper() == 'TOPOWX' and
+    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
@@ -63,7 +66,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         ee.Initialize()
 
     logging.debug('\nTmax properties')
-    tmax_name = ini['SSEBOP']['tmax_source']
+    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
@@ -76,7 +79,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     # Get the Tcorr daily image collection properties
     logging.debug('\nTcorr Image properties')
     tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+        ini['EXPORT']['export_coll'], tmax_name.lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
     tcorr_geo = ee.Image(tcorr_img).projection().getInfo()['transform']
     tcorr_crs = ee.Image(tcorr_img).projection().getInfo()['crs']
@@ -90,7 +93,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     # Output Tcorr monthly image collection
     tcorr_monthly_coll_id = '{}/{}_monthly'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+        ini['EXPORT']['export_coll'], tmax_name.lower())
 
     # Get current asset list
     if ini['EXPORT']['export_dest'].upper() == 'ASSET':
@@ -214,7 +217,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
             export_id = ini['EXPORT']['export_id_fmt'] \
                 .format(
-                    product=ini['SSEBOP']['tmax_source'].lower(),
+                    product=tmax_name.lower(),
                     date='month{:02d}_cycle{:02d}'.format(month, cycle_day),
                     export=ini['EXPORT']['export_dest'].lower(),
             )
@@ -319,11 +322,11 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                 return wrs2_tcorr_img \
                     .clip(ee.Feature(ftr).geometry()) \
                     .set({
-                        'WRS2_TILE': path.format('%03d').cat(row.format('%03d')),
-                        # 'WRS2_TILE': ftr.get('WRS2_TILE'),
-                        'TCORR': ee.Number(wrs2_tcorr_stats.get('median')),
-                        'COUNT': ee.Number(wrs2_tcorr_stats.get('count')),
-                        'INDEX': 1,
+                        'wrs2_tile': path.format('%03d').cat(row.format('%03d')),
+                        # 'wrs2_tile': ftr.get('WRS2_TILE'),
+                        'tcorr': ee.Number(wrs2_tcorr_stats.get('median')),
+                        'count': ee.Number(wrs2_tcorr_stats.get('count')),
+                        'index': 1,
                     })
 
             # # DEADBEEF
@@ -339,7 +342,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
             # Combine WRS2 Tcorr monthly images to a single monthly image
             output_img = ee.ImageCollection(wrs2_coll.map(wrs2_tcorr)) \
-                .filterMetadata('COUNT', 'not_less_than',
+                .filterMetadata('count', 'not_less_than',
                                 float(ini['TCORR']['min_scene_count'])) \
                 .mean() \
                 .rename(['tcorr', 'count'])
@@ -353,13 +356,14 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                 .rename(['tcorr', 'count']) \
                 .set({
                     # 'system:time_start': utils.millis(iter_start_dt),
-                    'SSEBOP_VERSION': ssebop.__version__,
-                    'TMAX_SOURCE': tmax_source.upper(),
-                    'TMAX_VERSION': tmax_version.upper(),
-                    'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d'),
-                    'MONTH': int(month),
-                    'YEARS': ','.join(map(str, year_list)),
-                    'CYCLE_DAY': int(cycle_day),
+                    'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+                    'month': int(month),
+                    'years': ','.join(map(str, year_list)),
+                    'cycle_day': int(cycle_day),
+                    'model_name': model_name,
+                    'model_version': ssebop.__version__,
+                    'tmax_source': tmax_source.upper(),
+                    'tmax_version': tmax_version.upper(),
                 })
             # pprint.pprint(output_img.getInfo())
             # input('ENTER')
@@ -406,8 +410,9 @@ def arg_parse():
     args = parser.parse_args()
 
     # Prompt user to select an INI file if not set at command line
-    if not args.ini:
-        args.ini = utils.get_ini_path(os.getcwd())
+    # if not args.ini:
+    #     args.ini = utils.get_ini_path(os.getcwd())
+
     return args
 
 

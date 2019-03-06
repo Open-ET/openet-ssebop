@@ -36,18 +36,21 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     ini = utils.read_ini(ini_path)
 
-    if (ini['SSEBOP']['tmax_source'].upper() == 'CIMIS' and
+    model_name = 'SSEBOP'
+    # model_name = ini['INPUTS']['et_model'].upper()
+
+    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini['SSEBOP']['tmax_source'].upper() == 'DAYMET' and
+    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
             ini['INPUTS']['end_date'] > '2017-12-31'):
         logging.warning(
             '\nDAYMET is not currently available past 2017-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini['SSEBOP']['tmax_source'].upper() == 'TOPOWX' and
+    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
@@ -63,7 +66,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         ee.Initialize()
 
     logging.debug('\nTmax properties')
-    tmax_name = ini['SSEBOP']['tmax_source']
+    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
@@ -76,7 +79,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     # Get the Tcorr daily image collection properties
     logging.debug('\nTcorr Image properties')
     tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+        ini['EXPORT']['export_coll'], tmax_name.lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
     tcorr_geo = ee.Image(tcorr_img).projection().getInfo()['transform']
     tcorr_crs = ee.Image(tcorr_img).projection().getInfo()['crs']
@@ -90,7 +93,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     # Output Tcorr annual image collection
     tcorr_annual_coll_id = '{}/{}_default'.format(
-        ini['EXPORT']['export_path'], ini['SSEBOP']['tmax_source'].lower())
+        ini['EXPORT']['export_coll'], tmax_name.lower())
 
     # Get current asset list
     if ini['EXPORT']['export_dest'].upper() == 'ASSET':
@@ -116,7 +119,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     export_id = ini['EXPORT']['export_id_fmt'] \
         .format(
-            product=ini['SSEBOP']['tmax_source'].lower(),
+            product=tmax_name.lower(),
             date='default',
             export=ini['EXPORT']['export_dest'].lower(),
     )
@@ -151,10 +154,11 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         .updateMask(1).rename(['tcorr'])\
         .set({
             # 'system:time_start': utils.millis(iter_start_dt),
-            'SSEBOP_VERSION': ssebop.__version__,
-            'TMAX_SOURCE': tmax_source.upper(),
-            'TMAX_VERSION': tmax_version.upper(),
-            'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d'),
+            'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+            'model_name': model_name,
+            'model_version': ssebop.__version__,
+            'tmax_source': tmax_source.upper(),
+            'tmax_version': tmax_version.upper(),
         })
 
     # Build export tasks
@@ -199,8 +203,9 @@ def arg_parse():
     args = parser.parse_args()
 
     # Prompt user to select an INI file if not set at command line
-    if not args.ini:
-        args.ini = utils.get_ini_path(os.getcwd())
+    # if not args.ini:
+    #     args.ini = utils.get_ini_path(os.getcwd())
+
     return args
 
 
