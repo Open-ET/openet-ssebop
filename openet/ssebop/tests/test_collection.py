@@ -3,7 +3,7 @@ import pprint
 import ee
 import pytest
 
-import openet.ssebop as ssebop
+import openet.ssebop as model
 import openet.ssebop.utils as utils
 # TODO: import utils from openet.core
 # import openet.core.utils as utils
@@ -30,6 +30,7 @@ def default_coll_args():
         'variables': VARIABLES,
         'etr_source': 'IDAHO_EPSCOR/GRIDMET',
         'etr_band': 'etr',
+        'etr_factor': 0.85,
     }
 
 
@@ -52,31 +53,34 @@ def test_Collection_init_default_parameters():
     # These values are being set above but have defaults that need to be checked
     del args['etr_source']
     del args['etr_band']
+    del args['etr_factor']
     del args['variables']
 
-    n = ssebop.Collection(**args)
+    m = model.Collection(**args)
 
-    assert n.variables == None
-    assert n.cloud_cover_max == 70
-    assert n.etr_source == None
-    assert n.etr_band == None
-    assert n.model_args == {}
-    assert n.filter_args == {}
-    assert n._interp_vars == ['ndvi', 'etf']
+    assert m.variables == None
+    assert m.etr_source == None
+    assert m.etr_band == None
+    assert m.etr_factor == 1.0
+    assert m.cloud_cover_max == 70
+    assert m.model_args == {}
+    assert m.filter_args == {}
+    assert m._interp_vars == ['ndvi', 'etf']
+    assert m.model_name == 'SSEBOP'
 
 
 def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C01/T1_TOA'):
     """Test if a single coll_id str is converted to a single item list"""
     args = default_coll_args()
     args['collections'] = coll_id
-    assert ssebop.Collection(**args).collections == [coll_id]
+    assert model.Collection(**args).collections == [coll_id]
 
 
 def test_Image_init_cloud_cover_max_str():
     """Test if cloud_cover_max strings are converted to float"""
     args = default_coll_args()
     args['cloud_cover_max'] = '70'
-    assert ssebop.Collection(**args).cloud_cover_max == 70
+    assert model.Collection(**args).cloud_cover_max == 70
 
 
 @pytest.mark.parametrize(
@@ -97,7 +101,7 @@ def test_Collection_init_collection_filter(coll_id, start_date, end_date):
     args['collections'] = [coll_id]
     args['start_date'] = start_date
     args['end_date'] = end_date
-    assert ssebop.Collection(**args).collections == []
+    assert model.Collection(**args).collections == []
 
 
 def test_Collection_init_startdate_exception():
@@ -106,7 +110,7 @@ def test_Collection_init_startdate_exception():
     args['start_date'] = '1/1/2000'
     args['end_date'] = '2000-01-02'
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 def test_Collection_init_enddate_exception():
@@ -115,7 +119,7 @@ def test_Collection_init_enddate_exception():
     args['start_date'] = '2000-01-01'
     args['end_date'] = '1/2/2000'
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 def test_Collection_init_swapped_date_exception():
@@ -124,7 +128,7 @@ def test_Collection_init_swapped_date_exception():
     args['start_date'] = '2017-01-01'
     args['end_date'] = '2017-01-01'
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 def test_Collection_init_invalid_collections_exception():
@@ -132,7 +136,7 @@ def test_Collection_init_invalid_collections_exception():
     args = default_coll_args()
     args['collections'] = ['FOO']
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 def test_Collection_init_duplicate_collections_exception():
@@ -141,10 +145,10 @@ def test_Collection_init_duplicate_collections_exception():
     args['collections'] = ['LANDSAT/LC08/C01/T1_RT_TOA',
                            'LANDSAT/LC08/C01/T1_TOA']
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
     args['collections'] = ['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LC08/C01/T1_TOA']
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 def test_Collection_init_cloud_cover_exception():
@@ -152,13 +156,13 @@ def test_Collection_init_cloud_cover_exception():
     args = default_coll_args()
     args['cloud_cover_max'] = 'A'
     with pytest.raises(TypeError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
     args['cloud_cover_max'] = -1
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
     args['cloud_cover_max'] = 101
     with pytest.raises(ValueError):
-        ssebop.Collection(**args)
+        model.Collection(**args)
 
 
 # # TODO: Test for Error if geometry is not ee.Geometry
@@ -166,7 +170,7 @@ def test_Collection_init_cloud_cover_exception():
 #     """Test if Exception is raised for an invalid geometry"""
 #     args = default_coll_args()
 #     args['geometry'] = 'DEADBEEF'
-#     s = ssebop.Collection(**args)
+#     s = model.Collection(**args)
 #     assert utils.getinfo(s.geometry) ==
 
 
@@ -174,12 +178,12 @@ def test_Collection_init_cloud_cover_exception():
 # def test_Collection_init_geometry_geojson():
 #     """Test that the system:index from a merged collection is parsed"""
 #     args = default_coll_args()
-#     s = ssebop.Collection(**args)
+#     s = model.Collection(**args)
 #     assert utils.getinfo(s._scene_id) == SCENE_ID
 
 
 def test_Collection_build_default():
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())._build())
+    output = utils.getinfo(model.Collection(**default_coll_args())._build())
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output) == SCENE_ID_LIST
     assert VARIABLES == sorted(list(set([
@@ -188,7 +192,7 @@ def test_Collection_build_default():
 
 def test_Collection_build_variables():
     output = utils.getinfo(
-        ssebop.Collection(**default_coll_args())._build(variables=['ndvi']))
+        model.Collection(**default_coll_args())._build(variables=['ndvi']))
     assert ['ndvi'] == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
 
@@ -196,7 +200,7 @@ def test_Collection_build_variables():
 def test_Collection_build_dates():
     args = default_coll_args()
     args['start_date'] = '2017-07-24'
-    output = utils.getinfo(ssebop.Collection(**args)._build(
+    output = utils.getinfo(model.Collection(**args)._build(
         start_date='2017-07-16', end_date='2017-07-17'))
     assert parse_scene_id(output) == ['LC08_044033_20170716']
 
@@ -205,7 +209,7 @@ def test_Collection_build_landsat_toa():
     """Test if the Landsat TOA (non RT) collections can be built"""
     args = default_coll_args()
     args['collections'] = ['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA']
-    output = utils.getinfo(ssebop.Collection(**args)._build())
+    output = utils.getinfo(model.Collection(**args)._build())
     assert parse_scene_id(output) == SCENE_ID_LIST
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
@@ -215,7 +219,7 @@ def test_Collection_build_landsat_sr():
     """Test if the Landsat SR collections can be built"""
     args = default_coll_args()
     args['collections'] = ['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR']
-    output = utils.getinfo(ssebop.Collection(**args)._build())
+    output = utils.getinfo(model.Collection(**args)._build())
     assert parse_scene_id(output) == SCENE_ID_LIST
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
@@ -225,7 +229,7 @@ def test_Collection_build_exclusive_enddate():
     """Test if the end_date is exclusive"""
     args = default_coll_args()
     args['end_date'] = '2017-07-24'
-    output = utils.getinfo(ssebop.Collection(**args)._build())
+    output = utils.getinfo(model.Collection(**args)._build())
     assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
 
 
@@ -234,7 +238,7 @@ def test_Collection_build_cloud_cover():
     # CGM - The filtered images should probably be looked up programmatically
     args = default_coll_args()
     args['cloud_cover_max'] = 0.5
-    output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
+    output = utils.getinfo(model.Collection(**args)._build(variables=['et']))
     assert 'LE07_044033_20170724' not in parse_scene_id(output)
 
 
@@ -244,7 +248,7 @@ def test_Collection_build_cloud_cover():
 #     """Test if the end_date is exclusive"""
 #     args = default_coll_args()
 #     args['end_date'] = '2017-07-24'
-#     output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
+#     output = utils.getinfo(model.Collection(**args)._build(variables=['et']))
 #     assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
 
 
@@ -256,7 +260,7 @@ def test_Collection_build_filter_args():
     args['filter_args'] = {coll_id: [
         {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': 44},
         {'type': 'equals', 'leftField': 'WRS_ROW', 'rightValue': 33}]}
-    output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
+    output = utils.getinfo(model.Collection(**args)._build(variables=['et']))
     assert set([x[5:11] for x in parse_scene_id(output)]) == set(['044033'])
 
 
@@ -264,12 +268,12 @@ def test_Collection_build_variable_valueerror():
     """Test if Exception is raised for an invalid variable"""
     args = default_coll_args()
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**args)._build(variables=['FOO']))
+        utils.getinfo(model.Collection(**args)._build(variables=['FOO']))
 
 
 def test_Collection_overpass_default():
     """Test overpass method with default values (variables from Class init)"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args()).overpass())
+    output = utils.getinfo(model.Collection(**default_coll_args()).overpass())
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
     assert parse_scene_id(output) == SCENE_ID_LIST
@@ -279,14 +283,14 @@ def test_Collection_overpass_class_variables():
     """Test that custom class variables are passed through to build function"""
     args = default_coll_args()
     args['variables'] = ['et']
-    output = utils.getinfo(ssebop.Collection(**args).overpass())
+    output = utils.getinfo(model.Collection(**args).overpass())
     assert args['variables'] == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
 
 
 def test_Collection_overpass_method_variables():
     """Test that custom method variables are passed through to build function"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .overpass(variables=['et']))
     assert ['et'] == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
@@ -297,12 +301,12 @@ def test_Collection_overpass_no_variables_valueerror():
     args = default_coll_args()
     del args['variables']
     with pytest.raises(ValueError):
-        ssebop.Collection(**args).overpass().getInfo()
+        model.Collection(**args).overpass().getInfo()
 
 
 def test_Collection_interpolate_default():
     """Default t_interval should be custom"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .interpolate())
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output) == ['20170701']
@@ -311,7 +315,7 @@ def test_Collection_interpolate_default():
 
 
 def test_Collection_interpolate_variables_custom():
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .interpolate(variables=['et']))
     assert ['et'] == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
@@ -319,7 +323,7 @@ def test_Collection_interpolate_variables_custom():
 
 def test_Collection_interpolate_t_interval_daily():
     """Test if the daily time interval parameter works"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .interpolate(t_interval='daily'))
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output)[0] == '20170701'
@@ -330,7 +334,7 @@ def test_Collection_interpolate_t_interval_daily():
 
 def test_Collection_interpolate_t_interval_monthly():
     """Test if the monthly time interval parameter works"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .interpolate(t_interval='monthly'))
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output) == ['201707']
@@ -345,7 +349,7 @@ def test_Collection_interpolate_t_interval_monthly():
 #     args = default_coll_args()
 #     args['start_date'] = '2017-01-01'
 #     args['end_date'] = '2018-01-01'
-#     output = utils.getinfo(ssebop.Collection(**args)
+#     output = utils.getinfo(model.Collection(**args)
 #         .interpolate(t_interval='annual'))
 #     assert output['type'] == 'ImageCollection'
 #     assert parse_scene_id(output) == ['2017']
@@ -355,7 +359,7 @@ def test_Collection_interpolate_t_interval_monthly():
 
 def test_Collection_interpolate_t_interval_custom():
     """Test if the custom time interval parameter works"""
-    output = utils.getinfo(ssebop.Collection(**default_coll_args())
+    output = utils.getinfo(model.Collection(**default_coll_args())
         .interpolate(t_interval='custom'))
     assert output['type'] == 'ImageCollection'
     assert parse_scene_id(output) == ['20170701']
@@ -386,8 +390,10 @@ def test_Collection_interpolate_etr_source_model_args():
     args = default_coll_args()
     del args['etr_source']
     del args['etr_band']
-    args['model_args'] = {'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr'}
-    output = utils.getinfo(ssebop.Collection(**args).interpolate())
+    del args['etr_factor']
+    args['model_args'] = {'etr_source': 'IDAHO_EPSCOR/GRIDMET',
+                          'etr_band': 'etr', 'etr_factor': 0.85}
+    output = utils.getinfo(model.Collection(**args).interpolate())
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
 
@@ -397,8 +403,9 @@ def test_Collection_interpolate_etr_source_method():
     args = default_coll_args()
     del args['etr_source']
     del args['etr_band']
-    etr_kwargs = {'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr'}
-    output = utils.getinfo(ssebop.Collection(**args).interpolate(**etr_kwargs))
+    etr_kwargs = {'etr_source': 'IDAHO_EPSCOR/GRIDMET',
+                  'etr_band': 'etr', 'etr_factor': 0.85}
+    output = utils.getinfo(model.Collection(**args).interpolate(**etr_kwargs))
     assert VARIABLES == sorted(list(set([
         y['id'] for x in output['features'] for y in x['bands']])))
 
@@ -407,9 +414,9 @@ def test_Collection_interpolate_etr_source_not_set():
     """Test if Exception is raised if etr_source is not set"""
     args = default_coll_args()
     del args['etr_source']
-    del args['etr_band']
+    # del args['etr_band']
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**args).interpolate())
+        utils.getinfo(model.Collection(**args).interpolate())
 
 
 # def test_Collection_interpolate_etr_source_exception():
@@ -417,7 +424,7 @@ def test_Collection_interpolate_etr_source_not_set():
 #     args = default_coll_args()
 #     args['model_args'] = {'etr_source': 'DEADBEEF', 'etr_band': 'etr'}
 #     with pytest.raises(ValueError):
-#         utils.getinfo(ssebop.Collection(**args).interpolate())
+#         utils.getinfo(model.Collection(**args).interpolate())
 
 
 # def test_Collection_interpolate_etr_band_exception():
@@ -426,27 +433,27 @@ def test_Collection_interpolate_etr_source_not_set():
 #     args['model_args'] = {'etr_source': 'IDAHO_EPSCOR/GRIDMET',
 #                           'etr_band': 'DEADBEEF'}
 #     with pytest.raises(ValueError):
-#         utils.getinfo(ssebop.Collection(**args).interpolate())
+#         utils.getinfo(model.Collection(**args).interpolate())
 
 
 def test_Collection_interpolate_t_interval_exception():
     """Test if Exception is raised for an invalid t_interval parameter"""
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**default_coll_args()) \
+        utils.getinfo(model.Collection(**default_coll_args()) \
             .interpolate(t_interval='DEADBEEF'))
 
 
 def test_Collection_interpolate_interp_method_exception():
     """Test if Exception is raised for an invalid interp_method parameter"""
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**default_coll_args()) \
+        utils.getinfo(model.Collection(**default_coll_args()) \
             .interpolate(interp_method='DEADBEEF'))
 
 
 def test_Collection_interpolate_interp_days_exception():
     """Test if Exception is raised for an invalid interp_days parameter"""
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**default_coll_args()) \
+        utils.getinfo(model.Collection(**default_coll_args()) \
             .interpolate(interp_days=0))
 
 
@@ -455,4 +462,4 @@ def test_Collection_interpolate_no_variables_exception():
     args = default_coll_args()
     del args['variables']
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Collection(**args).interpolate())
+        utils.getinfo(model.Collection(**args).interpolate())

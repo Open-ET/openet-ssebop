@@ -29,8 +29,9 @@ class Image():
 
     def __init__(
             self, image,
-            etr_source='IDAHO_EPSCOR/GRIDMET',
-            etr_band='etr',
+            etr_source=None,
+            etr_band=None,
+            etr_factor=1.0,
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
@@ -52,6 +53,8 @@ class Image():
             Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
         etr_band : str, optional
             Reference ET band name (the default is 'etr').
+        etr_factor : float, optional
+            Reference ET scaling factor (the default is 1.0).
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
@@ -99,12 +102,12 @@ class Image():
 
         # Build SCENE_ID from the (possibly merged) system:index
         scene_id = ee.List(ee.String(self._index).split('_')).slice(-3)
-        self._scene_id = ee.String(scene_id.get(0)).cat('_') \
-            .cat(ee.String(scene_id.get(1))).cat('_') \
+        self._scene_id = ee.String(scene_id.get(0)).cat('_')\
+            .cat(ee.String(scene_id.get(1))).cat('_')\
             .cat(ee.String(scene_id.get(2)))
 
         # Build WRS2_TILE from the scene_id
-        self._wrs2_tile = ee.String('p').cat(self._scene_id.slice(5, 8)) \
+        self._wrs2_tile = ee.String('p').cat(self._scene_id.slice(5, 8))\
             .cat('r').cat(self._scene_id.slice(8, 11))
 
         # Set server side date/time properties using the 'system:time_start'
@@ -120,6 +123,7 @@ class Image():
         #
         self.etr_source = etr_source
         self.etr_band = etr_band
+        self.etr_factor = etr_factor
 
         # Model input parameters
         self._dt_source = dt_source
@@ -216,9 +220,9 @@ class Image():
             '(lst * (-1) + tmax * tcorr + dt) / dt',
             {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
 
-        etf = etf.updateMask(etf.lt(1.3)) \
-            .clamp(0, 1.05) \
-            .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold)) \
+        etf = etf.updateMask(etf.lt(1.3))\
+            .clamp(0, 1.05)\
+            .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold))\
             .set(self._properties).rename(['etf']).double()
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
@@ -239,9 +243,9 @@ class Image():
         elif type(self.etr_source) is str:
             # Assume a string source is an image collection ID (not an image ID)
             etr_img = ee.Image(
-                ee.ImageCollection(self.etr_source) \
-                    .filterDate(self._start_date, self._end_date) \
-                    .select([self.etr_band]) \
+                ee.ImageCollection(self.etr_source)\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select([self.etr_band])\
                     .first())
         # elif type(self.etr_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
@@ -249,15 +253,15 @@ class Image():
         #     # CGM - Need to check the order of the collections
         #     etr_coll = ee.ImageCollection([])
         #     for coll_id in self.etr_source:
-        #         coll = ee.ImageCollection(coll_id) \
-        #             .select([self.etr_band]) \
+        #         coll = ee.ImageCollection(coll_id)\
+        #             .select([self.etr_band])\
         #             .filterDate(self.start_date, self.end_date)
         #         etr_img = etr_coll.merge(coll)
         #     etr_img = etr_coll.mosaic()
         # elif isinstance(self.etr_source, computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     etr_coll = ee.ImageCollection(self.etr_source) \
-        #         .select([self.etr_band]) \
+        #     etr_coll = ee.ImageCollection(self.etr_source)\
+        #         .select([self.etr_band])\
         #         .filterDate(self.start_date, self.end_date)
         else:
             raise ValueError('unsupported etr_source: {}'.format(
@@ -267,13 +271,14 @@ class Image():
         # The benefit of this is the ETr image is now in the same crs as the
         #   input image.  Not all models may want this though.
         # CGM - Should the output band name match the input ETr band name?
-        return self.ndvi.multiply(0).add(etr_img) \
+        return self.ndvi.multiply(0).add(etr_img)\
+            .multiply(self.etr_factor)\
             .rename(['etr']).set(self._properties)
 
     @lazy_property
     def et(self):
         """Compute actual ET as fraction of reference times reference"""
-        return self.etf.multiply(self.etr) \
+        return self.etf.multiply(self.etr)\
             .rename(['et']).set(self._properties).double()
 
     @lazy_property
@@ -286,16 +291,16 @@ class Image():
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
         tcorr, tcorr_index = self._tcorr
-        return self.mask \
+        return self.mask\
             .rename(['quality']).set(self._properties)
 
     @lazy_property
     def time(self):
         """Return an image of the 0 UTC time (in milliseconds)"""
         return self.mask\
-            .double().multiply(0).add(utils.date_to_time_0utc(self._date)) \
+            .double().multiply(0).add(utils.date_to_time_0utc(self._date))\
             .rename(['time']).set(self._properties)
-        # return ee.Image.constant(utils.date_to_time_0utc(self._date)) \
+        # return ee.Image.constant(utils.date_to_time_0utc(self._date))\
         #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
@@ -315,11 +320,11 @@ class Image():
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0') \
+            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1') \
+            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         else:
@@ -442,11 +447,11 @@ class Image():
 
             default_coll = ee.FeatureCollection([
                 ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
-            month_coll = ee.FeatureCollection(month_coll_dict[tmax_key]) \
-                .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile) \
+            month_coll = ee.FeatureCollection(month_coll_dict[tmax_key])\
+                .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile)\
                 .filterMetadata('MONTH', 'equals', self._month)
             if self._tcorr_source.upper() in ['FEATURE', 'SCENE']:
-                scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key]) \
+                scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key])\
                     .filterMetadata('SCENE_ID', 'equals', self._scene_id)
                 tcorr_coll = ee.FeatureCollection(
                     default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
@@ -491,24 +496,24 @@ class Image():
 
             if (self._tcorr_source.upper() == 'IMAGE' or
                     'DAILY' in self._tcorr_source.upper()):
-                daily_coll = ee.ImageCollection(daily_dict[tmax_key]) \
-                    .filterDate(self._start_date, self._end_date) \
+                daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
+                    .filterDate(self._start_date, self._end_date)\
                     .select(['tcorr'])
                 daily_coll = daily_coll.merge(ee.ImageCollection(mask_img))
                 daily_img = ee.Image(daily_coll.mosaic())
                 # .filterMetadata('DATE', 'equals', self._date)
             if (self._tcorr_source.upper() == 'IMAGE' or
                     'MONTH' in self._tcorr_source.upper()):
-                month_coll = ee.ImageCollection(month_dict[tmax_key]) \
-                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day) \
-                    .filterMetadata('MONTH', 'equals', self._month) \
+                month_coll = ee.ImageCollection(month_dict[tmax_key])\
+                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day)\
+                    .filterMetadata('MONTH', 'equals', self._month)\
                     .select(['tcorr'])
                 month_coll = month_coll.merge(ee.ImageCollection(mask_img))
                 month_img = ee.Image(month_coll.mosaic())
             if (self._tcorr_source.upper() == 'IMAGE' or
                     'ANNUAL' in self._tcorr_source.upper()):
-                annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
-                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day) \
+                annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
+                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day)\
                     .select(['tcorr'])
                 annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
                 annual_img = ee.Image(annual_coll.mosaic())
@@ -569,8 +574,8 @@ class Image():
                 .rename(['tmax'])\
                 .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
-            daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily') \
-                .filterDate(self._start_date, self._end_date) \
+            daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily')\
+                .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
@@ -584,8 +589,8 @@ class Image():
         elif self._tmax_source.upper() == 'DAYMET':
             # DAYMET does not include Dec 31st on leap years
             # Adding one extra date to end date to avoid errors
-            daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3') \
-                .filterDate(self._start_date, self._end_date.advance(1, 'day')) \
+            daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
+                .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
                 .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
@@ -597,8 +602,8 @@ class Image():
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'GRIDMET':
-            daily_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET') \
-                .filterDate(self._start_date, self._end_date) \
+            daily_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+                .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
@@ -610,8 +615,8 @@ class Image():
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         # elif self.tmax_source.upper() == 'TOPOWX':
-        #     daily_coll = ee.ImageCollection('X') \
-        #         .filterDate(self.start_date, self.end_date) \
+        #     daily_coll = ee.ImageCollection('X')\
+        #         .filterDate(self.start_date, self.end_date)\
         #         .select(['tmmx'], ['tmax'])
         #     daily_image = ee.Image(daily_coll.first())\
         #         .set('TMAX_VERSION', date_today)
@@ -751,9 +756,9 @@ class Image():
             'LANDSAT_5': 'K2_CONSTANT_BAND_6',
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
-        prep_image = toa_image \
-            .select(input_bands.get(spacecraft_id), output_bands) \
-            .set('k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id)))) \
+        prep_image = toa_image\
+            .select(input_bands.get(spacecraft_id), output_bands)\
+            .set('k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id))))\
             .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
@@ -808,9 +813,9 @@ class Image():
         k2 = ee.Dictionary({
             # 'LANDSAT_4': 1260.56,
             'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
-        prep_image = sr_image \
-            .select(input_bands.get(spacecraft_id), output_bands) \
-            .set('k1_constant', ee.Number(k1.get(spacecraft_id))) \
+        prep_image = sr_image\
+            .select(input_bands.get(spacecraft_id), output_bands)\
+            .set('k1_constant', ee.Number(k1.get(spacecraft_id)))\
             .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
         # k1 = ee.Dictionary({
         #     # 'LANDSAT_4': 'K1_CONSTANT_BAND_6',
@@ -822,9 +827,9 @@ class Image():
         #     'LANDSAT_5': 'K2_CONSTANT_BAND_6',
         #     'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
         #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
-        # prep_image = sr_image \
-        #     .select(input_bands.get(spacecraft_id), output_bands) \
-        #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id)))) \
+        # prep_image = sr_image\
+        #     .select(input_bands.get(spacecraft_id), output_bands)\
+        #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id))))\
         #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
@@ -856,7 +861,7 @@ class Image():
         ee.Image
 
         """
-        return ee.Image(toa_image).normalizedDifference(['nir', 'red']) \
+        return ee.Image(toa_image).normalizedDifference(['nir', 'red'])\
             .rename(['ndvi'])
 
     @staticmethod
@@ -947,10 +952,10 @@ class Image():
 
         # RangeEmiss = 0.989 # dE.expression(
         #  '((0.99*Pv)+(0.97 *(1-Pv))+dE)',{'Pv':Pv, 'dE':dE})
-        emissivity = ndvi \
-            .where(ndvi.lt(0), 0.985) \
-            .where(ndvi.gte(0).And(ndvi.lt(0.2)), 0.977) \
-            .where(ndvi.gt(0.5), 0.99) \
+        emissivity = ndvi\
+            .where(ndvi.lt(0), 0.985)\
+            .where(ndvi.gte(0).And(ndvi.lt(0.2)), 0.977)\
+            .where(ndvi.gt(0.5), 0.99)\
             .where(ndvi.gte(0.2).And(ndvi.lte(0.5)), RangeEmiss)
         emissivity = emissivity.clamp(0.977, 0.99)
 
@@ -1004,7 +1009,7 @@ class Image():
         tcorr_mask = tcorr_mask.And(
             tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
 
-        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+        return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'TMAX_SOURCE': tmax.get('TMAX_SOURCE'),
