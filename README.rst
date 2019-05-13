@@ -78,7 +78,7 @@ Example
 Custom Input Image
 ------------------
 
-SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature) and 'ndvi' (normalized difference vegetation index).  The input image must have 'system:index' and 'system:time_start' properties (described above).
+SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature [K]) and 'ndvi' (normalized difference vegetation index).  The input image must have 'system:index' and 'system:time_start' properties (described above).
 
 .. code-block:: python
 

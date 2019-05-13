@@ -68,7 +68,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     # Output Tcorr daily image collection
     tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
+        ini['EXPORT']['export_coll'], ini[model_name]['tmax_source'].lower())
 
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')

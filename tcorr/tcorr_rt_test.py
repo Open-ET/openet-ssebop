@@ -36,6 +36,10 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     """
     logging.info('\nTest Real Time Tcorr')
 
+    # Hardcoding for now...
+    tcorr_stats_path = r'C:\Users\mortonc\Google Drive\SSEBop\tcorr_realtime\tcorr_stats.csv'
+    # tcorr_stats_path = r'C:\Projects\openet-ssebop-beta\tcorr\tcorr_stats.csv'
+
     ini = utils.read_ini(ini_path)
 
     model_name = 'SSEBOP'
@@ -58,14 +62,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     tmax_coll = ee.ImageCollection(tmax_coll_id)
     tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
     logging.debug('  Collection: {}'.format(tmax_coll_id))
-    logging.debug('  Source: {}'.format(tmax_source))
+    logging.debug('  Source:  {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
 
-    tcorr_stats_path = r'C:\Projects\openet-ssebop-beta\tcorr\tcorr_stats.csv'
     if not os.path.isfile(tcorr_stats_path):
         logging.debug('\nBuilding new Tcorr dataframe')
         tcorr_df = pd.DataFrame(
-            columns=['IMAGE_ID', 'COLLECTION', 'TCORR', 'COUNT', 'EXPORT_DATE'])
+            columns=['IMAGE_ID', 'IMAGE_DATE', 'COLLECTION', 'TCORR', 'COUNT', 'EXPORT_DATE'])
         c1_id_set = set()
         rt_id_set = set()
     else:
@@ -77,8 +80,12 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         logging.debug(tcorr_df.head())
 
 
-    iter_end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
-    iter_start_dt = iter_end_dt + datetime.timedelta(days=-60)
+    # CGM - This seems like a silly way of getting the date as a datetime
+    iter_end_dt = datetime.date.today().strftime('%Y-%m-%d')
+    iter_end_dt = datetime.datetime.strptime(iter_end_dt, '%Y-%m-%d')
+    iter_end_dt = iter_end_dt + datetime.timedelta(days=-1)
+    # iter_end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
+    iter_start_dt = iter_end_dt + datetime.timedelta(days=-64)
     logging.debug('Start Date: {}'.format(iter_start_dt.strftime('%Y-%m-%d')))
     logging.debug('End Date:   {}\n'.format(iter_end_dt.strftime('%Y-%m-%d')))
 
@@ -89,15 +96,12 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
 
         # Build and merge the Real-Time Landsat collections
-        # Time filters are to remove pre-op (L8) images
         l8_rt_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA') \
             .filterDate(iter_dt, iter_dt + datetime.timedelta(days=1)) \
             .filterBounds(tmax_mask.geometry()) \
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
-            .filter(ee.Filter.gt('system:time_start',
-                                 ee.Date('2013-03-24').millis()))
+            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
         l7_rt_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_RT_TOA') \
             .filterDate(iter_dt, iter_dt + datetime.timedelta(days=1)) \
             .filterBounds(tmax_mask.geometry()) \
@@ -113,9 +117,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
             .filterBounds(tmax_mask.geometry()) \
             .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                             float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
-            .filter(ee.Filter.gt('system:time_start',
-                                 ee.Date('2013-03-24').millis()))
+            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
         l7_c1_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_TOA') \
             .filterDate(iter_dt, iter_dt + datetime.timedelta(days=1)) \
             .filterBounds(tmax_mask.geometry()) \
@@ -148,16 +150,19 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                     tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
                 .tcorr_stats\
                 .getInfo()
-
             if t_stats['tcorr_p5'] is None:
                 t_stats['tcorr_p5'] = ''
+            image_id = asset_id.split('/')[-1]
             tcorr_df = tcorr_df.append(
-                {'IMAGE_ID': asset_id.split('/')[-1],
+                {'IMAGE_ID': image_id,
+                 'IMAGE_DATE': datetime.datetime.strptime(image_id.split('_')[2], '%Y%m%d')
+                     .strftime('%Y-%m-%d'),
                  'COLLECTION': 'RT',
                  'TCORR': t_stats['tcorr_p5'],
                  'COUNT': t_stats['tcorr_count'],
                  'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d')},
                 ignore_index=True)
+
 
         logging.info('  Collection 1')
         for asset_id in c1_id_list:
@@ -167,11 +172,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                     tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
                 .tcorr_stats\
                 .getInfo()
-
             if t_stats['tcorr_p5'] is None:
                 t_stats['tcorr_p5'] = ''
+            image_id = asset_id.split('/')[-1]
             tcorr_df = tcorr_df.append(
                 {'IMAGE_ID': asset_id.split('/')[-1],
+                 'IMAGE_DATE': datetime.datetime.strptime(image_id.split('_')[2], '%Y%m%d')
+                     .strftime('%Y-%m-%d'),
                  'COLLECTION': 'C1',
                  'TCORR': t_stats['tcorr_p5'],
                  'COUNT': t_stats['tcorr_count'],
