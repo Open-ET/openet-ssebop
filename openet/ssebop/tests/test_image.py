@@ -378,7 +378,7 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
     [
-        # Check image sources (TOPOWX median only for now)
+        # Check image sources (TOPOWX_MEDIAN_V0 only for now)
         ['IMAGE', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_DAILY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9723, 1]],
@@ -458,6 +458,22 @@ def test_Image_tcorr_image_daily():
     index = utils.point_image_value(index_img, SCENE_POINT)
     assert tcorr['tcorr'] is None
     assert index['index'] is None
+
+
+def test_Image_tcorr_image_daily_last_date_ingested():
+    """Test if last exported daily Tcorr image is used
+
+    Two extra daily images with system:time_starts of "1979-01-01" but different
+    "date_ingested" properties were added to the collection for this test.
+    The "first" and "second" images have values of 1 and 2 respectively.
+    """
+    input_image = ee.Image.constant(1).set({
+        'system:time_start': ee.Date('1979-01-01').millis()})
+    m = model.Image(input_image, tcorr_source='IMAGE_DAILY',
+                     tmax_source='TOPOWX_MEDIAN_V0')
+    tcorr_img, index_img = m._tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    assert tcorr['tcorr'] == 2
 
 
 @pytest.mark.parametrize(

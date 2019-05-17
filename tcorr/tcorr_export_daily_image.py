@@ -15,10 +15,12 @@ import sys
 import ee
 
 import openet.ssebop as ssebop
-from . import utils
+import utils
+# from . import utils
 
 
-def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
+def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
+         cron_flag=False, reverse_flag=False):
     """Compute daily Tcorr images
 
     Parameters
@@ -31,7 +33,12 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         Delay time between each export task (the default is 0).
     key : str, optional
         File path to an Earth Engine json key file (the default is None).
-
+    cron_flag : bool, optional
+        If True, only compute Tcorr daily image if existing image does not have
+        all available image (using the 'wrs2_tiles' property) and limit the
+        date range to the last 64 days (~2 months).
+    reverse_flag : bool, optional
+        If True, process dates in reverse order.
     """
     logging.info('\nCompute daily Tcorr images')
 
@@ -176,38 +183,53 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     # }
     cycle_base_dt = datetime.datetime.strptime(cycle_dates[1], '%Y-%m-%d')
 
-    iter_start_dt = datetime.datetime.strptime(
-        ini['INPUTS']['start_date'], '%Y-%m-%d')
-    iter_end_dt = datetime.datetime.strptime(
-        ini['INPUTS']['end_date'], '%Y-%m-%d')
+    if cron_flag:
+        # CGM - This seems like a silly way of getting the date as a datetime
+        #   Why am I doing this and not using the commented out line?
+        iter_end_dt = datetime.date.today().strftime('%Y-%m-%d')
+        iter_end_dt = datetime.datetime.strptime(iter_end_dt, '%Y-%m-%d')
+        iter_end_dt = iter_end_dt + datetime.timedelta(days=-1)
+        # iter_end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
+        iter_start_dt = iter_end_dt + datetime.timedelta(days=-64)
+    else:
+        iter_start_dt = datetime.datetime.strptime(
+            ini['INPUTS']['start_date'], '%Y-%m-%d')
+        iter_end_dt = datetime.datetime.strptime(
+            ini['INPUTS']['end_date'], '%Y-%m-%d')
+    logging.debug('Start Date: {}'.format(iter_start_dt.strftime('%Y-%m-%d')))
+    logging.debug('End Date:   {}\n'.format(iter_end_dt.strftime('%Y-%m-%d')))
 
-    # Iterate over date ranges
-    for export_dt in utils.date_range(iter_start_dt, iter_end_dt):
+
+    for export_dt in sorted(utils.date_range(iter_start_dt, iter_end_dt),
+                            reverse=reverse_flag):
         export_date = export_dt.strftime('%Y-%m-%d')
-        if ((month_list and export_dt.month not in month_list) or
-                ( year_list and export_dt.year not in year_list)):
-            logging.debug('Date: {} - skipping'.format(export_date))
+        next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+        # if ((month_list and export_dt.month not in month_list) or
+        #         (year_list and export_dt.year not in year_list)):
+        if month_list and export_dt.month not in month_list:
+            logging.debug(f'Date: {export_date} - month not in INI - skipping')
             continue
-        logging.info('Date: {}'.format(export_date))
-
-        if export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
-            logging.info('  Unsupported date, skipping')
+        elif export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
+            logging.debug(f'Date: {export_date} - unsupported date - skipping')
             continue
         elif export_date < '1984-03-23':
-            logging.info('  No Landsat 5+ images before 1984-03-16, skipping')
+            logging.debug(f'Date: {export_date} - no Landsat 5+ images before '
+                         '1984-03-16 - skipping')
             continue
+        logging.info(f'Date: {export_date}')
 
         export_id = ini['EXPORT']['export_id_fmt'] \
             .format(
                 product=tmax_name.lower(),
                 date=export_dt.strftime('%Y%m%d'),
-                export=ini['EXPORT']['export_dest'].lower())
+                export=datetime.datetime.today().strftime('%Y%m%d'),
+                dest=ini['EXPORT']['export_dest'].lower())
         logging.debug('  Export ID: {}'.format(export_id))
 
         if ini['EXPORT']['export_dest'] == 'ASSET':
-            # DEADBEEF - daily is hardcoded in the asset_id for now
-            asset_id = '{}/{}'.format(
-                tcorr_daily_coll_id, export_dt.strftime('%Y%m%d'))
+            asset_id = '{}/{}_{}'.format(
+                tcorr_daily_coll_id, export_dt.strftime('%Y%m%d'),
+                datetime.datetime.today().strftime('%Y%m%d'))
             logging.debug('  Asset ID: {}'.format(asset_id))
 
         if overwrite_flag:
@@ -232,6 +254,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         # Build and merge the Landsat collections
         # Time filters are to remove bad (L5) and pre-op (L8) images
         #     .filterBounds(export_geom) \
+        # CGM - These should probably be built using the Collection class
         l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA') \
             .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
             .filterBounds(tmax_mask.geometry()) \
@@ -254,16 +277,16 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
             .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
             .filter(ee.Filter.lt('system:time_start',
                                  ee.Date('2011-12-31').millis()))
-        # l4_coll = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA') \
-        #     .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-        #     .filterBounds(tmax_img.geometry()) \
-        #     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-        #                     float(ini['INPUTS']['cloud_cover'])) \
-        #     .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
+        l4_coll = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA') \
+            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
+            .filterBounds(tmax_mask.geometry()) \
+            .filterMetadata('CLOUD_COVER_LAND', 'less_than',
+                            float(ini['INPUTS']['cloud_cover'])) \
+            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
 
-        # if export_date <= '1993-12-31':
-        #     landsat_coll = ee.ImageCollection(l5_coll.merge(l4_coll))
-        if export_date < '1999-01-01':
+        if export_date <= '1993-12-31':
+            landsat_coll = ee.ImageCollection(l5_coll.merge(l4_coll))
+        elif export_date < '1999-01-01':
             landsat_coll = l5_coll
         elif export_date <= '2011-12-31':
             landsat_coll = ee.ImageCollection(l7_coll.merge(l5_coll))
@@ -274,6 +297,63 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         # pprint.pprint(landsat_coll.aggregate_histogram('system:index').getInfo())
         # pprint.pprint(ee.Image(landsat_coll.first()).getInfo())
         # input('ENTER')
+
+        # Get a list of all available WRS2 tiles
+        wrs2_tiles_all = set([
+            id.split('_')[-2]
+            for id in landsat_coll.aggregate_array('system:index').getInfo()])
+        if not wrs2_tiles_all:
+            logging.info('  No available images - skipping')
+            continue
+        # logging.debug(','.join(sorted(wrs2_tiles_all)))
+
+        # Check if there are any previous images for this date
+        # If so, only build a new Tcorr image if there are new wrs2_tiles
+        #   that were not used in the previous image.
+        # Should this code only be run in cron mode or is this the expected
+        #   operation when (re)running for any date range?
+        # if cron_flag:
+
+        # Should we only test the last image or all previous images for the date?
+        logging.debug('  Checking for previous exports/versions of daily image')
+        tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id)\
+            .filterDate(export_date, next_date)\
+            .limit(1, 'date_ingested', False)
+        tcorr_daily_info = tcorr_daily_coll.getInfo()
+
+        if tcorr_daily_info['features']:
+            # Assume we won't be building a new image and only set flag to True
+            #   if the WRS2 tile lists are different
+            export_flag = False
+
+            # The ".limit(1" call above makes this for loop and break statement
+            #   unnecessary but leaving for now
+            for tcorr_img in tcorr_daily_info['features']:
+                # If the full WRS2 list is present, rebuild the image
+                if 'wrs2_available' not in tcorr_img['properties'].keys():
+                    logging.debug(
+                        '    "wrs2_available" property not present in '
+                        'previous export')
+                    export_flag = True
+                    break
+
+                wrs2_tiles_old = set(
+                    tcorr_img['properties']['wrs2_available'].split(','))
+                logging.debug(','.join(sorted(wrs2_tiles_old)))
+
+                if wrs2_tiles_all != wrs2_tiles_old:
+                    export_flag = True
+                    break
+                # print(tcorr_img)
+
+            if not export_flag:
+                logging.debug('  No new WRS2 tiles/images - skipping')
+                continue
+            # else:
+            #     logging.debug('    Building new version')
+        else:
+            logging.debug('    No previous exports')
+
 
         def tcorr_img_func(image):
             t_stats = ssebop.Image.from_landsat_c1_toa(
@@ -375,6 +455,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                 'tmax_source': tmax_source.upper(),
                 'tmax_version': tmax_version.upper(),
                 'wrs2_tiles': wrs2_tile_list,
+                'wrs2_available': ','.join(sorted(wrs2_tiles_all)),
             })
         # pprint.pprint(tcorr_img.getInfo())
         # input('ENTER')
@@ -390,7 +471,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
                 crsTransform='[' + ','.join(list(map(str, export_geo))) + ']',
                 dimensions='{0}x{1}'.format(*export_shape),
             )
-            logging.debug('  Starting export task')
+            logging.info('  Starting export task')
             utils.ee_task_start(task)
 
         # Pause before starting next task
@@ -412,6 +493,12 @@ def arg_parse():
     parser.add_argument(
         '--key', type=utils.arg_valid_file, metavar='FILE',
         help='JSON key file')
+    parser.add_argument(
+        '--cron', default=False, action='store_true',
+        help='Cron mode')
+    parser.add_argument(
+        '--reverse', default=False, action='store_true',
+        help='Process dates in reverse order')
     parser.add_argument(
         '-o', '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
@@ -439,4 +526,4 @@ if __name__ == "__main__":
         'Script:', os.path.basename(sys.argv[0])))
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite, delay=args.delay,
-         key=args.key)
+         key=args.key, cron_flag=args.cron, reverse_flag=args.reverse)

@@ -491,6 +491,9 @@ class Image():
                     '\nInvalid tmax_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
+            # The mask image will be merged into all the Tcorr image collections
+            #   to ensure that all collections (daily, monthly, annual) have data
+            #   even if the collection is empty
             default_img = ee.Image(default_dict[tmax_key])
             mask_img = default_img.updateMask(0)
 
@@ -499,21 +502,25 @@ class Image():
                 daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['tcorr'])
-                daily_coll = daily_coll.merge(ee.ImageCollection(mask_img))
+                # Assume there may be multiple daily images for the same date
+                # Use the one with the latest EXPORT_DATE property
+                daily_coll = daily_coll\
+                    .limit(1, 'date_ingested', False)\
+                    .merge(ee.ImageCollection(mask_img))
                 daily_img = ee.Image(daily_coll.mosaic())
                 # .filterMetadata('DATE', 'equals', self._date)
             if (self._tcorr_source.upper() == 'IMAGE' or
                     'MONTH' in self._tcorr_source.upper()):
                 month_coll = ee.ImageCollection(month_dict[tmax_key])\
-                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day)\
-                    .filterMetadata('MONTH', 'equals', self._month)\
+                    .filterMetadata('cycle_day', 'equals', self._cycle_day)\
+                    .filterMetadata('month', 'equals', self._month)\
                     .select(['tcorr'])
                 month_coll = month_coll.merge(ee.ImageCollection(mask_img))
                 month_img = ee.Image(month_coll.mosaic())
             if (self._tcorr_source.upper() == 'IMAGE' or
                     'ANNUAL' in self._tcorr_source.upper()):
                 annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-                    .filterMetadata('CYCLE_DAY', 'equals', self._cycle_day)\
+                    .filterMetadata('cycle_day', 'equals', self._cycle_day)\
                     .select(['tcorr'])
                 annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
                 annual_img = ee.Image(annual_coll.mosaic())
