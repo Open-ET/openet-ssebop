@@ -252,6 +252,32 @@ def test_Collection_build_cloud_cover():
 #     assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
 
 
+def test_Collection_build_filter_dates_lt05():
+    """Test that bad Landsat 5 images are filtered"""
+    args = default_coll_args()
+    args['collections'] = ['LANDSAT/LT05/C01/T1_TOA']
+    args['start_date'] = '2012-01-01'
+    args['end_date'] = '2013-01-01'
+    args['geometry'] = ee.Geometry.Rectangle(-125, 25, -65, 50)
+    output = utils.getinfo(model.Collection(**args)._build(variables=['et']))
+    assert set(parse_scene_id(output)) == set()
+
+
+def test_Collection_build_filter_dates_lc08():
+    """Test that pre-op Landsat 8 images before 2013-03-24 are filtered.
+
+    We may want to move this date back to 2013-04-01.
+    """
+    args = default_coll_args()
+    args['collections'] = ['LANDSAT/LC08/C01/T1_TOA']
+    args['start_date'] = '2013-01-01'
+    args['end_date'] = '2013-04-01'
+    args['geometry'] = ee.Geometry.Rectangle(-125, 25, -65, 50)
+    output = utils.getinfo(model.Collection(**args)._build(variables=['et']))
+    assert not [x for x in parse_scene_id(output) if x.split('_')[-1] < '20130324']
+    # assert set(parse_scene_id(output)) == set()
+
+
 def test_Collection_build_filter_args():
     args = default_coll_args()
     coll_id = 'LANDSAT/LC08/C01/T1_SR'

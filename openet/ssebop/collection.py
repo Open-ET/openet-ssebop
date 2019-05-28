@@ -126,13 +126,13 @@ class Collection():
             'LANDSAT/LC08/C01/T1_TOA',
             'LANDSAT/LE07/C01/T1_TOA',
             'LANDSAT/LT05/C01/T1_TOA',
-            # 'LANDSAT/LT04/C01/T1_TOA',
+            'LANDSAT/LT04/C01/T1_TOA',
         ]
         self._landsat_c1_sr_collections = [
             'LANDSAT/LC08/C01/T1_SR',
             'LANDSAT/LE07/C01/T1_SR',
             'LANDSAT/LT05/C01/T1_SR',
-            # 'LANDSAT/LT04/C01/T1_SR',
+            'LANDSAT/LT04/C01/T1_SR',
         ]
 
         # If collections is a string, place in a list
@@ -189,7 +189,7 @@ class Collection():
             self.collections = [c for c in self.collections if 'LT05' not in c]
         if self.end_date <= '1999-01-01':
             self.collections = [c for c in self.collections if 'LE07' not in c]
-        if self.end_date <= '2013-04-01':
+        if self.end_date <= '2013-01-01':
             self.collections = [c for c in self.collections if 'LC08' not in c]
 
         # CGM - Could this be in the openet.ssebop init.py instead?
@@ -270,6 +270,14 @@ class Collection():
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
 
+                # Time filters are to remove bad (L5) and pre-op (L8) images
+                if 'LT05' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.lt(
+                        'system:time_start', ee.Date('2011-12-31').millis()))
+                elif 'LC08' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.gt(
+                        'system:time_start', ee.Date('2013-03-24').millis()))
+
                 def compute_ltoa(image):
                     model_obj = Image.from_landsat_c1_toa(
                         toa_image=ee.Image(image), **self.model_args)
@@ -295,6 +303,14 @@ class Collection():
                             continue
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
+
+                # Time filters are to remove bad (L5) and pre-op (L8) images
+                if 'LT05' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.lt(
+                        'system:time_start', ee.Date('2011-12-31').millis()))
+                elif 'LC08' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.gt(
+                        'system:time_start', ee.Date('2013-03-24').millis()))
 
                 def compute_lsr(image):
                     model_obj = Image.from_landsat_c1_sr(
