@@ -28,7 +28,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     ini_path : str
         Input file path.
     overwrite_flag : bool, optional
-        If True, overwrite existing files (the default is False).
+        If True, overwrite existing files if the export dates are the same and
+        generate new images (but with different export dates) even if the tile
+        lists are the same.  The default is False.
     delay : float, optional
         Delay time between each export task (the default is 0).
     key : str, optional
@@ -135,6 +137,8 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
+
+    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
 
     # Limit by year and month
     try:
@@ -252,108 +256,85 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 continue
 
         # Build and merge the Landsat collections
-        # Time filters are to remove bad (L5) and pre-op (L8) images
-        #     .filterBounds(export_geom) \
-        # CGM - These should probably be built using the Collection class
-        l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_RT_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_mask.geometry()) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
-            .filter(ee.Filter.gt('system:time_start',
-                                 ee.Date('2013-03-24').millis()))
-        l7_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_RT_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_mask.geometry()) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
-        l5_coll = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_mask.geometry()) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
-            .filter(ee.Filter.lt('system:time_start',
-                                 ee.Date('2011-12-31').millis()))
-        l4_coll = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA') \
-            .filterDate(export_dt, export_dt + datetime.timedelta(days=1)) \
-            .filterBounds(tmax_mask.geometry()) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                            float(ini['INPUTS']['cloud_cover'])) \
-            .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
-
-        if export_date <= '1993-12-31':
-            landsat_coll = ee.ImageCollection(l5_coll.merge(l4_coll))
-        elif export_date < '1999-01-01':
-            landsat_coll = l5_coll
-        elif export_date <= '2011-12-31':
-            landsat_coll = ee.ImageCollection(l7_coll.merge(l5_coll))
-        elif export_date <= '2013-03-24':
-            landsat_coll = l7_coll
-        else:
-            landsat_coll = ee.ImageCollection(l8_coll.merge(l7_coll))
-        # pprint.pprint(landsat_coll.aggregate_histogram('system:index').getInfo())
-        # pprint.pprint(ee.Image(landsat_coll.first()).getInfo())
+        model_obj = ssebop.Collection(
+            collections=collections,
+            start_date=export_dt.strftime('%Y-%m-%d'),
+            end_date=(export_dt + datetime.timedelta(days=1)).strftime(
+                '%Y-%m-%d'),
+            cloud_cover_max=float(ini['INPUTS']['cloud_cover']),
+            geometry=tmax_mask.geometry(),
+            # model_args=model_args,
+            # filter_args=filter_args,
+        )
+        landsat_coll = model_obj.overpass(variables=['ndvi'])
+        # wrs2_tiles_all = model_obj.get_image_ids()
+        # pprint.pprint(landsat_coll.aggregate_array('system:id').getInfo())
         # input('ENTER')
 
-        # Get a list of all available WRS2 tiles
-        wrs2_tiles_all = set([
-            id.split('_')[-2]
-            for id in landsat_coll.aggregate_array('system:index').getInfo()])
+        logging.debug('  Getting available WRS2 tile list')
+        landsat_id_list = landsat_coll.aggregate_array('system:id').getInfo()
+        wrs2_tiles_all = set([id.split('_')[-2] for id in landsat_id_list])
         if not wrs2_tiles_all:
             logging.info('  No available images - skipping')
             continue
-        # logging.debug(','.join(sorted(wrs2_tiles_all)))
 
-        # Check if there are any previous images for this date
-        # If so, only build a new Tcorr image if there are new wrs2_tiles
-        #   that were not used in the previous image.
-        # Should this code only be run in cron mode or is this the expected
-        #   operation when (re)running for any date range?
-        # if cron_flag:
+        # If overwriting, start a new export no matter what
+        # The default is to no overwrite, so this mode will not be used often
+        if not overwrite_flag:
+            # Check if there are any previous images for this date
+            # If so, only build a new Tcorr image if there are new wrs2_tiles
+            #   that were not used in the previous image.
+            # Should this code only be run in cron mode or is this the expected
+            #   operation when (re)running for any date range?
+            # Should we only test the last image
+            # or all previous images for the date?
+            logging.debug('  Checking for previous exports/versions of daily image')
+            tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id)\
+                .filterDate(export_date, next_date)\
+                .limit(1, 'date_ingested', False)
+            tcorr_daily_info = tcorr_daily_coll.getInfo()
 
-        # Should we only test the last image or all previous images for the date?
-        logging.debug('  Checking for previous exports/versions of daily image')
-        tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id)\
-            .filterDate(export_date, next_date)\
-            .limit(1, 'date_ingested', False)
-        tcorr_daily_info = tcorr_daily_coll.getInfo()
+            if tcorr_daily_info['features']:
+                # Assume we won't be building a new image and only set flag
+                #   to True if the WRS2 tile lists are different
+                export_flag = False
 
-        if tcorr_daily_info['features']:
-            # Assume we won't be building a new image and only set flag to True
-            #   if the WRS2 tile lists are different
-            export_flag = False
+                # The ".limit(1, ..." on the tcorr_daily_coll above makes this
+                # for loop and break statement unnecessary, but leaving for now
+                for tcorr_img in tcorr_daily_info['features']:
+                    # If the full WRS2 list is not present, rebuild the image
+                    # This should only happen for much older Tcorr images
+                    if 'wrs2_available' not in tcorr_img['properties'].keys():
+                        logging.debug(
+                            '    "wrs2_available" property not present in '
+                            'previous export')
+                        export_flag = True
+                        break
 
-            # The ".limit(1" call above makes this for loop and break statement
-            #   unnecessary but leaving for now
-            for tcorr_img in tcorr_daily_info['features']:
-                # If the full WRS2 list is present, rebuild the image
-                if 'wrs2_available' not in tcorr_img['properties'].keys():
-                    logging.debug(
-                        '    "wrs2_available" property not present in '
-                        'previous export')
-                    export_flag = True
-                    break
+                    wrs2_tiles_old = set(
+                        tcorr_img['properties']['wrs2_available'].split(','))
 
-                wrs2_tiles_old = set(
-                    tcorr_img['properties']['wrs2_available'].split(','))
-                logging.debug(','.join(sorted(wrs2_tiles_old)))
+                    if wrs2_tiles_all != wrs2_tiles_old:
+                        logging.debug('  Tile Lists')
+                        logging.debug('  Previous: {}'.format(
+                            ', '.join(sorted(wrs2_tiles_old))))
+                        logging.debug('  Available: {}'.format(
+                            ', '.join(sorted(wrs2_tiles_all))))
+                        logging.debug('  New: {}'.format(
+                            ', '.join(sorted(wrs2_tiles_all.difference(wrs2_tiles_old)))))
+                        logging.debug('  Dropped: {}'.format(
+                            ', '.join(sorted(wrs2_tiles_old.difference(wrs2_tiles_all)))))
 
-                if wrs2_tiles_all != wrs2_tiles_old:
-                    export_flag = True
-                    break
-                # print(tcorr_img)
+                        export_flag = True
+                        break
 
-            if not export_flag:
-                logging.debug('  No new WRS2 tiles/images - skipping')
-                continue
-            # else:
-            #     logging.debug('    Building new version')
-        else:
-            logging.debug('    No previous exports')
-
+                if not export_flag:
+                    logging.debug('  No new WRS2 tiles/images - skipping')
+                    continue
+                # else:
+                #     logging.debug('    Building new version')
+            else:
+                logging.debug('    No previous exports')
 
         def tcorr_img_func(image):
             t_stats = ssebop.Image.from_landsat_c1_toa(
@@ -363,8 +344,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             t_stats = ee.Dictionary(t_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0},
                          overwrite=False)
-            # tcorr = ee.Algorithms.If(
-            #     t_stats.get('tcorr_p5'), ee.Number(t_stats.get('tcorr_p5')), 0)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
             count = ee.Number(t_stats.get('tcorr_count'))
 
@@ -375,11 +354,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 .cat(ee.String(scene_id.get(1))).cat('_') \
                 .cat(ee.String(scene_id.get(2)))
 
-            # return ee.Image([
-            #         tmax_img.select([0], ['tcorr']).multiply(0) \
-            #             .add(ee.Image.constant(tcorr)).float(),
-            #         tmax_img.select([0], ['count']).multiply(0)
-            #             .add(ee.Image.constant(count)).int()]) \
             return tmax_mask.add(tcorr) \
                 .rename(['tcorr']) \
                 .clip(image.geometry()) \
@@ -391,32 +365,23 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                     'tcorr': tcorr,
                     'count': count,
                 })
-
-        # # Test for one image
+        # Test for one image
         # pprint.pprint(tcorr_img_func(ee.Image(landsat_coll \
         #     .filterMetadata('WRS_PATH', 'equals', 36) \
         #     .filterMetadata('WRS_ROW', 'equals', 33).first())).getInfo())
         # input('ENTER')
 
+        # (Re)build the Landsat collection from the image IDs
+        landsat_coll = ee.ImageCollection(landsat_id_list)
         tcorr_img_coll = ee.ImageCollection(landsat_coll.map(tcorr_img_func)) \
             .filterMetadata('count', 'not_less_than',
                             float(ini['TCORR']['min_pixel_count']))
-        # pprint.pprint(tcorr_img_coll.aggregate_histogram('system:index').getInfo())
-        # pprint.pprint(ee.Image(tcorr_img_coll.first()).getInfo())
-        # input('ENTER')
 
         # If there are no Tcorr values, return an empty image
         tcorr_img = ee.Algorithms.If(
             tcorr_img_coll.size().gt(0),
             tcorr_img_coll.median(),
             tmax_mask.updateMask(0))
-        # pprint.pprint(tcorr_img.getInfo())
-        # pprint.pprint(tcorr_img_coll.size().getInfo())
-        # input('ENTER')
-
-        # # This doesn't work (median is returning no bands for some dates)
-        # tcorr_img = tmax_mask.add(tcorr_img_coll.median()) \
-        #     .updateMask(0)
 
         def unique_properties(coll, property):
             return ee.String(ee.List(ee.Dictionary(
@@ -425,18 +390,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             tcorr_img_coll, 'wrs2_tile'))
         landsat_list = ee.String('').cat(unique_properties(
             tcorr_img_coll, 'spacecraft_id'))
-
-        # # Is there a better way of building these strings?
-        # wrs2_tile_list = ee.Algorithms.If(
-        #     tcorr_img_coll.size().gt(0),
-        #     ee.String(ee.List(ee.Dictionary(tcorr_img_coll \
-        #         .aggregate_histogram('WRS2_TILE')).keys()).join(',')),
-        #     ee.String(''))
-        # landsat_list = ee.Algorithms.If(
-        #     tcorr_img_coll.size().gt(0),
-        #     ee.String(ee.List(ee.Dictionary(tcorr_img_coll\
-        #         .aggregate_histogram('SPACECRAFT_ID')).keys()).join(',')),
-        #     ee.String(''))
 
         # Cast to float and set properties
         tcorr_img = ee.Image(tcorr_img).rename(['tcorr']).double() \
@@ -457,8 +410,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 'wrs2_tiles': wrs2_tile_list,
                 'wrs2_available': ','.join(sorted(wrs2_tiles_all)),
             })
-        # pprint.pprint(tcorr_img.getInfo())
-        # input('ENTER')
 
         # Build export tasks
         if ini['EXPORT']['export_dest'] == 'ASSET':
