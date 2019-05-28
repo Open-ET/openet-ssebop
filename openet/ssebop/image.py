@@ -331,7 +331,7 @@ class Image():
             dt_img = ee.Image(dt_coll.first())
         # Compute dT for the target date
         elif self._dt_source.upper() == 'DAYMET':
-            temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET')\
+            temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmax', 'tmin'])\
                 .map(utils.c_to_k)
