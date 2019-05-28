@@ -1,4 +1,5 @@
 import datetime
+import math
 import pprint
 
 import ee
@@ -207,13 +208,13 @@ class Image():
         """
         # Get input images and ancillary data needed to compute SSEBop ETf
         lst = ee.Image(self.lst)
-        tcorr, tcorr_index = self._tcorr
-        tmax = ee.Image(self._tmax)
-        dt = ee.Image(self._dt)
+        tcorr, tcorr_index = self.tcorr
+        tmax = ee.Image(self.tmax)
+        dt = ee.Image(self.dt)
 
         # Adjust air temperature based on elevation (Elevation Lapse Rate)
         if self._elr_flag:
-            tmax = ee.Image(self._lapse_adjust(tmax, ee.Image(self._elev)))
+            tmax = ee.Image(self._lapse_adjust(tmax, ee.Image(self.elev)))
 
         # Compute SSEBop ETf
         etf = lst.expression(
@@ -304,7 +305,7 @@ class Image():
         #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
-    def _dt(self):
+    def dt(self):
         """
 
         Returns
@@ -319,6 +320,7 @@ class Image():
         """
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
+        # Use precomputed dT median assets
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
@@ -327,13 +329,41 @@ class Image():
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
+        # Compute dT for the target date
+        elif self._dt_source.upper() == 'DAYMET':
+            temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET')\
+                .filterDate(self._start_date, self._end_date)\
+                .select(['tmax', 'tmin'])\
+                .map(utils.c_to_k)
+            temp_img = ee.Image(temp_coll.first())
+            dt_img = self._dt(
+                temp_img.select(['tmax']), temp_img.select(['tmin']),
+                self._elev, self._doy)
+        elif self._dt_source.upper() == 'GRIDMET':
+            temp_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+                .filterDate(self._start_date, self._end_date)\
+                .select(['tmmx', 'tmmn'], ['tmax', 'tmin'])
+            temp_img = ee.Image(temp_coll.first())
+            dt_img = self._dt(
+                temp_img.select(['tmax']), temp_img.select(['tmin']),
+                self._elev, self._doy)
+        elif self._dt_source.upper() == 'CIMIS':
+            temp_coll = ee.ImageCollection('projects/climate-engine/cimis/daily')\
+                .filterDate(self._start_date, self._end_date)\
+                .select(['Tx', 'Tn'], ['tmax', 'tmin'])\
+                .map(utils.c_to_k)
+            temp_img = ee.Image(temp_coll.first())
+            dt_img = self._dt(
+                temp_img.select(['tmax']), temp_img.select(['tmin']),
+                self._elev, self._doy)
+
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
         return dt_img.clamp(self._dt_min, self._dt_max).rename('dt')
 
     @lazy_property
-    def _elev(self):
+    def elev(self):
         """
 
         Returns
@@ -366,7 +396,7 @@ class Image():
         return elev_image.select([0], ['elev'])
 
     @lazy_property
-    def _tcorr(self):
+    def tcorr(self):
         """Get Tcorr from pre-computed assets for each Tmax source
 
         Returns
@@ -560,7 +590,7 @@ class Image():
                 self._tcorr_source))
 
     @lazy_property
-    def _tmax(self):
+    def tmax(self):
         """Fall back on median Tmax if daily image does not exist
 
         Returns
@@ -994,16 +1024,113 @@ class Image():
             })
         return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
 
+    @staticmethod
+    def _dt(tmax, tmin, elev, doy, lat=None):
+        """
+
+        Parameters
+        ----------
+        tmax : ee.Image
+            Maximum daily air temperature [K].
+        tmin : ee.Image
+            Maximum daily air temperature [K].
+        elev : ee.Image
+            Elevation [m].
+        doy : ee.Number, int
+            Day of year.
+        lat : ee.Image, ee.Number, optional
+            Latitude [deg].  If not set, use GEE pixelLonLat() method.
+
+        Returns
+        -------
+        ee.Image
+
+        """
+        if lat is None:
+            lat = ee.Image.pixelLonLat().select(['latitude'])
+
+        # Convert latitude to radians (is this phi in the RefET calculation?)
+        lat = lat.multiply(math.pi / 180)
+
+        # Make a DOY image from the DOY number
+        doy = tmax.multiply(0).add(doy)
+
+        # Clear Sky Solar Radiation (Rso) from FAO 56
+        # Extraterrestrial radiation (Eqn 24, 25, 23, 21)
+        d1 = doy.multiply(2 * math.pi / 365).subtract(1.39435).sin().multiply(0.40928)
+        ws = lat.tan().multiply(-1).multiply(d1.tan()).acos()
+        raa = ws.multiply(lat.sin()).multiply(d1.sin())\
+            .add(lat.cos().multiply(d1.cos()).multiply(ws.sin()))
+        dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
+        ra = raa.multiply(dr).multiply((1367.0 / math.pi) * 0.0820)
+        # ws = lat.expression('acos(-tan(lat) * tan(d1))', {'lat': lat, 'd1': d1})
+        # raa = ws.expression(
+        #     'ws * sin(lat) * sin(d1) + cos(lat) * cos(d1) * sin(ws)',
+        #     {'ws': ws, 'lat': lat, 'd1': d1})
+        # ra = raa.expression(
+        #     '(1367.0 / pi) * 0.0820 * dr * raa',
+        #     {'pi': math.pi, 'dr': dr, 'raa': raa})
+        # ra = raa.expression(
+        #     '(1367.0 / pi) * Dr * Raa', {'pi': math.pi, 'Dr':dr, 'Raa':raa})
+
+        # Simplified clear sky solar formulation (Eqn 37)
+        rso = elev.multiply(2E-5).add(0.75).multiply(ra)
+        # rso = ra.expression(
+        #     '(0.75 + 2E-5 * elev) * ra', {'elev': elev, 'ra': ra})
+
+        # Net shortwave radiation (Eqn 38) use albedo = 0.23
+        rns = rso.multiply(1 - 0.23)
+
+        # Actual vapor pressure (Eqn 14)
+        ea = tmin.subtract(273.15).multiply(17.27)\
+            .divide(tmin.subtract(273.15).add(237.3))\
+            .exp().multiply(0.6108)
+        #  ea = tmin.expression(
+        #     '0.6108 * exp((17.27 * (tmin - 273.15)) / ((tmin - 273.15) + 237.3))',
+        #     {'tmin': tmin})
+
+        # Net longwave radiation (Eqn 39)
+        rnl = tmax.pow(4).add(tmin.pow(4))\
+            .multiply(ea.sqrt().multiply(-0.14).add(0.34))\
+            .multiply(4.901E-9 * 0.5)
+        # rnl = ea.expression(
+        #     '4.901E-9 * 0.5 * (tmax ** 4 + tmin ** 4) * (0.34 - 0.14 * sqrt(ea))',
+        #     {'tmax': tmax, 'tmin': tmin, 'ea': ea})
+
+        # Net radiation
+        rn = rns.subtract(rnl)
+
+        pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26).multiply(101.3)
+        # pair = elev.expression(
+        #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
+        #     {'elev': elev})
+        # Varf = Elev.multiply(0.0065);
+        # Vare = ((293.0).subtract(Varf)).divide(293.0);
+        # pair = 101.3 * pow(Vare, 5.26);
+
+        den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair).multiply(3.486 / 1.01)
+        # den = tmax.expression(
+        #     '3.486 * pair / (1.01 * (tmax + tmin) / 2)',
+        #     {'tmax': tmax, 'tmin': tmin, 'pair': pair})
+
+        # Cp = 1.013 / 1000
+        dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
+        return dt
+
     @lazy_property
     def tcorr_image(self):
         """Compute Tcorr for the current image
 
         Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
 
+        Returns
+        -------
+        ee.Image of Tcorr values
+
         """
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self._tmax)
+        tmax = ee.Image(self.tmax)
 
         # Compute tcorr
         tcorr = lst.divide(tmax)
@@ -1024,7 +1151,13 @@ class Image():
 
     @lazy_property
     def tcorr_stats(self):
-        """Compute the Tcorr 5th percentile and count statistics"""
+        """Compute the Tcorr 5th percentile and count statistics
+
+        Returns
+        -------
+        dictionary
+
+        """
         image_proj = self.image.select([0]).projection()
         image_crs = image_proj.crs()
         image_geo = ee.List(ee.Dictionary(

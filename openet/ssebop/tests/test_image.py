@@ -236,6 +236,10 @@ def test_Image_lst_properties():
         ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],
         ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 6],
         ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
+        # # Check calculated dT values
+        # ['CIMIS', 194, [-119.0, 37.5], 25],
+        # ['DAYMET', 194, [-119.0, 37.5], 25],
+        # ['GRIDMET', 194, [-119.0, 37.5], 25],
         # Check string/float constant values
         ['19.262', 194, [-120.113, 36.336], 19.262],  # Check constant values
         [19.262, 194, [-120.113, 36.336], 19.262],    # Check constant values
@@ -245,13 +249,13 @@ def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
     """Test getting dT values for a single date at a real point"""
     m = model.Image(default_image(), dt_source=dt_source)
     m._doy = doy
-    output = utils.point_image_value(ee.Image(m._dt), xy)
+    output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
 
 
 def test_Image_dt_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), dt_source='')._dt)
+        utils.getinfo(model.Image(default_image(), dt_source='').dt)
 
 
 @pytest.mark.parametrize(
@@ -264,14 +268,35 @@ def test_Image_dt_sources_exception():
 )
 def test_Image_dt_clamping(doy, dt_min, dt_max):
     m = model.Image(default_image(), dt_source='DAYMET_MEDIAN_V1',
-                     dt_min=dt_min, dt_max=dt_max)
+                    dt_min=dt_min, dt_max=dt_max)
     m._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
-    output = utils.getinfo(ee.Image(m._dt)\
+    output = utils.getinfo(ee.Image(m.dt)\
         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50)))
     assert output['dt_min'] >= dt_min
     assert output['dt_max'] <= dt_max
+
+
+@pytest.mark.parametrize(
+    'tmax, tmin, elev, doy, xy, expected',
+    [
+        # Test values came from old playground script
+        # https://code.earthengine.google.com/8316e79baf5c2e3332913e5ec3224e92
+        # 2015-07-13
+        [307.65, 291.65, 68.4937, 194, [-119.4425, 36.0405], 18.5827],  # DAYMET
+        [307.3597, 291.8105, 68.4937, 194, [-119.4425, 36.0405], 18.6294],  # GRIDMET
+        [309.1128, 292.6634, 68.4937, 194, [-119.4425, 36.0405], 18.8492],  # CIMIS
+        # # 2017-07-16
+        [313.15, 293.65, 21.8306, 197, [-122.1622, 39.1968], 18.8457],  # DAYMET
+        [312.3927, 293.2107, 21.8306, 197, [-122.1622, 39.1968], 18.7209],  # GRIDMET
+        [313.5187, 292.2343, 21.8306, 197, [-122.1622, 39.1968], 18.4216],  # CIMIS
+    ]
+)
+def test_Image_dt_calc(tmax, tmin, elev, doy, xy, expected, tol=0.0001):
+    dt = model.Image._dt(ee.Number(tmax), ee.Number(tmin), ee.Number(elev),
+                         ee.Number(doy), ee.Number(xy[1])).getInfo()
+    assert abs(float(dt) - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -294,17 +319,17 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
     output = utils.point_image_value(
-        model.Image(default_image(), elev_source=elev_source)._elev, xy)
+        model.Image(default_image(), elev_source=elev_source).elev, xy)
     assert abs(output['elev'] - expected) <= tol
 
 
 def test_Image_elev_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), elev_source='')._elev)
+        utils.getinfo(model.Image(default_image(), elev_source='').elev)
 
 
 def test_Image_elev_band_name():
-    output = utils.getinfo(default_image_obj()._elev)['bands'][0]['id']
+    output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
     assert output == 'elev'
 
 
@@ -367,7 +392,7 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
     m._month = ee.Number(month)
 
     # _tcorr returns a tuple of the tcorr and tcorr_index
-    tcorr, tcorr_index = m._tcorr
+    tcorr, tcorr_index = m.tcorr
     tcorr = utils.getinfo(tcorr)
     tcorr_index = utils.getinfo(tcorr_index)
 
@@ -394,7 +419,7 @@ def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date(scene_date).millis()})
     tcorr_img, index_img = model.Image(
-        input_image, tcorr_source=tcorr_source, tmax_source=tmax_source)._tcorr
+        input_image, tcorr_source=tcorr_source, tmax_source=tmax_source).tcorr
 
     # Tcorr images are constant images and need to be queried at a point
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -411,7 +436,7 @@ def test_Image_tcorr_image_month(expected=[0.9723, 1], tol=0.0001):
         'system:time_start': ee.Date('1980-07-04').millis()})
     m = model.Image(input_image, tcorr_source='IMAGE',
                      tmax_source='TOPOWX_MEDIAN_V0')
-    tcorr_img, index_img = m._tcorr
+    tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -425,7 +450,7 @@ def test_Image_tcorr_image_annual(expected=[0.9786, 2], tol=0.0001):
     m = model.Image(input_image, tcorr_source='IMAGE',
                      tmax_source='TOPOWX_MEDIAN_V0')
     m._month = ee.Number(9999)
-    tcorr_img, index_img = m._tcorr
+    tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -440,7 +465,7 @@ def test_Image_tcorr_image_default(expected=[0.978, 3], tol=0.0001):
                      tmax_source='TOPOWX_MEDIAN_V0')
     m._month = ee.Number(9999)
     m._cycle_day = ee.Number(9999)
-    tcorr_img, index_img = m._tcorr
+    tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -453,7 +478,7 @@ def test_Image_tcorr_image_daily():
         'system:time_start': ee.Date('1980-07-04').millis()})
     m = model.Image(input_image, tcorr_source='IMAGE_DAILY',
                      tmax_source='TOPOWX_MEDIAN_V0')
-    tcorr_img, index_img = m._tcorr
+    tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
     assert tcorr['tcorr'] is None
@@ -471,7 +496,7 @@ def test_Image_tcorr_image_daily_last_date_ingested():
         'system:time_start': ee.Date('1979-01-01').millis()})
     m = model.Image(input_image, tcorr_source='IMAGE_DAILY',
                      tmax_source='TOPOWX_MEDIAN_V0')
-    tcorr_img, index_img = m._tcorr
+    tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     assert tcorr['tcorr'] == 2
 
@@ -486,7 +511,7 @@ def test_Image_tcorr_image_daily_last_date_ingested():
 )
 def test_Image_tcorr_sources_exception(tcorr_src):
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), tcorr_source=tcorr_src)._tcorr)
+        utils.getinfo(model.Image(default_image(), tcorr_source=tcorr_src).tcorr)
 
 
 @pytest.mark.parametrize(
@@ -499,7 +524,7 @@ def test_Image_tcorr_sources_exception(tcorr_src):
 def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
     with pytest.raises(ValueError):
         utils.getinfo(model.Image(default_image(), tcorr_source=tcorr_src,
-                                   tmax_source=tmax_src)._tcorr)
+                                   tmax_source=tmax_src).tcorr)
 
 
 # TODO: Add test for when there is no Tcorr image for the Landsat date
@@ -524,14 +549,14 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
-    output_img = model.Image(default_image(), tmax_source=tmax_source)._tmax
+    output_img = model.Image(default_image(), tmax_source=tmax_source).tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
 def test_Image_tmax_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), tmax_source='')._tmax)
+        utils.getinfo(model.Image(default_image(), tmax_source='').tmax)
 
 
 @pytest.mark.parametrize(
@@ -551,7 +576,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
     input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
         .set({'system:index': SCENE_ID,
               'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
-    output_img = model.Image(input_img, tmax_source=tmax_source)._tmax
+    output_img = model.Image(input_img, tmax_source=tmax_source).tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output['tmax'] - expected) <= tol
 
@@ -576,7 +601,7 @@ today_dt = datetime.datetime.today()
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
     output = utils.getinfo(
-        model.Image(default_image(), tmax_source=tmax_source)._tmax)
+        model.Image(default_image(), tmax_source=tmax_source).tmax)
     assert output['properties']['TMAX_SOURCE'] == tmax_source
     assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
 
