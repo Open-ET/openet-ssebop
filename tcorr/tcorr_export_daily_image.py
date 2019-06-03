@@ -192,7 +192,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
         #   Why am I doing this and not using the commented out line?
         iter_end_dt = datetime.date.today().strftime('%Y-%m-%d')
         iter_end_dt = datetime.datetime.strptime(iter_end_dt, '%Y-%m-%d')
-        iter_end_dt = iter_end_dt + datetime.timedelta(days=-1)
+        iter_end_dt = iter_end_dt + datetime.timedelta(days=-4)
         # iter_end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
         iter_start_dt = iter_end_dt + datetime.timedelta(days=-64)
     else:

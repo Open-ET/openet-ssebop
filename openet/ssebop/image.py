@@ -983,9 +983,9 @@ class Image():
         # Assuming typical Soil Emissivity of 0.97 and Veg Emissivity of 0.99
         #   and shape Factor mean value of 0.553
         dE = Pv.expression(
-            '(((1 - 0.97) * (1 - Pv)) * (0.55 * 0.99))', {'Pv': Pv})
+            '(1 - 0.97) * (1 - Pv) * (0.55 * 0.99)', {'Pv': Pv})
         RangeEmiss = dE.expression(
-            '((0.99 * Pv) + (0.97 * (1 - Pv)) + dE)', {'Pv': Pv, 'dE': dE})
+            '(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': Pv, 'dE': dE})
 
         # RangeEmiss = 0.989 # dE.expression(
         #  '((0.99*Pv)+(0.97 *(1-Pv))+dE)',{'Pv':Pv, 'dE':dE})
