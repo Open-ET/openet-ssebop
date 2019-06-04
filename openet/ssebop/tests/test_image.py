@@ -307,9 +307,9 @@ def test_Image_dt_calc_rso(tmax, tmin, elev, doy, lat, expected, tol=0.0001):
         # Test values came from old playground script
         # https://code.earthengine.google.com/8316e79baf5c2e3332913e5ec3224e92
         # # 2017-07-16
-        [313.15, 293.65, 21.8306, 10, 18.8457],      # DAYMET
-        [312.3927, 293.2107, 21.8306, 10, 18.7209],  # GRIDMET
-        [313.5187, 292.2343, 21.8306, 10, 18.4216],  # CIMIS
+        [313.15, 293.65, 21.8306, 25.3831, 15.7695],      # DAYMET
+        [312.3927, 293.2107, 21.8306, 30.2915, 19.7751],  # GRIDMET
+        [313.5187, 292.2343, 21.8306, 29.1144, 18.4867],  # CIMIS
     ]
 )
 def test_Image_dt_calc_rs(tmax, tmin, elev, rs, expected, tol=0.0001):
