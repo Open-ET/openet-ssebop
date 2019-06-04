@@ -1025,8 +1025,8 @@ class Image():
         return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
 
     @staticmethod
-    def _dt(tmax, tmin, elev, doy, lat=None):
-        """
+    def _dt(tmax, tmin, elev, rs_source='RSO', doy=None, lat=None, rs=None):
+        """Temperature difference between hot/dry ground and cold/wet canopy
 
         Parameters
         ----------
@@ -1036,85 +1036,89 @@ class Image():
             Maximum daily air temperature [K].
         elev : ee.Image
             Elevation [m].
-        doy : ee.Number, int
-            Day of year.
+        rs_source : {'RSO', 'RS'}, optional
+            Rs source.   The default is "RSO" which will use the clear sky
+            solar for the incoming solar radiation value.
+        doy : ee.Number, int, optional
+            Day of year.  Only needed if rs_source is RSO.
         lat : ee.Image, ee.Number, optional
             Latitude [deg].  If not set, use GEE pixelLonLat() method.
+            Only needed if rs_source is RSO
 
         Returns
         -------
         ee.Image
 
+        References
+        ----------
+        .. [FAO56] Allen, R., Pereira, L., Raes, D., & Smith, M. (1998).
+           Crop evapotranspiration: Guidelines for computing crop water
+           requirements. FAO Irrigation and Drainage Paper (Vol. 56).
+        .. [Senay2018] Senay, G. (2018). Satellite psychrometric formulation of
+           the operational simplified surface energy balance (SSEBop) model for
+           quantifying and mapping evapotranspiration.
+           Applied Engineering in Agriculture, Vol 34(3).
+
         """
-        if lat is None:
-            lat = ee.Image.pixelLonLat().select(['latitude'])
+        if rs_source.upper() == 'RSO':
+            if lat is None:
+                lat = ee.Image.pixelLonLat().select(['latitude'])
+            if doy is None:
+                raise ValueError('doy must be set if rs_source is "RSO"')
 
-        # Convert latitude to radians (is this phi in the RefET calculation?)
-        lat = lat.multiply(math.pi / 180)
+            # Convert latitude to radians
+            phi = lat.multiply(math.pi / 180)
 
-        # Make a DOY image from the DOY number
-        doy = tmax.multiply(0).add(doy)
+            # Make a DOY image from the DOY number
+            doy = tmax.multiply(0).add(doy)
 
-        # Clear Sky Solar Radiation (Rso) from FAO 56
-        # Extraterrestrial radiation (Eqn 24, 25, 23, 21)
-        d1 = doy.multiply(2 * math.pi / 365).subtract(1.39435).sin().multiply(0.40928)
-        ws = lat.tan().multiply(-1).multiply(d1.tan()).acos()
-        raa = ws.multiply(lat.sin()).multiply(d1.sin())\
-            .add(lat.cos().multiply(d1.cos()).multiply(ws.sin()))
-        dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
-        ra = raa.multiply(dr).multiply((1367.0 / math.pi) * 0.0820)
-        # ws = lat.expression('acos(-tan(lat) * tan(d1))', {'lat': lat, 'd1': d1})
-        # raa = ws.expression(
-        #     'ws * sin(lat) * sin(d1) + cos(lat) * cos(d1) * sin(ws)',
-        #     {'ws': ws, 'lat': lat, 'd1': d1})
-        # ra = raa.expression(
-        #     '(1367.0 / pi) * 0.0820 * dr * raa',
-        #     {'pi': math.pi, 'dr': dr, 'raa': raa})
-        # ra = raa.expression(
-        #     '(1367.0 / pi) * Dr * Raa', {'pi': math.pi, 'Dr':dr, 'Raa':raa})
+            # Clear Sky Solar Radiation (Rso) (FAO56 Eqns ?)
+            d1 = doy.multiply(2 * math.pi / 365).subtract(1.39435).sin().multiply(0.40928)
+            ws = phi.tan().multiply(-1).multiply(d1.tan()).acos()
+            raa = ws.multiply(phi.sin()).multiply(d1.sin())\
+                .add(phi.cos().multiply(d1.cos()).multiply(ws.sin()))
+            dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
+            ra = raa.multiply(dr).multiply((1367.0 / math.pi) * 0.0820)
+            # Simplified clear sky solar formulation [MJ m-2 d-1] (Eqn 37)
+            rso = elev.multiply(2E-5).add(0.75).multiply(ra)
 
-        # Simplified clear sky solar formulation (Eqn 37)
-        rso = elev.multiply(2E-5).add(0.75).multiply(ra)
-        # rso = ra.expression(
-        #     '(0.75 + 2E-5 * elev) * ra', {'elev': elev, 'ra': ra})
+            # Net shortwave radiation [MJ m-2 d-1] (FAO56 Eqn 38)
+            rns = rso.multiply(1 - 0.23)
 
-        # Net shortwave radiation (Eqn 38) use albedo = 0.23
-        rns = rso.multiply(1 - 0.23)
+        elif rs_source.upper() == 'RS':
+            if rs is None:
+                raise ValueError('rs must be set if rs_source is "RS"')
+            rns = rs.multiply(1 - 0.23)
+        else:
+            raise ValueError('rs_source must be "RSO" or "RS"')
 
-        # Actual vapor pressure (Eqn 14)
+        # Actual vapor pressure [kPa] (FAO56 Eqn 14)
         ea = tmin.subtract(273.15).multiply(17.27)\
-            .divide(tmin.subtract(273.15).add(237.3))\
-            .exp().multiply(0.6108)
-        #  ea = tmin.expression(
-        #     '0.6108 * exp((17.27 * (tmin - 273.15)) / ((tmin - 273.15) + 237.3))',
-        #     {'tmin': tmin})
+            .divide(tmin.subtract(273.15).add(237.3)).exp().multiply(0.6108)
 
-        # Net longwave radiation (Eqn 39)
+        # Cloudiness fraction
+        fcd = 1
+        # fcd = rs.divide(rso).multiply(1.35).subtract(0.35)
+
+        # Net longwave radiation [MJ m-2 d-1] (FAO56 Eqn 39)
         rnl = tmax.pow(4).add(tmin.pow(4))\
             .multiply(ea.sqrt().multiply(-0.14).add(0.34))\
-            .multiply(4.901E-9 * 0.5)
-        # rnl = ea.expression(
-        #     '4.901E-9 * 0.5 * (tmax ** 4 + tmin ** 4) * (0.34 - 0.14 * sqrt(ea))',
-        #     {'tmax': tmax, 'tmin': tmin, 'ea': ea})
+            .multiply(4.901E-9 * 0.5).multiply(fcd)
 
-        # Net radiation
+        # Net radiation [MJ m-2 d-1] (FAO56 Eqn )
         rn = rns.subtract(rnl)
 
-        pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26).multiply(101.3)
-        # pair = elev.expression(
-        #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
-        #     {'elev': elev})
-        # Varf = Elev.multiply(0.0065);
-        # Vare = ((293.0).subtract(Varf)).divide(293.0);
-        # pair = 101.3 * pow(Vare, 5.26);
+        # Air pressure [kPa] (FAO56 Eqn 7)
+        pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
+            .multiply(101.3)
 
-        den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair).multiply(3.486 / 1.01)
-        # den = tmax.expression(
-        #     '3.486 * pair / (1.01 * (tmax + tmin) / 2)',
-        #     {'tmax': tmax, 'tmin': tmin, 'pair': pair})
+        # Air density [Kg m-3] (Senay2018 A.11 & A.13)
+        den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair)\
+            .multiply(3.486 / 1.01)
 
-        # Cp = 1.013 / 1000
+        # Temperature difference (Senay2018 A.5)
         dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
+
         return dt
 
     @lazy_property
