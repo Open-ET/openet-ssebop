@@ -48,8 +48,9 @@ class Image():
         ----------
         image : ee.Image
             A "prepped" SSEBop input image.
-            Image must have bands "ndvi" and "lst".
-            Image must have 'system:index' and 'system:time_start' properties.
+            Image must have bands: "ndvi" and "lst".
+            Image must have properties: 'system:id', 'system:index', and
+                'system:time_start'.
         etr_source : str, float, optional
             Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
         etr_band : str, optional
@@ -329,33 +330,56 @@ class Image():
             dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
+
         # Compute dT for the target date
-        elif self._dt_source.upper() == 'DAYMET':
-            temp_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['tmax', 'tmin'])\
-                .map(utils.c_to_k)
-            temp_img = ee.Image(temp_coll.first())
-            dt_img = self._dt(
-                temp_img.select(['tmax']), temp_img.select(['tmin']),
-                self._elev, self._doy)
-        elif self._dt_source.upper() == 'GRIDMET':
-            temp_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['tmmx', 'tmmn'], ['tmax', 'tmin'])
-            temp_img = ee.Image(temp_coll.first())
-            dt_img = self._dt(
-                temp_img.select(['tmax']), temp_img.select(['tmin']),
-                self._elev, self._doy)
         elif self._dt_source.upper() == 'CIMIS':
-            temp_coll = ee.ImageCollection('projects/climate-engine/cimis/daily')\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['Tx', 'Tn'], ['tmax', 'tmin'])\
-                .map(utils.c_to_k)
-            temp_img = ee.Image(temp_coll.first())
+            input_img = ee.Image(
+                ee.ImageCollection('projects/climate-engine/cimis/daily')\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select(['Tx', 'Tn', 'Rs', 'Tdew'])
+                    .first())
+            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
+            # Compute Ea from Tdew
             dt_img = self._dt(
-                temp_img.select(['tmax']), temp_img.select(['tmin']),
-                self._elev, self._doy)
+                tmax=input_img.select(['Tx']).add(273.15),
+                tmin=input_img.select(['Tn']).add(273.15),
+                rs=input_img.select(['Rs']),
+                ea=input_img.select(['Tdew']).add(237.3).pow(-1)
+                    .multiply(input_img.select(['Tdew']))\
+                    .multiply(17.27).exp().multiply(0.6108),
+                elev=self._elev, doy=self._doy)
+
+        elif self._dt_source.upper() == 'DAYMET':
+            input_img = ee.Image(
+                ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])
+                    .first())
+            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
+            # Solar unit conversion from DAYMET documentation:
+            #   https://daymet.ornl.gov/overview.html
+            dt_img = self._dt(
+                tmax=input_img.select(['tmax']).add(273.15),
+                tmin=input_img.select(['tmin']).add(273.15),
+                rs=input_img.select(['srad'])\
+                    .multiply(input_img.select(['dayl'])).divide(1000000),
+                ea=input_img.select(['vp']).divide(1000),
+                elev=self._elev, doy=self._doy)
+
+        elif self._dt_source.upper() == 'GRIDMET':
+            input_img = ee.Image(
+                ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select(['tmmx', 'tmmn', 'srad', 'sph'])
+                    .first())
+            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
+            dt_img = self._dt(
+                tmax=input_img.select(['tmmx']),
+                tmin=input_img.select(['tmmn']),
+                rs=input_img.select(['srad']).multiply(0.0864),
+                ea=input_img.select(['sph']),
+                elev=self._elev, doy=self._doy)
+
 
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
@@ -1025,7 +1049,7 @@ class Image():
         return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
 
     @staticmethod
-    def _dt(tmax, tmin, elev, rs_source='RSO', doy=None, lat=None, rs=None):
+    def _dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
         """Temperature difference between hot/dry ground and cold/wet canopy
 
         Parameters
@@ -1036,14 +1060,16 @@ class Image():
             Maximum daily air temperature [K].
         elev : ee.Image
             Elevation [m].
-        rs_source : {'RSO', 'RS'}, optional
-            Rs source.   The default is "RSO" which will use the clear sky
-            solar for the incoming solar radiation value.
-        doy : ee.Number, int, optional
-            Day of year.  Only needed if rs_source is RSO.
+        doy : ee.Number, int
+            Day of year.
         lat : ee.Image, ee.Number, optional
             Latitude [deg].  If not set, use GEE pixelLonLat() method.
-            Only needed if rs_source is RSO
+        rs : ee.Image, ee.Number, optional
+            Incoming solar radiation [MJ m-2 d-1].  If not set the theoretical
+            clear sky solar (Rso) will be used for the Rs.
+        ea : ee.Image, ee.Number, optional
+            Actual vapor pressure [kPa].  If not set, vapor pressure will be
+            computed from Tmin.
 
         Returns
         -------
@@ -1060,52 +1086,54 @@ class Image():
            Applied Engineering in Agriculture, Vol 34(3).
 
         """
-        if rs_source.upper() == 'RSO':
-            if lat is None:
-                lat = ee.Image.pixelLonLat().select(['latitude'])
-            if doy is None:
-                raise ValueError('doy must be set if rs_source is "RSO"')
+        if lat is None:
+            lat = ee.Image.pixelLonLat().select(['latitude'])
+        if doy is None:
+            # TODO: attempt to read time_start from one of the images
+            raise ValueError('doy must be set')
 
-            # Convert latitude to radians
-            phi = lat.multiply(math.pi / 180)
+        # Convert latitude to radians
+        phi = lat.multiply(math.pi / 180)
 
-            # Make a DOY image from the DOY number
-            doy = tmax.multiply(0).add(doy)
+        # Make a DOY image from the DOY number
+        doy = tmax.multiply(0).add(doy)
 
-            # Clear Sky Solar Radiation (Rso) (FAO56 Eqns ?)
-            d1 = doy.multiply(2 * math.pi / 365).subtract(1.39435).sin().multiply(0.40928)
-            ws = phi.tan().multiply(-1).multiply(d1.tan()).acos()
-            raa = ws.multiply(phi.sin()).multiply(d1.sin())\
-                .add(phi.cos().multiply(d1.cos()).multiply(ws.sin()))
-            dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
-            ra = raa.multiply(dr).multiply((1367.0 / math.pi) * 0.0820)
-            # Simplified clear sky solar formulation [MJ m-2 d-1] (Eqn 37)
-            rso = elev.multiply(2E-5).add(0.75).multiply(ra)
+        # Extraterrestrial radiation (Ra) (FAO56 Eqns 24, 25, 23, 21)
+        delta = doy.multiply(2 * math.pi / 365).subtract(1.39).sin()\
+            .multiply(0.409)
+        ws = phi.tan().multiply(-1).multiply(delta.tan()).acos()
+        dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
+        ra = ws.multiply(phi.sin()).multiply(delta.sin())\
+            .add(phi.cos().multiply(delta.cos()).multiply(ws.sin()))\
+            .multiply(dr)\
+            .multiply((1367.0 / math.pi) * 0.0820)
 
-            # Net shortwave radiation [MJ m-2 d-1] (FAO56 Eqn 38)
-            rns = rso.multiply(1 - 0.23)
+        # Simplified clear sky solar formulation (Rso) [MJ m-2 d-1] (Eqn 37)
+        rso = elev.multiply(2E-5).add(0.75).multiply(ra)
 
-        elif rs_source.upper() == 'RS':
-            if rs is None:
-                raise ValueError('rs must be set if rs_source is "RS"')
-            rns = rs.multiply(1 - 0.23)
+        # Derive cloudiness fraction from Rs and Rso (see FAO56 Eqn 39)
+        # Use Rso for Rs if not set
+        if rs is None:
+            rs = rso.multiply(1)
+            fcd = 1
         else:
-            raise ValueError('rs_source must be "RSO" or "RS"')
+            fcd = rs.divide(rso).max(0.3).min(1.0).multiply(1.35).subtract(0.35)
+            # fcd = rs.divide(rso).clamp(0.3, 1).multiply(1.35).subtract(0.35)
+
+        # Net shortwave radiation [MJ m-2 d-1] (FAO56 Eqn 38)
+        rns = rs.multiply(1 - 0.23)
 
         # Actual vapor pressure [kPa] (FAO56 Eqn 14)
-        ea = tmin.subtract(273.15).multiply(17.27)\
-            .divide(tmin.subtract(273.15).add(237.3)).exp().multiply(0.6108)
-
-        # Cloudiness fraction
-        fcd = 1
-        # fcd = rs.divide(rso).multiply(1.35).subtract(0.35)
+        if ea is None:
+            ea = tmin.subtract(273.15).multiply(17.27)\
+                .divide(tmin.subtract(273.15).add(237.3)).exp().multiply(0.6108)
 
         # Net longwave radiation [MJ m-2 d-1] (FAO56 Eqn 39)
         rnl = tmax.pow(4).add(tmin.pow(4))\
             .multiply(ea.sqrt().multiply(-0.14).add(0.34))\
             .multiply(4.901E-9 * 0.5).multiply(fcd)
 
-        # Net radiation [MJ m-2 d-1] (FAO56 Eqn )
+        # Net radiation [MJ m-2 d-1] (FAO56 Eqn 40)
         rn = rns.subtract(rnl)
 
         # Air pressure [kPa] (FAO56 Eqn 7)
@@ -1116,7 +1144,7 @@ class Image():
         den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair)\
             .multiply(3.486 / 1.01)
 
-        # Temperature difference (Senay2018 A.5)
+        # Temperature difference [K] (Senay2018 A.5)
         dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
 
         return dt
