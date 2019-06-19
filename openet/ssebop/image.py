@@ -347,7 +347,7 @@ class Image():
                 ea=input_img.select(['Tdew']).add(237.3).pow(-1)
                     .multiply(input_img.select(['Tdew']))\
                     .multiply(17.27).exp().multiply(0.6108),
-                elev=self._elev, doy=self._doy)
+                elev=self.elev, doy=self._doy)
 
         elif self._dt_source.upper() == 'DAYMET':
             input_img = ee.Image(
@@ -364,7 +364,7 @@ class Image():
                 rs=input_img.select(['srad'])\
                     .multiply(input_img.select(['dayl'])).divide(1000000),
                 ea=input_img.select(['vp']).divide(1000),
-                elev=self._elev, doy=self._doy)
+                elev=self.elev, doy=self._doy)
 
         elif self._dt_source.upper() == 'GRIDMET':
             input_img = ee.Image(
@@ -373,12 +373,18 @@ class Image():
                     .select(['tmmx', 'tmmn', 'srad', 'sph'])
                     .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
+            q = input_img.select(['sph'], ['q'])
+            pair = self.elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
+                .multiply(101.3)
+            # pair = self.elev.expression(
+            #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
+            #     {'elev': self.elev})
             dt_img = self._dt(
                 tmax=input_img.select(['tmmx']),
                 tmin=input_img.select(['tmmn']),
                 rs=input_img.select(['srad']).multiply(0.0864),
-                ea=input_img.select(['sph']),
-                elev=self._elev, doy=self._doy)
+                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q).multiply(pair),
+                elev=self.elev, doy=self._doy)
 
 
         else:

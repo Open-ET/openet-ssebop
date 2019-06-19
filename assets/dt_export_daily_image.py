@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import pprint
+import re
 import sys
 
 import ee
@@ -92,15 +93,20 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     dt_source = dt_name.split('_', 1)[0]
     # dt_version = dt_name.split('_', 1)[1]
     daily_coll = ee.ImageCollection(daily_coll_id)
-    dt_mask = ee.Image(daily_coll.first()).select([0]).multiply(0)
+    dt_img = ee.Image(daily_coll.first()).select([0])
+    dt_mask = dt_img.multiply(0)
     logging.debug('  Collection: {}'.format(daily_coll_id))
     logging.debug('  Source: {}'.format(dt_source))
     # logging.debug('  Version: {}'.format(dt_version))
 
     logging.debug('\nExport properties')
-    export_geo = ee.Image(dt_mask).projection().getInfo()['transform']
-    export_crs = ee.Image(dt_mask).projection().getInfo()['crs']
-    export_shape = ee.Image(dt_mask).getInfo()['bands'][0]['dimensions']
+    export_proj = dt_img.projection().getInfo()
+    export_geo = export_proj['transform']
+    if 'crs' in export_proj.keys():
+        export_crs = export_proj['crs']
+    elif 'wkt' in export_proj.keys():
+        export_crs = re.sub(',\s+', ',', export_proj['wkt'])
+    export_shape = dt_img.getInfo()['bands'][0]['dimensions']
     export_extent = [
         export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
         export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
@@ -108,26 +114,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     logging.debug('  Extent: {}'.format(export_extent))
     logging.debug('  Geo:    {}'.format(export_geo))
     logging.debug('  Shape:  {}'.format(export_shape))
-
-    # # Limit export to a user defined study area or geometry?
-    # export_geom = ee.Geometry.Rectangle(
-    #     [-125, 24, -65, 50], proj='EPSG:4326', geodesic=False)  # CONUS
-    # export_geom = ee.Geometry.Rectangle(
-    #     [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)  # California
-
-    # If cell_size parameter is set in the INI,
-    # adjust the output cellsize and recompute the transform and shape
-    try:
-        export_cs = float(ini['EXPORT']['cell_size'])
-        export_shape = [
-            int(math.ceil(abs((export_shape[0] * export_geo[0]) / export_cs))),
-            int(math.ceil(abs((export_shape[1] * export_geo[4]) / export_cs)))]
-        export_geo = [export_cs, 0.0, export_geo[2], 0.0, -export_cs, export_geo[5]]
-        logging.debug('  Custom export cell size: {}'.format(export_cs))
-        logging.debug('  Geo: {}'.format(export_geo))
-        logging.debug('  Shape: {}'.format(export_shape))
-    except KeyError:
-        pass
 
     # Get current asset list
     if ini['EXPORT']['export_dest'].upper() == 'ASSET':
@@ -143,8 +129,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
-
-    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
 
     # Limit by year and month
     try:
@@ -228,12 +212,12 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                     'system:time_start': utils.millis(export_dt),
                     'system:index': 'LC08_043033_20170716',
                     'system:id': 'LC08_043033_20170716'}),
-            dt_source='DAYMET_MEDIAN_V1',
+            dt_source=dt_source.upper(),
             elev_source='SRTM',
         )
 
         # Cast to float and set properties
-        dt_img = model_obj.dt().float() \
+        dt_img = model_obj.dt.float() \
             .set({
                 'system:time_start': utils.millis(export_dt),
                 'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
