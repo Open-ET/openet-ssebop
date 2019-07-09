@@ -165,10 +165,6 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
         elif export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
             logging.debug(f'Date: {export_date} - unsupported date - skipping')
             continue
-        elif export_date < '1984-03-23':
-            logging.debug(f'Date: {export_date} - no Landsat 5+ images before '
-                         '1984-03-16 - skipping')
-            continue
         logging.info(f'Date: {export_date}')
 
         export_id = ini['EXPORT']['export_id_fmt'] \
@@ -214,6 +210,8 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                     'system:id': 'LC08_043033_20170716'}),
             dt_source=dt_source.upper(),
             elev_source='SRTM',
+            dt_min=ini['SSEBOP']['dt_min'],
+            dt_max=ini['SSEBOP']['dt_max'],
         )
 
         # Cast to float and set properties
