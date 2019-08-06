@@ -5,6 +5,7 @@
 
 import argparse
 from builtins import input
+from collections import defaultdict
 import datetime
 import logging
 import math
@@ -29,15 +30,16 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     ini_path : str
         Input file path.
     overwrite_flag : bool, optional
-        If True, overwrite existing files if the export dates are the same and
-        generate new images (but with different export dates) even if the tile
-        lists are the same.  The default is False.
+        If True, generate new images (but with different export dates) even if
+        the dates already have images.  If False, only generate images for
+        dates that are missing. The default is False.
     delay : float, optional
         Delay time between each export task (the default is 0).
     key : str, optional
         File path to an Earth Engine json key file (the default is None).
     reverse_flag : bool, optional
         If True, process dates in reverse order.
+
     """
     logging.info('\nCompute daily dT images')
 
@@ -145,6 +147,15 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     #     year_list = []
 
 
+    # Group asset IDs by image date
+    asset_id_dict = defaultdict(list)
+    for asset_id in asset_list:
+        asset_dt = datetime.datetime.strptime(
+            asset_id.split('/')[-1].split('_')[0], '%Y%m%d')
+        asset_id_dict[asset_dt.strftime('%Y-%m-%d')].append(asset_id)
+    # pprint.pprint(export_dt_dict)
+
+
     iter_start_dt = datetime.datetime.strptime(
         ini['INPUTS']['start_date'], '%Y-%m-%d')
     iter_end_dt = datetime.datetime.strptime(
@@ -197,7 +208,12 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 continue
             elif (ini['EXPORT']['export_dest'].upper() == 'ASSET' and
                     asset_id in asset_list):
-                logging.debug('  Asset already exists, skipping')
+                logging.debug('  Asset with current export date already exists, '
+                              'skipping')
+                continue
+            elif len(asset_id_dict[export_date]) > 0:
+                logging.debug('  Asset with earlier export date already exists, '
+                              'skipping')
                 continue
 
         # Compute dT using a fake Landsat image
