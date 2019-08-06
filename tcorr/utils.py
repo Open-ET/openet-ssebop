@@ -109,7 +109,7 @@ def get_ee_assets(asset_id, shell_flag=False):
     """
     try:
         asset_list = subprocess.check_output(
-            ['earthengine', 'ls', asset_id],
+            ['earthengine', '--no-use_cloud_api', 'ls', asset_id],
             universal_newlines=True, shell=shell_flag)
         asset_list = [x.strip() for x in asset_list.split('\n') if x]
         # logging.debug(asset_list)
