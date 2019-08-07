@@ -2,7 +2,7 @@
 Contributing to OpenET SSEBop
 =============================
 
-Thank you for your interesting in support the OpenET SSEBop project.
+Thank you for your interest in supporting the OpenET SSEBop project.
 
 Versioning
 ==========
@@ -14,8 +14,7 @@ Coding Conventions
 
 OpenET SSEBop was developed for Python 3.6.  The code will likely work on other version of Python 3 but there are no plans to officially support Python 2.7 at this time.
 
-All code should follow the `PEP8
-<https://www.python.org/dev/peps/pep-0008/>`__ style guide.
+All code should follow the `PEP8 <https://www.python.org/dev/peps/pep-0008/>`__ style guide.
 
 Docstrings should be written for all functions that follow the `NumPy docstring format <https://numpydoc.readthedocs.io/en/latest/format.html>`__.
 

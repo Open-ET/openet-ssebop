@@ -161,10 +161,7 @@ def test_Collection_init_cloud_cover_exception():
 
 # TODO: Test if a geojson string can be passed for the geometry
 # def test_Collection_init_geometry_geojson():
-#     """Test that the system:index from a merged collection is parsed"""
-#     args = default_coll_args()
-#     s = ssebop.Collection(**args)
-#     assert utils.getinfo(s._scene_id) == SCENE_ID
+#     assert False
 
 
 def test_Collection_build_default():
@@ -228,9 +225,8 @@ def test_Collection_build_cloud_cover():
 #   It appears to be identical to the exclusive_enddate test above
 # def test_Collection_build_model_args():
 #     """Test if the end_date is exclusive"""
-#     args = default_coll_args()
-#     args['end_date'] = '2017-07-24'
-#     output = utils.getinfo(ssebop.Collection(**args)._build(variables=['et']))
+#     output = utils.getinfo(default_coll_obj(end_date='2017-07-24')._build(
+#         variables=['et']))
 #     assert [x for x in parse_scene_id(output) if int(x[-8:]) >= 20170724] == []
 
 
@@ -349,9 +345,7 @@ def test_Collection_interpolate_t_interval_monthly():
 #   This function could probably be be tested for a shorter time period
 # def test_Collection_interpolate_t_interval_annual():
 #     """Test if the annual time interval parameter works"""
-#     args = default_coll_args()
-#     args['start_date'] = '2017-01-01'
-#     args['end_date'] = '2018-01-01'
+#     args = default_coll_args(start_date='2017-01-01', end_date='2018-01-01')
 #     output = utils.getinfo(ssebop.Collection(**args)
 #         .interpolate(t_interval='annual'))
 #     assert output['type'] == 'ImageCollection'
