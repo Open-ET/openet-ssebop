@@ -4,6 +4,7 @@ import pprint
 
 import ee
 
+from . import model
 from . import utils
 import openet.core.common as common
 # TODO: import utils from common
@@ -340,15 +341,15 @@ class Image():
                     .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Compute Ea from Tdew
-            dt_img = self._dt(
+            dt_img = model.dt(
                 tmax=input_img.select(['Tx']).add(273.15),
                 tmin=input_img.select(['Tn']).add(273.15),
                 rs=input_img.select(['Rs']),
                 ea=input_img.select(['Tdew']).add(237.3).pow(-1)
                     .multiply(input_img.select(['Tdew']))\
-                    .multiply(17.27).exp().multiply(0.6108),
-                elev=self.elev, doy=self._doy)
-
+                    .multiply(17.27).exp().multiply(0.6108).rename(['ea']),
+                elev=self.elev,
+                doy=self._doy)
         elif self._dt_source.upper() == 'DAYMET':
             input_img = ee.Image(
                 ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
@@ -358,14 +359,14 @@ class Image():
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Solar unit conversion from DAYMET documentation:
             #   https://daymet.ornl.gov/overview.html
-            dt_img = self._dt(
+            dt_img = model.dt(
                 tmax=input_img.select(['tmax']).add(273.15),
                 tmin=input_img.select(['tmin']).add(273.15),
                 rs=input_img.select(['srad'])\
                     .multiply(input_img.select(['dayl'])).divide(1000000),
-                ea=input_img.select(['vp']).divide(1000),
-                elev=self.elev, doy=self._doy)
-
+                ea=input_img.select(['vp'], ['ea']).divide(1000),
+                elev=self.elev,
+                doy=self._doy)
         elif self._dt_source.upper() == 'GRIDMET':
             input_img = ee.Image(
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
@@ -379,14 +380,14 @@ class Image():
             # pair = self.elev.expression(
             #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
             #     {'elev': self.elev})
-            dt_img = self._dt(
+            dt_img = model.dt(
                 tmax=input_img.select(['tmmx']),
                 tmin=input_img.select(['tmmn']),
                 rs=input_img.select(['srad']).multiply(0.0864),
-                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q).multiply(pair),
-                elev=self.elev, doy=self._doy)
-
-
+                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q)\
+                    .multiply(pair).rename(['ea']),
+                elev=self.elev,
+                doy=self._doy)
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
@@ -1053,108 +1054,6 @@ class Image():
                 'threshold': lapse_threshold
             })
         return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
-
-    # DEADBEEF - Moved to model.py
-    # @staticmethod
-    # def _dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
-    #     """Temperature difference between hot/dry ground and cold/wet canopy
-    #
-    #     Parameters
-    #     ----------
-    #     tmax : ee.Image
-    #         Maximum daily air temperature [K].
-    #     tmin : ee.Image
-    #         Maximum daily air temperature [K].
-    #     elev : ee.Image
-    #         Elevation [m].
-    #     doy : ee.Number, int
-    #         Day of year.
-    #     lat : ee.Image, ee.Number, optional
-    #         Latitude [deg].  If not set, use GEE pixelLonLat() method.
-    #     rs : ee.Image, ee.Number, optional
-    #         Incoming solar radiation [MJ m-2 d-1].  If not set the theoretical
-    #         clear sky solar (Rso) will be used for the Rs.
-    #     ea : ee.Image, ee.Number, optional
-    #         Actual vapor pressure [kPa].  If not set, vapor pressure will be
-    #         computed from Tmin.
-    #
-    #     Returns
-    #     -------
-    #     ee.Image
-    #
-    #     References
-    #     ----------
-    #     .. [FAO56] Allen, R., Pereira, L., Raes, D., & Smith, M. (1998).
-    #        Crop evapotranspiration: Guidelines for computing crop water
-    #        requirements. FAO Irrigation and Drainage Paper (Vol. 56).
-    #     .. [Senay2018] Senay, G. (2018). Satellite psychrometric formulation of
-    #        the operational simplified surface energy balance (SSEBop) model for
-    #        quantifying and mapping evapotranspiration.
-    #        Applied Engineering in Agriculture, Vol 34(3).
-    #
-    #     """
-    #     if lat is None:
-    #         lat = ee.Image.pixelLonLat().select(['latitude'])
-    #     if doy is None:
-    #         # TODO: attempt to read time_start from one of the images
-    #         raise ValueError('doy must be set')
-    #
-    #     # Convert latitude to radians
-    #     phi = lat.multiply(math.pi / 180)
-    #
-    #     # Make a DOY image from the DOY number
-    #     doy = tmax.multiply(0).add(doy)
-    #
-    #     # Extraterrestrial radiation (Ra) (FAO56 Eqns 24, 25, 23, 21)
-    #     delta = doy.multiply(2 * math.pi / 365).subtract(1.39).sin()\
-    #         .multiply(0.409)
-    #     ws = phi.tan().multiply(-1).multiply(delta.tan()).acos()
-    #     dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
-    #     ra = ws.multiply(phi.sin()).multiply(delta.sin())\
-    #         .add(phi.cos().multiply(delta.cos()).multiply(ws.sin()))\
-    #         .multiply(dr)\
-    #         .multiply((1367.0 / math.pi) * 0.0820)
-    #
-    #     # Simplified clear sky solar formulation (Rso) [MJ m-2 d-1] (Eqn 37)
-    #     rso = elev.multiply(2E-5).add(0.75).multiply(ra)
-    #
-    #     # Derive cloudiness fraction from Rs and Rso (see FAO56 Eqn 39)
-    #     # Use Rso for Rs if not set
-    #     if rs is None:
-    #         rs = rso.multiply(1)
-    #         fcd = 1
-    #     else:
-    #         fcd = rs.divide(rso).max(0.3).min(1.0).multiply(1.35).subtract(0.35)
-    #         # fcd = rs.divide(rso).clamp(0.3, 1).multiply(1.35).subtract(0.35)
-    #
-    #     # Net shortwave radiation [MJ m-2 d-1] (FAO56 Eqn 38)
-    #     rns = rs.multiply(1 - 0.23)
-    #
-    #     # Actual vapor pressure [kPa] (FAO56 Eqn 14)
-    #     if ea is None:
-    #         ea = tmin.subtract(273.15).multiply(17.27)\
-    #             .divide(tmin.subtract(273.15).add(237.3)).exp().multiply(0.6108)
-    #
-    #     # Net longwave radiation [MJ m-2 d-1] (FAO56 Eqn 39)
-    #     rnl = tmax.pow(4).add(tmin.pow(4))\
-    #         .multiply(ea.sqrt().multiply(-0.14).add(0.34))\
-    #         .multiply(4.901E-9 * 0.5).multiply(fcd)
-    #
-    #     # Net radiation [MJ m-2 d-1] (FAO56 Eqn 40)
-    #     rn = rns.subtract(rnl)
-    #
-    #     # Air pressure [kPa] (FAO56 Eqn 7)
-    #     pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
-    #         .multiply(101.3)
-    #
-    #     # Air density [Kg m-3] (Senay2018 A.11 & A.13)
-    #     den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair)\
-    #         .multiply(3.486 / 1.01)
-    #
-    #     # Temperature difference [K] (Senay2018 A.5)
-    #     dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
-    #
-    #     return dt
 
     @lazy_property
     def tcorr_image(self):

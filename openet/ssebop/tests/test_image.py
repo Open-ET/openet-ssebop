@@ -1,4 +1,5 @@
 import datetime
+import pprint
 
 import ee
 import pytest
@@ -232,23 +233,63 @@ def test_Image_lst_properties():
         ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
         ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
         ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
-        # Check default clamped values
+    ]
+)
+def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
+    """Test getting median dT values for a single date at a real point"""
+    m = model.Image(default_image(), dt_source=dt_source)
+    m._doy = doy
+    output = utils.point_image_value(ee.Image(m.dt), xy)
+    assert abs(output['dt'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'dt_source, doy, xy, expected',
+    [
         ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],
         ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 6],
         ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
-        # # Check calculated dT values
-        # ['CIMIS', 194, [-119.0, 37.5], 25],
-        # ['DAYMET', 194, [-119.0, 37.5], 25],
-        # ['GRIDMET', 194, [-119.0, 37.5], 25],
-        # Check string/float constant values
-        ['19.262', 194, [-120.113, 36.336], 19.262],  # Check constant values
-        [19.262, 194, [-120.113, 36.336], 19.262],    # Check constant values
     ]
 )
-def test_Image_dt_sources(dt_source, doy, xy, expected, tol=0.001):
-    """Test getting dT values for a single date at a real point"""
+def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
+    """Check that dT values are clamped to dt_min and dt_max (6, 25)"""
     m = model.Image(default_image(), dt_source=dt_source)
     m._doy = doy
+    output = utils.point_image_value(ee.Image(m.dt), xy)
+    assert abs(output['dt'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'dt_source, xy, expected',
+    [
+        ['19.262', [-120.113, 36.336], 19.262],
+        [19.262, [-120.113, 36.336], 19.262],
+    ]
+)
+def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
+    """Test getting condatnt dT values for a single date at a real point"""
+    m = model.Image(default_image(), dt_source=dt_source)
+    output = utils.point_image_value(ee.Image(m.dt), xy)
+    assert abs(output['dt'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'dt_source, date, xy, expected',
+    [
+        ['CIMIS', '2017-07-16', [-122.1622, 39.1968], 17.1013],
+        ['DAYMET', '2017-07-16', [-122.1622, 39.1968], 13.5525],
+        ['GRIDMET', '2017-07-16', [-122.1622, 39.1968], 18.1711],
+    ]
+)
+def test_Image_dt_source_calculated(dt_source, date, xy, expected, tol=0.001):
+    """Test getting calculated dT values for a single date at a real point"""
+    m = model.Image(default_image(), dt_source=dt_source)
+    # Start/end date are needed to filter the source collection
+    m._start_date = ee.Date.parse('yyyy-MM-dd', date)
+    m._end_date = ee.Date.parse('yyyy-MM-dd', date).advance(1, 'day')
+    # DOY is needed in dT calculation
+    m._doy = ee.Date.parse('yyyy-MM-dd', date).getRelative('day', 'year')\
+        .int().add(1)
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
 
@@ -276,53 +317,6 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50)))
     assert output['dt_min'] >= dt_min
     assert output['dt_max'] <= dt_max
-
-
-# DEADBEEF - Moved to model.py
-# @pytest.mark.parametrize(
-#     'tmax, tmin, elev, doy, lat, expected',
-#     [
-#         # Test values came from old playground script
-#         # https://code.earthengine.google.com/8316e79baf5c2e3332913e5ec3224e92
-#         # 2015-07-13
-#         [307.65, 291.65, 68.4937, 194, 36.0405, 18.5827],      # DAYMET
-#         [307.3597, 291.8105, 68.4937, 194, 36.0405, 18.6294],  # GRIDMET
-#         [309.1128, 292.6634, 68.4937, 194, 36.0405, 18.8492],  # CIMIS
-#         # # 2017-07-16
-#         [313.15, 293.65, 21.8306, 197, 39.1968, 18.8457],      # DAYMET
-#         [312.3927, 293.2107, 21.8306, 197, 39.1968, 18.7209],  # GRIDMET
-#         [313.5187, 292.2343, 21.8306, 197, 39.1968, 18.4216],  # CIMIS
-#     ]
-# )
-# def test_Image_dt_calc_rso(tmax, tmin, elev, doy, lat, expected, tol=0.0001):
-#     dt = model.Image._dt(tmax=ee.Number(tmax), tmin=ee.Number(tmin),
-#                          elev=ee.Number(elev), rs=None, doy=ee.Number(doy),
-#                          lat=ee.Number(lat)).getInfo()
-#     assert abs(float(dt) - expected) <= tol
-#
-#
-# @pytest.mark.parametrize(
-#     'tmax, tmin, elev, doy, lat, rs, expected',
-#     [
-#         # Test values came from old playground script
-#         # https://code.earthengine.google.com/8316e79baf5c2e3332913e5ec3224e92
-#         # # 2017-07-16
-#         [313.15, 293.65, 21.8306, 197, 39.1968, 25.3831, 15.7695],      # DAYMET
-#         [312.3927, 293.2107, 21.8306, 197, 39.1968, 30.2915, 19.7751],  # GRIDMET
-#         [313.5187, 292.2343, 21.8306, 197, 39.1968, 29.1144, 18.4867],  # CIMIS
-#     ]
-# )
-# def test_Image_dt_calc_rs(tmax, tmin, elev, doy, lat, rs, expected, tol=0.0001):
-#     dt = model.Image._dt(tmax=ee.Number(tmax), tmin=ee.Number(tmin),
-#                          elev=ee.Number(elev), rs=ee.Number(rs),
-#                          doy=ee.Number(doy), lat=ee.Number(lat)).getInfo()
-#     assert abs(float(dt) - expected) <= tol
-#
-#
-# def test_Image_dt_doy_exception():
-#     with pytest.raises(ValueError):
-#         utils.getinfo(model.Image._dt(
-#             tmax=313.15, tmin=293.65, elev=21.8306, doy=None))
 
 
 @pytest.mark.parametrize(
