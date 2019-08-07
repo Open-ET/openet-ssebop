@@ -67,11 +67,6 @@ def default_image_obj(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
         etr_source=etr_source, etr_band=etr_band, etr_factor=etr_factor))
 
 
-def test_ee_init():
-    """Check that Earth Engine was initialized"""
-    assert ee.Number(1).getInfo() == 1
-
-
 def test_Image_default_parameters():
     m = model.Image(default_image())
     assert m.etr_source == None
