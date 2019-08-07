@@ -41,11 +41,6 @@ def parse_scene_id(output_info):
     return sorted(['_'.join(x.split('_')[-3:]) for x in output])
 
 
-def test_ee_init():
-    """Check that Earth Engine was initialized"""
-    assert ee.Number(1).getInfo() == 1
-
-
 def test_Collection_init_default_parameters():
     """Test if init sets default parameters"""
     args = default_coll_args()

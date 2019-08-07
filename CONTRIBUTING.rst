@@ -43,7 +43,7 @@ Install additional Python modules using conda (and pip for modules not currently
 
 .. code-block:: console
 
-    conda install earthengine-api oauth2client pytest
+    conda install earthengine-api pytest
     pip install openet-core --no-deps
 
 Updating OpenET Module
