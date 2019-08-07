@@ -4,7 +4,7 @@ import pprint
 import ee
 import pytest
 
-import openet.ssebop as model
+import openet.ssebop as ssebop
 import openet.ssebop.utils as utils
 # TODO: import utils from openet.core
 # import openet.core.utils as utils
@@ -62,13 +62,13 @@ def default_image_args(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
 
 def default_image_obj(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
                       etr_band='etr', etr_factor=0.85):
-    return model.Image(**default_image_args(
+    return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
         etr_source=etr_source, etr_band=etr_band, etr_factor=etr_factor))
 
 
 def test_Image_default_parameters():
-    m = model.Image(default_image())
+    m = ssebop.Image(default_image())
     assert m.etr_source == None
     assert m.etr_band == None
     assert m.etr_factor == 1.0
@@ -107,16 +107,16 @@ def test_Image_init_date_properties():
 def test_Image_init_scene_id_property():
     """Test that the system:index from a merged collection is parsed"""
     input_img = default_image()
-    m = model.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
+    m = ssebop.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
     assert utils.getinfo(m._scene_id) == SCENE_ID
 
 
 def test_Image_init_elr_flag_str():
     """Test that the elr_flag can be read as a string"""
-    assert model.Image(default_image(), elr_flag='FALSE')._elr_flag == False
-    assert model.Image(default_image(), elr_flag='true')._elr_flag == True
+    assert ssebop.Image(default_image(), elr_flag='FALSE')._elr_flag == False
+    assert ssebop.Image(default_image(), elr_flag='true')._elr_flag == True
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), elr_flag='FOO')._elr_flag)
+        utils.getinfo(ssebop.Image(default_image(), elr_flag='FOO')._elr_flag)
 
 
 @pytest.mark.parametrize(
@@ -136,14 +136,14 @@ def test_Image_init_elr_flag_str():
 )
 def test_Image_static_ndvi_calculation(red, nir, expected, tol=0.000001):
     toa = toa_image(red=red, nir=nir)
-    output = utils.constant_image_value(model.Image._ndvi(toa))
+    output = utils.constant_image_value(ssebop.Image._ndvi(toa))
     # logging.debug('\n  Target values: {}'.format(expected))
     # logging.debug('  Output values: {}'.format(output))
     assert abs(output['ndvi'] - expected) <= tol
 
 
 def test_Image_static_ndvi_band_name():
-    output = utils.getinfo(model.Image._ndvi(toa_image()))
+    output = utils.getinfo(ssebop.Image._ndvi(toa_image()))
     assert output['bands'][0]['id'] == 'ndvi'
 
 
@@ -164,12 +164,12 @@ def test_Image_static_ndvi_band_name():
 )
 def test_Image_static_emissivity_calculation(red, nir, expected, tol=0.000001):
     output = utils.constant_image_value(
-        model.Image._emissivity(toa_image(red=red, nir=nir)))
+        ssebop.Image._emissivity(toa_image(red=red, nir=nir)))
     assert abs(output['emissivity'] - expected) <= tol
 
 
 def test_Image_static_emissivity_band_name():
-    output = utils.getinfo(model.Image._emissivity(toa_image()))
+    output = utils.getinfo(ssebop.Image._emissivity(toa_image()))
     assert output['bands'][0]['id'] == 'emissivity'
 
 
@@ -181,12 +181,12 @@ def test_Image_static_emissivity_band_name():
 )
 def test_Image_static_lst_calculation(red, nir, bt, expected, tol=0.000001):
     output = utils.constant_image_value(
-        model.Image._lst(toa_image(red=red, nir=nir, bt=bt)))
+        ssebop.Image._lst(toa_image(red=red, nir=nir, bt=bt)))
     assert abs(output['lst'] - expected) <= tol
 
 
 def test_Image_static_lst_band_name():
-    output = utils.getinfo(model.Image._lst(toa_image()))
+    output = utils.getinfo(ssebop.Image._lst(toa_image()))
     assert output['bands'][0]['id'] == 'lst'
 
 
@@ -199,14 +199,14 @@ def test_Image_static_lst_band_name():
     ]
 )
 def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
-    output = utils.constant_image_value(model.Image._lapse_adjust(
+    output = utils.constant_image_value(ssebop.Image._lapse_adjust(
         ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
     assert abs(output['constant'] - expected) <= tol
 
 
 def test_Image_ndvi_properties():
     """Test if properties are set on the NDVI image"""
-    output = utils.getinfo(model.Image(default_image()).ndvi)
+    output = utils.getinfo(ssebop.Image(default_image()).ndvi)
     assert output['bands'][0]['id'] == 'ndvi'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
@@ -215,7 +215,7 @@ def test_Image_ndvi_properties():
 
 def test_Image_lst_properties():
     """Test if properties are set on the LST image"""
-    output = utils.getinfo(model.Image(default_image()).lst)
+    output = utils.getinfo(ssebop.Image(default_image()).lst)
     assert output['bands'][0]['id'] == 'lst'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
@@ -232,7 +232,7 @@ def test_Image_lst_properties():
 )
 def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
     """Test getting median dT values for a single date at a real point"""
-    m = model.Image(default_image(), dt_source=dt_source)
+    m = ssebop.Image(default_image(), dt_source=dt_source)
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
@@ -248,7 +248,7 @@ def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
 )
 def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
     """Check that dT values are clamped to dt_min and dt_max (6, 25)"""
-    m = model.Image(default_image(), dt_source=dt_source)
+    m = ssebop.Image(default_image(), dt_source=dt_source)
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
@@ -263,7 +263,7 @@ def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
 )
 def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
     """Test getting condatnt dT values for a single date at a real point"""
-    m = model.Image(default_image(), dt_source=dt_source)
+    m = ssebop.Image(default_image(), dt_source=dt_source)
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
 
@@ -278,7 +278,7 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
 )
 def test_Image_dt_source_calculated(dt_source, date, xy, expected, tol=0.001):
     """Test getting calculated dT values for a single date at a real point"""
-    m = model.Image(default_image(), dt_source=dt_source)
+    m = ssebop.Image(default_image(), dt_source=dt_source)
     # Start/end date are needed to filter the source collection
     m._start_date = ee.Date.parse('yyyy-MM-dd', date)
     m._end_date = ee.Date.parse('yyyy-MM-dd', date).advance(1, 'day')
@@ -291,7 +291,7 @@ def test_Image_dt_source_calculated(dt_source, date, xy, expected, tol=0.001):
 
 def test_Image_dt_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), dt_source='').dt)
+        utils.getinfo(ssebop.Image(default_image(), dt_source='').dt)
 
 
 @pytest.mark.parametrize(
@@ -303,7 +303,7 @@ def test_Image_dt_sources_exception():
     ]
 )
 def test_Image_dt_clamping(doy, dt_min, dt_max):
-    m = model.Image(default_image(), dt_source='DAYMET_MEDIAN_V1',
+    m = ssebop.Image(default_image(), dt_source='DAYMET_MEDIAN_V1',
                     dt_min=dt_min, dt_max=dt_max)
     m._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
@@ -334,13 +334,13 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
     output = utils.point_image_value(
-        model.Image(default_image(), elev_source=elev_source).elev, xy)
+        ssebop.Image(default_image(), elev_source=elev_source).elev, xy)
     assert abs(output['elev'] - expected) <= tol
 
 
 def test_Image_elev_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), elev_source='').elev)
+        utils.getinfo(ssebop.Image(default_image(), elev_source='').elev)
 
 
 def test_Image_elev_band_name():
@@ -401,7 +401,7 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
     input_image = ee.Image.constant(1).set({
         'system:index': scene_id,
         'system:time_start': ee.Date(scene_date).millis()})
-    m = model.Image(input_image, tcorr_source=tcorr_source,
+    m = ssebop.Image(input_image, tcorr_source=tcorr_source,
                      tmax_source=tmax_source)
     # Overwrite the month property with the test value
     m._month = ee.Number(month)
@@ -433,7 +433,7 @@ def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
         .strftime('%Y-%m-%d')
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date(scene_date).millis()})
-    tcorr_img, index_img = model.Image(
+    tcorr_img, index_img = ssebop.Image(
         input_image, tcorr_source=tcorr_source, tmax_source=tmax_source).tcorr
 
     # Tcorr images are constant images and need to be queried at a point
@@ -449,7 +449,7 @@ def test_Image_tcorr_image_month(expected=[0.9723, 1], tol=0.0001):
     # 1980-07-04 should have the same cycle_day value as previous tests
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date('1980-07-04').millis()})
-    m = model.Image(input_image, tcorr_source='IMAGE',
+    m = ssebop.Image(input_image, tcorr_source='IMAGE',
                      tmax_source='TOPOWX_MEDIAN_V0')
     tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -462,7 +462,7 @@ def test_Image_tcorr_image_annual(expected=[0.9786, 2], tol=0.0001):
     """Test getting annual Tcorr from composite when monthly/daily are missing"""
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date('1980-07-04').millis()})
-    m = model.Image(input_image, tcorr_source='IMAGE',
+    m = ssebop.Image(input_image, tcorr_source='IMAGE',
                      tmax_source='TOPOWX_MEDIAN_V0')
     m._month = ee.Number(9999)
     tcorr_img, index_img = m.tcorr
@@ -476,7 +476,7 @@ def test_Image_tcorr_image_default(expected=[0.978, 3], tol=0.0001):
     """Test getting default Tcorr from composite"""
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date('1980-07-04').millis()})
-    m = model.Image(input_image, tcorr_source='IMAGE',
+    m = ssebop.Image(input_image, tcorr_source='IMAGE',
                      tmax_source='TOPOWX_MEDIAN_V0')
     m._month = ee.Number(9999)
     m._cycle_day = ee.Number(9999)
@@ -491,7 +491,7 @@ def test_Image_tcorr_image_daily():
     """Tcorr should be masked for date outside range with IMAGE_DAILY"""
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date('1980-07-04').millis()})
-    m = model.Image(input_image, tcorr_source='IMAGE_DAILY',
+    m = ssebop.Image(input_image, tcorr_source='IMAGE_DAILY',
                      tmax_source='TOPOWX_MEDIAN_V0')
     tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -509,7 +509,7 @@ def test_Image_tcorr_image_daily_last_date_ingested():
     """
     input_image = ee.Image.constant(1).set({
         'system:time_start': ee.Date('1979-01-01').millis()})
-    m = model.Image(input_image, tcorr_source='IMAGE_DAILY',
+    m = ssebop.Image(input_image, tcorr_source='IMAGE_DAILY',
                      tmax_source='TOPOWX_MEDIAN_V0')
     tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -526,7 +526,7 @@ def test_Image_tcorr_image_daily_last_date_ingested():
 )
 def test_Image_tcorr_sources_exception(tcorr_src):
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), tcorr_source=tcorr_src).tcorr)
+        utils.getinfo(ssebop.Image(default_image(), tcorr_source=tcorr_src).tcorr)
 
 
 @pytest.mark.parametrize(
@@ -538,7 +538,7 @@ def test_Image_tcorr_sources_exception(tcorr_src):
 )
 def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), tcorr_source=tcorr_src,
+        utils.getinfo(ssebop.Image(default_image(), tcorr_source=tcorr_src,
                                    tmax_source=tmax_src).tcorr)
 
 
@@ -564,14 +564,14 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
-    output_img = model.Image(default_image(), tmax_source=tmax_source).tmax
+    output_img = ssebop.Image(default_image(), tmax_source=tmax_source).tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
 def test_Image_tmax_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(model.Image(default_image(), tmax_source='').tmax)
+        utils.getinfo(ssebop.Image(default_image(), tmax_source='').tmax)
 
 
 @pytest.mark.parametrize(
@@ -591,7 +591,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
     input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
         .set({'system:index': SCENE_ID,
               'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
-    output_img = model.Image(input_img, tmax_source=tmax_source).tmax
+    output_img = ssebop.Image(input_img, tmax_source=tmax_source).tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output['tmax'] - expected) <= tol
 
@@ -616,7 +616,7 @@ today_dt = datetime.datetime.today()
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
     output = utils.getinfo(
-        model.Image(default_image(), tmax_source=tmax_source).tmax)
+        ssebop.Image(default_image(), tmax_source=tmax_source).tmax)
     assert output['properties']['TMAX_SOURCE'] == tmax_source
     assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
 
@@ -648,7 +648,7 @@ def test_Image_tmax_properties(tmax_source, expected):
 )
 def test_Image_etf_values(lst, ndvi, dt, elev, tcorr, tmax, expected,
                           tol=0.0001):
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax).etf
     output = utils.constant_image_value(ee.Image(output_img))
@@ -663,7 +663,7 @@ def test_Image_etf_values(lst, ndvi, dt, elev, tcorr, tmax, expected,
 )
 def test_Image_etf_clamp_nodata(lst, ndvi, dt, elev, tcorr, tmax, expected):
     """Test that ETf is set to nodata for ETf > 1.3"""
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax).etf
     output = utils.constant_image_value(ee.Image(output_img))
@@ -683,7 +683,7 @@ def test_Image_etf_clamp_nodata(lst, ndvi, dt, elev, tcorr, tmax, expected):
 def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
                              tol=0.0001):
     """Test that elr_flag works and changes ETf values"""
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr).etf
     output = utils.constant_image_value(ee.Image(output_img))
@@ -703,7 +703,7 @@ def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
 def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
                                expected):
     """Test that ETf is set to nodata for tdiff values outside threshold"""
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).etf
     output = utils.constant_image_value(ee.Image(output_img))
@@ -721,7 +721,7 @@ def test_Image_etf_properties():
 def test_Image_etf_image_tcorr_properties():
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
-        model.Image(default_image(), tcorr_source='IMAGE').etf)
+        ssebop.Image(default_image(), tcorr_source='IMAGE').etf)
     assert 'tcorr' not in output['properties'].keys()
     assert 'tcorr_index' not in output['properties'].keys()
 
@@ -729,7 +729,7 @@ def test_Image_etf_image_tcorr_properties():
 def test_Image_etf_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
-        model.Image(default_image(), tcorr_source='FEATURE').etf)
+        ssebop.Image(default_image(), tcorr_source='FEATURE').etf)
     assert abs(output['properties']['tcorr'] - 0.9752) <= tol
     assert output['properties']['tcorr_index'] == 0
 
@@ -745,7 +745,7 @@ def test_Image_etr_properties():
 
 def test_Image_etr_values(tol=0.0001):
     output = utils.constant_image_value(
-        model.Image(default_image(), etr_source=10).etr)
+        ssebop.Image(default_image(), etr_source=10).etr)
     assert abs(output['etr'] - 10) <= tol
 
 
@@ -759,7 +759,7 @@ def test_Image_et_properties(tol=0.0001):
 
 
 def test_Image_et_values(tol=0.0001):
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310, etr_source=10).et
     output = utils.constant_image_value(output_img)
@@ -776,7 +776,7 @@ def test_Image_mask_properties():
 
 
 def test_Image_mask_values():
-    output_img = model.Image(
+    output_img = ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).mask
     output = utils.constant_image_value(output_img)
@@ -795,7 +795,7 @@ def test_Image_time_properties():
 def test_Image_time_values():
     # The time image is currently being built from the etf image, so all the
     #   ancillary values must be set for the constant_image_value to work.
-    output = utils.constant_image_value(model.Image(
+    output = utils.constant_image_value(ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).time)
     assert output['time'] == SCENE_TIME
@@ -829,7 +829,7 @@ def test_Image_calculate_variables_all():
 
 def test_Image_calculate_values(tol=0.0001):
     """Test if the calculate method returns ET, ETr, and ETf values"""
-    output_img = model.Image(
+    output_img = ssebop.Image(
             default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
             tcorr_source=0.98, tmax_source=310, etr_source=10)\
         .calculate(['et', 'etr', 'etf'])
@@ -848,7 +848,7 @@ def test_Image_calculate_variables_valueerror():
 # How should these @classmethods be tested?
 def test_Image_from_landsat_c1_toa_default_image():
     """Test that the classmethod is returning a class object"""
-    output = model.Image.from_landsat_c1_toa(ee.Image(COLL_ID + SCENE_ID))
+    output = ssebop.Image.from_landsat_c1_toa(ee.Image(COLL_ID + SCENE_ID))
     assert type(output) == type(default_image_obj())
 
 
@@ -864,14 +864,14 @@ def test_Image_from_landsat_c1_toa_default_image():
 )
 def test_Image_from_landsat_c1_toa_image_id(image_id):
     """Test instantiating the class from a Landsat image ID"""
-    output = utils.getinfo(model.Image.from_landsat_c1_toa(image_id).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_toa_image():
     """Test instantiating the class from a Landsat ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_toa(
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
@@ -879,26 +879,26 @@ def test_Image_from_landsat_c1_toa_image():
 def test_Image_from_landsat_c1_toa_etf():
     """Test if ETf can be built for a Landsat images"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_toa(image_id).etf)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).etf)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_toa_et():
     """Test if ET can be built for a Landsat images"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_toa(
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_toa_exception():
     with pytest.raises(Exception):
-        utils.getinfo(model.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi)
+        utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi)
 
 
 def test_Image_from_landsat_c1_sr_default_image():
     """Test that the classmethod is returning a class object"""
-    output = model.Image.from_landsat_c1_sr(ee.Image(COLL_ID + SCENE_ID))
+    output = ssebop.Image.from_landsat_c1_sr(ee.Image(COLL_ID + SCENE_ID))
     assert type(output) == type(default_image_obj())
 
 
@@ -914,28 +914,28 @@ def test_Image_from_landsat_c1_sr_default_image():
 )
 def test_Image_from_landsat_c1_sr_image_id(image_id):
     """Test instantiating the class from a Landsat image ID"""
-    output = utils.getinfo(model.Image.from_landsat_c1_sr(image_id).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_image():
     """Test instantiating the class from a Landsat ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_etf():
     """Test if ETf can be built for a Landsat images"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_sr(image_id).etf)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).etf)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_et():
     """Test if ET can be built for a Landsat images"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(model.Image.from_landsat_c1_sr(
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
         image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
@@ -943,7 +943,7 @@ def test_Image_from_landsat_c1_sr_et():
 def test_Image_from_landsat_c1_sr_exception():
     """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
-        utils.getinfo(model.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
+        utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
 
 
 # @pytest.mark.parametrize(
@@ -955,24 +955,24 @@ def test_Image_from_landsat_c1_sr_exception():
 # )
 # def test_Image_from_image_id(image_id):
 #     """Test instantiating the class using the from_image_id method"""
-#     output = utils.getinfo(model.Image.from_image_id(image_id).ndvi)
+#     output = utils.getinfo(ssebop.Image.from_image_id(image_id).ndvi)
 #     assert output['properties']['system:index'] == image_id.split('/')[-1]
 #     assert output['properties']['image_id'] == image_id
 
 
 def test_Image_from_method_kwargs():
     """Test that the init parameters can be passed through the helper methods"""
-    assert model.Image.from_landsat_c1_toa(
+    assert ssebop.Image.from_landsat_c1_toa(
         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
         elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
-    assert model.Image.from_landsat_c1_sr(
+    assert ssebop.Image.from_landsat_c1_sr(
         'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
         elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
 
 
 def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
                                   tol=0.0001):
-    output = utils.constant_image_value(model.Image(
+    output = utils.constant_image_value(ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
     assert abs(output['tcorr'] - expected) <= tol
 
@@ -988,7 +988,7 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     ]
 )
 def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
-    output = utils.constant_image_value(model.Image(
+    output = utils.constant_image_value(ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
     assert output['tcorr'] is None and expected is None
 
@@ -1013,7 +1013,7 @@ def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
     input_image = ee.Image(default_image(ndvi=0.8, lst=308)) \
         .clip(ee.Geometry.Rectangle(-120, 39, -119, 40))
     output = utils.getinfo(
-        model.Image(input_image, dt_source=10, elev_source=50,
+        ssebop.Image(input_image, dt_source=10, elev_source=50,
                      tcorr_source=0.98, tmax_source=310).tcorr_stats)
     assert abs(output['tcorr_p5'] - expected) <= tol
     assert output['tcorr_count'] == 1
@@ -1035,7 +1035,7 @@ def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):
-    output = utils.getinfo(model.Image.from_landsat_c1_toa(
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id)).tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']
