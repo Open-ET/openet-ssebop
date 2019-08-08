@@ -192,6 +192,12 @@ References
 .. [Senay2018]
  | Senay, G. (2018). Satellite Psychrometric Formulation of the Operational Simplified Surface Energy Balance (SSEBop) Model for Quantifying and Mapping Evapotranspiration. *Applied Engineering in Agriculture*, 34(3).
  | `https://doi.org/10.13031/aea.12614 <https://doi.org/10.13031/aea.12614>`__
+.. [Senay2019]
+ | Senay, G., Schauer, M., Velpuri, N.M., Singh, R.K., Kagone, S., Friedrichs, M., Litvak, M.E., Douglas-Mankin, K.R. (2019). Long-Term (1986–2015) Crop Water Use Characterization over the Upper Rio Grande Basin of United States and Mexico Using Landsat-Based Evapotranspiration. *Remote Sensing*, 11(13):1587.
+ | `https://doi.org/10.3390/rs11131587 <https://doi.org/10.3390/rs11131587>`__
+.. [Schauer2019]
+ | Schauer, M.,Senay, G. (2019). Characterizing Crop Water Use Dynamics in the Central Valley of California Using Landsat-Derived Evapotranspiration. *Remote Sensing*, 11(15):1782.
+ | `https://doi.org/10.3390/rs11151782 <https://doi.org/10.3390/rs11151782>`__
 
 .. |build| image:: https://travis-ci.org/Open-ET/openet-ssebop-beta.svg?branch=master
    :alt: Build status
