@@ -3,6 +3,52 @@ import math
 import ee
 
 
+def etf(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False, elev=None):
+    """SSEBop fraction of reference ET (ETf)
+
+    Parameters
+    ----------
+    lst : ee.Image
+        Land surface temperature (lst) [L].
+    tmax : ee.Image
+        Maximum air temperature [K].
+    tcorr : ee.Image, ee.Number
+        Tcorr.
+    dt : ee.Image, ee.Number
+        Temperature difference [K].
+    tdiff_threshold : float, optional
+        Threshold value [K] for cloud masking based on Tdiff.
+        Pixels with (Tmax - LST) > Tdiff threshold will be masked.
+        (the default is 15).
+    elr_flag : bool, optional
+        If True, apply Elevation Lapse Rate (ELR) adjustment
+        (the default is False).
+    elev : ee.Image, ee.Number, optional
+        Elevation [m] (the default is None).  Only needed if elr_flag is True.
+
+    Returns
+    -------
+    ee.Image
+
+    References
+    ----------
+
+
+    """
+    # Adjust air temperature based on elevation (Elevation Lapse Rate)
+    if elr_flag:
+        tmax = ee.Image(lapse_adjust(tmax, ee.Image(elev)))
+
+    etf = lst.expression(
+        '(lst * (-1) + tmax * tcorr + dt) / dt',
+        {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
+
+    return etf.updateMask(etf.lt(1.3))\
+        .clamp(0, 1.05)\
+        .updateMask(tmax.subtract(lst).lte(tdiff_threshold))\
+        .rename(['etf'])
+
+
 def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
     """Temperature difference between hot/dry ground and cold/wet canopy
 
@@ -106,3 +152,29 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
     dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
 
     return dt
+
+
+def lapse_adjust(temperature, elev, lapse_threshold=1500):
+    """Elevation Lapse Rate (ELR) adjusted temperature [K]
+
+    Parameters
+    ----------
+    temperature : ee.Image
+        Temperature [K].
+    elev : ee.Image
+        Elevation [m].
+    lapse_threshold : float
+        Minimum elevation to adjust temperature [m] (the default is 1500).
+
+    Returns
+    -------
+    ee.Image
+
+    """
+    elr_adjust = ee.Image(temperature).expression(
+        '(temperature - (0.003 * (elev - threshold)))',
+        {
+            'temperature': temperature, 'elev': elev,
+            'threshold': lapse_threshold
+        })
+    return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)

@@ -29,4 +29,4 @@ def pytest_configure():
 @pytest.fixture(scope="session", autouse=True)
 def test_init():
     # Make a simple EE request
-    logging.debug(ee.Number(1).getInfo())
+    ee.Number(1).getInfo()

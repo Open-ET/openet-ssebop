@@ -119,91 +119,6 @@ def test_Image_init_elr_flag_str():
         utils.getinfo(ssebop.Image(default_image(), elr_flag='FOO')._elr_flag)
 
 
-@pytest.mark.parametrize(
-    'red, nir, expected',
-    [
-        [0.2, 9.0 / 55, -0.1],
-        [0.2, 0.2,  0.0],
-        [0.1, 11.0 / 90,  0.1],
-        [0.2, 0.3, 0.2],
-        [0.1, 13.0 / 70, 0.3],
-        [0.3, 0.7, 0.4],
-        [0.2, 0.6, 0.5],
-        [0.2, 0.8, 0.6],
-        [0.1, 17.0 / 30, 0.7],
-        [0.1, 0.9, 0.8],
-    ]
-)
-def test_Image_static_ndvi_calculation(red, nir, expected, tol=0.000001):
-    toa = toa_image(red=red, nir=nir)
-    output = utils.constant_image_value(ssebop.Image._ndvi(toa))
-    # logging.debug('\n  Target values: {}'.format(expected))
-    # logging.debug('  Output values: {}'.format(output))
-    assert abs(output['ndvi'] - expected) <= tol
-
-
-def test_Image_static_ndvi_band_name():
-    output = utils.getinfo(ssebop.Image._ndvi(toa_image()))
-    assert output['bands'][0]['id'] == 'ndvi'
-
-
-@pytest.mark.parametrize(
-    'red, nir, expected',
-    [
-        [0.2, 9.0 / 55, 0.985],      # -0.1
-        [0.2, 0.2,  0.977],          # 0.0
-        [0.1, 11.0 / 90,  0.977],    # 0.1
-        [0.2, 0.2999, 0.977],        # 0.3- (0.3 NIR isn't exactly an NDVI of 0.2)
-        [0.2, 0.3001, 0.986335],     # 0.3+
-        [0.1, 13.0 / 70, 0.986742],  # 0.3
-        [0.3, 0.7, 0.987964],        # 0.4
-        [0.2, 0.6, 0.99],            # 0.5
-        [0.2, 0.8, 0.99],            # 0.6
-        [0.1, 17.0 / 30, 0.99],      # 0.7
-    ]
-)
-def test_Image_static_emissivity_calculation(red, nir, expected, tol=0.000001):
-    output = utils.constant_image_value(
-        ssebop.Image._emissivity(toa_image(red=red, nir=nir)))
-    assert abs(output['emissivity'] - expected) <= tol
-
-
-def test_Image_static_emissivity_band_name():
-    output = utils.getinfo(ssebop.Image._emissivity(toa_image()))
-    assert output['bands'][0]['id'] == 'emissivity'
-
-
-@pytest.mark.parametrize(
-    'red, nir, bt, expected',
-    [
-        [0.2, 0.7, 300, 303.471031],
-    ]
-)
-def test_Image_static_lst_calculation(red, nir, bt, expected, tol=0.000001):
-    output = utils.constant_image_value(
-        ssebop.Image._lst(toa_image(red=red, nir=nir, bt=bt)))
-    assert abs(output['lst'] - expected) <= tol
-
-
-def test_Image_static_lst_band_name():
-    output = utils.getinfo(ssebop.Image._lst(toa_image()))
-    assert output['bands'][0]['id'] == 'lst'
-
-
-@pytest.mark.parametrize(
-    'tmax, elev, threshold, expected',
-    [
-        [305, 1500, 1500, 305],
-        [305, 2000, 1500, 303.5],
-        [305, 500, 0, 303.5],
-    ]
-)
-def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
-    output = utils.constant_image_value(ssebop.Image._lapse_adjust(
-        ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
-    assert abs(output['constant'] - expected) <= tol
-
-
 def test_Image_ndvi_properties():
     """Test if properties are set on the NDVI image"""
     output = utils.getinfo(ssebop.Image(default_image()).ndvi)
@@ -622,57 +537,20 @@ def test_Image_tmax_properties(tmax_source, expected):
 
 
 @pytest.mark.parametrize(
-    # Note: These are made up values
-    'lst, ndvi, dt, elev, tcorr, tmax, expected',
-    [
-        # Basic ETf test
-        [308, 0.50, 10, 50, 0.98, 310, 0.58],
-        # Test ETf clamp conditions
-        [300, 0.80, 15, 50, 0.98, 310, 1.05],
-        [319, 0.80, 15, 50, 0.98, 310, 0.0],
-        # Test dT high, max/min, and low clamp values
-        [305, 0.80, 26, 50, 0.98, 310, 0.952],
-        [305, 0.80, 25, 50, 0.98, 310, 0.952],
-        [305, 0.80, 6, 50, 0.98, 310, 0.8],
-        [305, 0.80, 5, 50, 0.98, 310, 0.8],
-        # High and low test values (made up numbers)
-        [305, 0.80, 15, 50, 0.98, 310, 0.9200],
-        [315, 0.10, 15, 50, 0.98, 310, 0.2533],
-        # Test Tcorr
-        [305, 0.80, 15, 50, 0.985, 310, 1.0233],
-        [315, 0.10, 15, 50, 0.985, 310, 0.3566],
-        # Central Valley test values
-        [302, 0.80, 17, 50, 0.985, 308, 1.05],
-        [327, 0.08, 17, 50, 0.985, 308, 0.0],
-    ]
+    'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
 )
-def test_Image_etf_values(lst, ndvi, dt, elev, tcorr, tmax, expected,
-                          tol=0.0001):
+def test_Image_etf_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
     output_img = ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+        default_image(), dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax).etf
     output = utils.constant_image_value(ee.Image(output_img))
     assert abs(output['etf'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
-    'lst, ndvi, dt, elev, tcorr, tmax, expected',
-    [
-        [300, 0.80, 10, 50, 0.98, 310, None],
-    ]
-)
-def test_Image_etf_clamp_nodata(lst, ndvi, dt, elev, tcorr, tmax, expected):
-    """Test that ETf is set to nodata for ETf > 1.3"""
-    output_img = ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax).etf
-    output = utils.constant_image_value(ee.Image(output_img))
-    assert output['etf'] is None and expected is None
+    # assert output['etf'] > 0
 
 
 @pytest.mark.parametrize(
     # Note: These are made up values
-    'lst, ndvi, dt, elev, tcorr, tmax, elr, expected',
+    'lst, ndvi, dt, elev, tcorr, tmax, elr_flag, expected',
     [
         # Test ELR flag
         [305, 0.80, 15, 2000, 0.98, 310, False, 0.9200],
@@ -680,12 +558,12 @@ def test_Image_etf_clamp_nodata(lst, ndvi, dt, elev, tcorr, tmax, expected):
         [315, 0.10, 15, 2000, 0.98, 310, True, 0.1553],
     ]
 )
-def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
-                             tol=0.0001):
+def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
+                             expected, tol=0.0001):
     """Test that elr_flag works and changes ETf values"""
     output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr).etf
+        tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr_flag).etf
     output = utils.constant_image_value(ee.Image(output_img))
     assert abs(output['etf'] - expected) <= tol
 
@@ -696,8 +574,6 @@ def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr, expected,
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [299, 0.80, 15, 50, 0.98, 310, 10, None],
         [304, 0.10, 15, 50, 0.98, 310, 5, None],
-        # CGM - Why is a string dt being tested in this test
-        [304, 0.10, '15', 50, 0.98, 310, 5, None],
     ]
 )
 def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,

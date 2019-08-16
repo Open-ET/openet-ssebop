@@ -4,6 +4,7 @@ import pprint
 
 import ee
 
+from . import landsat
 from . import model
 from . import utils
 import openet.core.common as common
@@ -74,8 +75,9 @@ class Image():
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
         tdiff_threshold : float, optional
-            Cloud mask buffer using Tdiff [K] (the default is 15).
+            Threshold value [K] for cloud masking based on Tdiff.
             Pixels with (Tmax - LST) > Tdiff threshold will be masked.
+            (the default is 15).
         dt_min : float, optional
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
@@ -186,58 +188,25 @@ class Image():
         return ee.Image(output_images).set(self._properties)
 
     @lazy_property
-    def lst(self):
-        """Return land surface temperature (LST) image"""
-        return self.image.select(['lst']).set(self._properties)
-
-    @lazy_property
-    def ndvi(self):
-        """Return NDVI image"""
-        return self.image.select(['ndvi']).set(self._properties)
-
-    @lazy_property
     def etf(self):
-        """Compute SSEBop ETf for a single image
-
-        Returns
-        -------
-        ee.Image
-
-        Notes
-        -----
-        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
-
-        """
-        # Get input images and ancillary data needed to compute SSEBop ETf
-        lst = ee.Image(self.lst)
+        """Fraction of reference ET (ETf)"""
         tcorr, tcorr_index = self.tcorr
-        tmax = ee.Image(self.tmax)
-        dt = ee.Image(self.dt)
 
-        # Adjust air temperature based on elevation (Elevation Lapse Rate)
-        if self._elr_flag:
-            tmax = ee.Image(self._lapse_adjust(tmax, ee.Image(self.elev)))
-
-        # Compute SSEBop ETf
-        etf = lst.expression(
-            '(lst * (-1) + tmax * tcorr + dt) / dt',
-            {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
-
-        etf = etf.updateMask(etf.lt(1.3))\
-            .clamp(0, 1.05)\
-            .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold))\
-            .set(self._properties).rename(['etf'])
+        etf = model.etf(
+            lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
+            tdiff_threshold=self._tdiff_threshold, elr_flag=self._elr_flag,
+            elev=self.elev)
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
                 'IMAGE' not in self._tcorr_source.upper()):
             etf = etf.set({'tcorr': tcorr, 'tcorr_index': tcorr_index})
 
-        return etf
+        return etf.set(self._properties)
 
     @lazy_property
     def etr(self):
-        """Compute reference ET for the image date"""
+        """Reference ET for the image date"""
         if utils.is_number(self.etr_source):
             # Interpret numbers as constant images
             # CGM - Should we use the ee_types here instead?
@@ -280,15 +249,25 @@ class Image():
 
     @lazy_property
     def et(self):
-        """Compute actual ET as fraction of reference times reference"""
+        """Actual ET as fraction of reference times"""
         return self.etf.multiply(self.etr)\
             .rename(['et']).set(self._properties)
+
+    @lazy_property
+    def lst(self):
+        """Input land surface temperature (LST) [K]"""
+        return self.image.select(['lst']).set(self._properties)
 
     @lazy_property
     def mask(self):
         """Mask of all active pixels (based on the final etf)"""
         return self.etf.multiply(0).add(1).updateMask(1)\
             .rename(['mask']).set(self._properties).uint8()
+
+    @lazy_property
+    def ndvi(self):
+        """Input normalized difference vegetation index (NDVI)"""
+        return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
     def quality(self):
@@ -393,7 +372,7 @@ class Image():
 
     @lazy_property
     def elev(self):
-        """
+        """Elevation [m]
 
         Returns
         -------
@@ -828,7 +807,10 @@ class Image():
             .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
-        input_image = ee.Image([cls._lst(prep_image), cls._ndvi(prep_image)])
+        input_image = ee.Image([
+            landsat.lst(prep_image),
+            landsat.ndvi(prep_image),
+        ])
 
         # Apply the cloud mask and add properties
         input_image = input_image\
@@ -874,22 +856,22 @@ class Image():
         # TODO: Follow up with Simon about adding K1/K2 to SR collection
         # Hardcode values for now
         k1 = ee.Dictionary({
-            # 'LANDSAT_4': 607.76,
-            'LANDSAT_5': 607.76, 'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853})
+            'LANDSAT_4': 607.76, 'LANDSAT_5': 607.76,
+            'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853})
         k2 = ee.Dictionary({
-            # 'LANDSAT_4': 1260.56,
-            'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
+            'LANDSAT_4': 1260.56, 'LANDSAT_5': 1260.56,
+            'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
             .set('k1_constant', ee.Number(k1.get(spacecraft_id)))\
             .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
         # k1 = ee.Dictionary({
-        #     # 'LANDSAT_4': 'K1_CONSTANT_BAND_6',
+        #     'LANDSAT_4': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
         #     'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
         # k2 = ee.Dictionary({
-        #     # 'LANDSAT_4': 'K2_CONSTANT_BAND_6',
+        #     'LANDSAT_4': 'K2_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K2_CONSTANT_BAND_6',
         #     'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
         #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
@@ -899,7 +881,10 @@ class Image():
         #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
 
         # Build the input image
-        input_image = ee.Image([cls._lst(prep_image), cls._ndvi(prep_image)])
+        input_image = ee.Image([
+            landsat.lst(prep_image),
+            landsat.ndvi(prep_image),
+        ])
 
         # Apply the cloud mask and add properties
         input_image = input_image\
@@ -912,146 +897,6 @@ class Image():
 
         # Instantiate the class
         return cls(input_image, **kwargs)
-
-    @staticmethod
-    def _ndvi(toa_image):
-        """Compute NDVI
-
-        Parameters
-        ----------
-        toa_image : ee.Image
-            Renamed TOA image with 'nir' and 'red bands.
-
-        Returns
-        -------
-        ee.Image
-
-        """
-        return ee.Image(toa_image).normalizedDifference(['nir', 'red'])\
-            .rename(['ndvi'])
-
-    @staticmethod
-    def _lst(toa_image):
-        """Compute emissivity corrected land surface temperature (LST)
-        from brightness temperature.
-
-        Parameters
-        ----------
-        toa_image : ee.Image
-            Renamed TOA image with 'red', 'nir', and 'lst' bands.
-            Image must also have 'k1_constant' and 'k2_constant' properties.
-
-        Returns
-        -------
-        ee.Image
-
-        Notes
-        -----
-        The corrected radiation coefficients were derived from a small number
-        of scenes in southern Idaho [Allen2007] and may not be appropriate for
-        other areas.
-
-        References
-        ----------
-        .. [Allen2007] R. Allen, M. Tasumi, R. Trezza (2007),
-            Satellite-Based Energy Balance for Mapping Evapotranspiration with
-            Internalized Calibration (METRIC) Model,
-            Journal of Irrigation and Drainage Engineering, Vol 133(4),
-            http://dx.doi.org/10.1061/(ASCE)0733-9437(2007)133:4(380)
-
-        """
-        # Get properties from image
-        k1 = ee.Number(ee.Image(toa_image).get('k1_constant'))
-        k2 = ee.Number(ee.Image(toa_image).get('k2_constant'))
-
-        ts_brightness = ee.Image(toa_image).select(['lst'])
-        emissivity = Image._emissivity(toa_image)
-
-        # First back out radiance from brightness temperature
-        # Then recalculate emissivity corrected Ts
-        thermal_rad_toa = ts_brightness.expression(
-            'k1 / (exp(k2 / ts_brightness) - 1)',
-            {'ts_brightness': ts_brightness, 'k1': k1, 'k2': k2})
-
-        # tnb = 0.866   # narrow band transmissivity of air
-        # rp = 0.91     # path radiance
-        # rsky = 1.32   # narrow band clear sky downward thermal radiation
-        rc = thermal_rad_toa.expression(
-            '((thermal_rad_toa - rp) / tnb) - ((1. - emiss) * rsky)',
-            {
-                'thermal_rad_toa': thermal_rad_toa,
-                'emiss': emissivity,
-                'rp': 0.91, 'tnb': 0.866, 'rsky': 1.32})
-        lst = rc.expression(
-            'k2 / log(emiss * k1 / rc + 1)',
-            {'emiss': emissivity, 'rc': rc, 'k1': k1, 'k2': k2})
-
-        return lst.rename(['lst'])
-
-    @staticmethod
-    def _emissivity(toa_image):
-        """Compute emissivity as a function of NDVI
-
-        Parameters
-        ----------
-        toa_image : ee.Image
-
-        Returns
-        -------
-        ee.Image
-
-        """
-        ndvi = Image._ndvi(toa_image)
-        Pv = ndvi.expression(
-            '((ndvi - 0.2) / 0.3) ** 2', {'ndvi': ndvi})
-        # ndviRangevalue = ndvi_image.where(
-        #     ndvi_image.gte(0.2).And(ndvi_image.lte(0.5)), ndvi_image)
-        # Pv = ndviRangevalue.expression(
-        # '(((ndviRangevalue - 0.2)/0.3)**2',{'ndviRangevalue':ndviRangevalue})
-
-        # Assuming typical Soil Emissivity of 0.97 and Veg Emissivity of 0.99
-        #   and shape Factor mean value of 0.553
-        dE = Pv.expression(
-            '(1 - 0.97) * (1 - Pv) * (0.55 * 0.99)', {'Pv': Pv})
-        RangeEmiss = dE.expression(
-            '(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': Pv, 'dE': dE})
-
-        # RangeEmiss = 0.989 # dE.expression(
-        #  '((0.99*Pv)+(0.97 *(1-Pv))+dE)',{'Pv':Pv, 'dE':dE})
-        emissivity = ndvi\
-            .where(ndvi.lt(0), 0.985)\
-            .where(ndvi.gte(0).And(ndvi.lt(0.2)), 0.977)\
-            .where(ndvi.gt(0.5), 0.99)\
-            .where(ndvi.gte(0.2).And(ndvi.lte(0.5)), RangeEmiss)
-        emissivity = emissivity.clamp(0.977, 0.99)
-
-        return emissivity.select([0], ['emissivity'])
-
-    @staticmethod
-    def _lapse_adjust(temperature, elev, lapse_threshold=1500):
-        """Compute Elevation Lapse Rate (ELR) adjusted temperature
-
-        Parameters
-        ----------
-        temperature : ee.Image
-            Temperature [K].
-        elev : ee.Image
-            Elevation [m].
-        lapse_threshold : float
-            Minimum elevation to adjust temperature [m] (the default is 1500).
-
-        Returns
-        -------
-        ee.Image of adjusted temperature
-
-        """
-        elr_adjust = ee.Image(temperature).expression(
-            '(temperature - (0.003 * (elev - threshold)))',
-            {
-                'temperature': temperature, 'elev': elev,
-                'threshold': lapse_threshold
-            })
-        return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
 
     @lazy_property
     def tcorr_image(self):
