@@ -822,6 +822,21 @@ def test_Image_from_landsat_c1_sr_exception():
         utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
 
 
+def test_Image_from_landsat_c1_sr_lst():
+    """Test if inputs (mainly LST) values are being scaled"""
+    sr_img = ee.Image('LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
+    input_img = ee.Image.constant([100, 100, 100, 100, 100, 100, 3000.0, 322])\
+        .rename(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'])\
+        .set({'SATELLITE': ee.String(sr_img.get('SATELLITE')),
+              'system:id': ee.String(sr_img.get('system:id')),
+              'system:index': ee.String(sr_img.get('system:index')),
+              'system:time_start': ee.Number(sr_img.get('system:time_start'))})
+    output = utils.constant_image_value(
+        ssebop.Image.from_landsat_c1_sr(input_img).lst)
+    # Won't be exact because of emissivity correction
+    assert abs(output['lst'] - 300) <= 10
+
+
 # @pytest.mark.parametrize(
 #     'image_id',
 #     [

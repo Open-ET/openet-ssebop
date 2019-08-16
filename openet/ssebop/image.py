@@ -863,6 +863,7 @@ class Image():
             'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
+            .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
             .set('k1_constant', ee.Number(k1.get(spacecraft_id)))\
             .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
         # k1 = ee.Dictionary({
@@ -877,6 +878,7 @@ class Image():
         #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
         # prep_image = sr_image\
         #     .select(input_bands.get(spacecraft_id), output_bands)\
+        #     .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
         #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id))))\
         #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
 
