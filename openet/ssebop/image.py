@@ -42,7 +42,7 @@ class Image():
             tdiff_threshold=15,
             dt_min=6,
             dt_max=25,
-            ):
+        ):
         """Construct a generic SSEBop Image
 
         Parameters
@@ -123,7 +123,7 @@ class Image():
         self._cycle_day = self._start_date.difference(
             ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
-        #
+        # Reference ET parameters
         self.etr_source = etr_source
         self.etr_band = etr_band
         self.etr_factor = etr_factor
@@ -163,17 +163,17 @@ class Image():
         output_images = []
         for v in variables:
             if v.lower() == 'et':
-                output_images.append(self.et)
+                output_images.append(self.et.float())
             elif v.lower() == 'etf':
-                output_images.append(self.etf)
+                output_images.append(self.etf.float())
             elif v.lower() == 'etr':
-                output_images.append(self.etr)
+                output_images.append(self.etr.float())
             elif v.lower() == 'lst':
-                output_images.append(self.lst)
+                output_images.append(self.lst.float())
             elif v.lower() == 'mask':
                 output_images.append(self.mask)
             elif v.lower() == 'ndvi':
-                output_images.append(self.ndvi)
+                output_images.append(self.ndvi.float())
             # elif v.lower() == 'qa':
             #     output_images.append(self.qa)
             elif v.lower() == 'quality':
@@ -188,12 +188,12 @@ class Image():
     @lazy_property
     def lst(self):
         """Return land surface temperature (LST) image"""
-        return self.image.select(['lst']).set(self._properties).double()
+        return self.image.select(['lst']).set(self._properties)
 
     @lazy_property
     def ndvi(self):
         """Return NDVI image"""
-        return self.image.select(['ndvi']).set(self._properties).double()
+        return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
     def etf(self):
@@ -226,7 +226,7 @@ class Image():
         etf = etf.updateMask(etf.lt(1.3))\
             .clamp(0, 1.05)\
             .updateMask(tmax.subtract(lst).lte(self._tdiff_threshold))\
-            .set(self._properties).rename(['etf']).double()
+            .set(self._properties).rename(['etf'])
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
@@ -282,7 +282,7 @@ class Image():
     def et(self):
         """Compute actual ET as fraction of reference times reference"""
         return self.etf.multiply(self.etr)\
-            .rename(['et']).set(self._properties).double()
+            .rename(['et']).set(self._properties)
 
     @lazy_property
     def mask(self):
@@ -303,8 +303,6 @@ class Image():
         return self.mask\
             .double().multiply(0).add(utils.date_to_time_0utc(self._date))\
             .rename(['time']).set(self._properties)
-        # return ee.Image.constant(utils.date_to_time_0utc(self._date))\
-        #     .double().rename(['time']).set(self._properties)
 
     @lazy_property
     def dt(self):

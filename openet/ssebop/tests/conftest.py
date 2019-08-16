@@ -6,8 +6,9 @@ import ee
 import pytest
 
 
-@pytest.fixture(scope="session", autouse=True)
-def test_init():
+def pytest_configure():
+    # Called before tests are collected
+    # https://docs.pytest.org/en/latest/reference.html#_pytest.hookspec.pytest_sessionstart
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
     logging.debug('Test Setup')
 
@@ -24,5 +25,8 @@ def test_init():
     else:
         ee.Initialize()
 
+
+@pytest.fixture(scope="session", autouse=True)
+def test_init():
     # Make a simple EE request
     logging.debug(ee.Number(1).getInfo())
