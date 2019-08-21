@@ -88,7 +88,7 @@ SSEBop images can also be built manually by instantiating the class with an ee.I
         .rename(['lst', 'ndvi']) \
         .set({
             'system:index': 'LC08_044033_20170716',
-            'system:time_start': ee.Date().millis()})
+            'system:time_start': ee.Date.fromYMD(2017, 7, 16).millis()})
     etf_img = ssebop.Image(input_img).etf
 
 Example Notebooks

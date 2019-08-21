@@ -1,6 +1,6 @@
 #--------------------------------
-# Name:         dt_cleanup_daily_image.py
-# Purpose:      Remove earlier versions of daily dT images
+# Name:         tcorr_cleanup_daily_image.py
+# Purpose:      Remove earlier versions of daily tcorr images
 #--------------------------------
 
 import argparse
@@ -20,7 +20,7 @@ import utils
 
 
 def main(ini_path=None):
-    """Remove earlier versions of daily dT images
+    """Remove earlier versions of daily tcorr images
 
     Parameters
     ----------
@@ -28,7 +28,7 @@ def main(ini_path=None):
         Input file path.
 
     """
-    logging.info('\nRemove earlier versions of daily dT images')
+    logging.info('\nRemove earlier versions of daily tcorr images')
 
     ini = utils.read_ini(ini_path)
 
@@ -42,19 +42,35 @@ def main(ini_path=None):
     logging.debug('Start Date: {}'.format(start_dt.strftime('%Y-%m-%d')))
     logging.debug('End Date:   {}\n'.format(end_dt.strftime('%Y-%m-%d')))
 
-    try:
-        dt_source = str(ini[model_name]['dt_source'])
-        logging.debug('\ndt_source:\n  {}'.format(dt_source))
-    except KeyError:
-        logging.error('  dt_source: must be set in INI')
-        sys.exit()
-    if dt_source.upper() not in ['CIMIS', 'DAYMET', 'GRIDMET']:
-        raise ValueError('dt_source must be CIMIS, DAYMET, or GRIDMET')
+    tcorr_source = 'IMAGE'
 
-    # Output dT daily image collection
-    dt_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_coll'], ini[model_name]['dt_source'].lower())
-    logging.debug('  {}'.format(dt_daily_coll_id))
+    try:
+        tmax_source = str(ini[model_name]['tmax_source']).upper()
+        logging.debug('\ntmax_source:\n  {}'.format(tmax_source))
+    except KeyError:
+        logging.error('  tmax_source: must be set in INI')
+        sys.exit()
+
+    # This check is limited to TOPOWX_MEDIAN_V0 because Tcorr images have only
+    #   been built for that dataset
+    if tmax_source.upper() not in ['TOPOWX_MEDIAN_V0']:
+        raise ValueError('tmax_source must be TOPOWX')
+
+    if (tmax_source.upper() == 'CIMIS' and
+            ini['INPUTS']['end_date'] < '2003-10-01'):
+        logging.error(
+            '\nCIMIS is not currently available before 2003-10-01, exiting\n')
+        sys.exit()
+    elif (tmax_source.upper() == 'DAYMET' and
+            ini['INPUTS']['end_date'] > '2017-12-31'):
+        logging.warning(
+            '\nDAYMET is not currently available past 2017-12-31, '
+            'using median Tmax values\n')
+
+    # Output tcorr daily image collection
+    tcorr_daily_coll_id = '{}/{}_daily'.format(
+        ini['EXPORT']['export_coll'], tmax_source.lower())
+    logging.debug('  {}'.format(tcorr_daily_coll_id))
 
 
     if os.name == 'posix':
@@ -70,18 +86,19 @@ def main(ini_path=None):
 
     # Get list of existing images/files
     logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(dt_daily_coll_id, shell_flag=shell_flag)
+    asset_list = utils.get_ee_assets(tcorr_daily_coll_id, shell_flag=shell_flag)
     logging.debug('Displaying first 10 images in collection')
     logging.debug(asset_list[:10])
 
 
     # Filter asset list by INI start_date and end_date
     logging.debug('\nFiltering by INI start_date and end_date')
-    asset_re = re.compile('[\w_]+/(\d{8})_\d{8}')
+    asset_re = re.compile('(\d{8})_\d{8}')
     asset_list = [
         asset_id for asset_id in asset_list
-        if (start_dt <= datetime.datetime.strptime(asset_re.findall(asset_id)[0], '%Y%m%d') and
-            datetime.datetime.strptime(asset_re.findall(asset_id)[0], '%Y%m%d') <= end_dt)]
+        if (asset_re.match(asset_id.split('/')[-1]) and
+            start_dt <= datetime.datetime.strptime(asset_re.findall(asset_id.split('/')[-1])[0], '%Y%m%d') and
+            datetime.datetime.strptime(asset_re.findall(asset_id.split('/')[-1])[0], '%Y%m%d') <= end_dt)]
     if not asset_list:
         logging.info('Empty asset ID list after filter by start/end date, '
                      'exiting')
@@ -104,6 +121,7 @@ def main(ini_path=None):
     for key, asset_list in asset_id_dict.items():
         # logging.debug('{}'.format(key))
         if len(asset_list) >=2:
+            # logging.debug('\n  Keep: {}'.format(sorted(asset_list)[-1]))
             for asset_id in sorted(asset_list)[:-1]:
                 logging.info('  Delete: {}'.format(asset_id))
                 try:
@@ -117,7 +135,7 @@ def main(ini_path=None):
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Remove earlier versions of daily dT images',
+        description='Remove earlier versions of daily tcorr images',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,

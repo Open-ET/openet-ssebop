@@ -687,20 +687,19 @@ def test_Image_calculate_properties():
 
 def test_Image_calculate_variables_default():
     output = utils.getinfo(default_image_obj().calculate())
-    assert set([x['id'] for x in output['bands']]) == set(['et', 'etr', 'etf'])
+    assert {x['id'] for x in output['bands']} == {'et', 'etr', 'etf'}
 
 
 def test_Image_calculate_variables_custom():
-    variables = set(['ndvi'])
+    variables = {'ndvi'}
     output = utils.getinfo(default_image_obj().calculate(variables))
-    assert set([x['id'] for x in output['bands']]) == variables
+    assert {x['id'] for x in output['bands']} == variables
 
 
 def test_Image_calculate_variables_all():
-    variables = set(['et', 'etf', 'etr', 'mask', 'ndvi', 'time'])
-    output = utils.getinfo(
-        default_image_obj().calculate(variables=list(variables)))
-    assert set([x['id'] for x in output['bands']]) == variables
+    variables = {'et', 'etf', 'etr', 'mask', 'ndvi', 'time'}
+    output = utils.getinfo(default_image_obj().calculate(variables=variables))
+    assert {x['id'] for x in output['bands']} == variables
 
 
 def test_Image_calculate_values(tol=0.0001):
@@ -739,13 +738,13 @@ def test_Image_from_landsat_c1_toa_default_image():
     ]
 )
 def test_Image_from_landsat_c1_toa_image_id(image_id):
-    """Test instantiating the class from a Landsat image ID"""
+    """Test instantiating the class from a Landsat TOA image ID"""
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_toa_image():
-    """Test instantiating the class from a Landsat ee.Image"""
+    """Test instantiating the class from a Landsat TOA ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id)).ndvi)
@@ -753,14 +752,14 @@ def test_Image_from_landsat_c1_toa_image():
 
 
 def test_Image_from_landsat_c1_toa_etf():
-    """Test if ETf can be built for a Landsat images"""
+    """Test if ETf can be built for a Landsat TOA image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).etf)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_toa_et():
-    """Test if ET can be built for a Landsat images"""
+    """Test if ET can be built for a Landsat TOA image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
@@ -789,27 +788,27 @@ def test_Image_from_landsat_c1_sr_default_image():
     ]
 )
 def test_Image_from_landsat_c1_sr_image_id(image_id):
-    """Test instantiating the class from a Landsat image ID"""
+    """Test instantiating the class from a Landsat SR image ID"""
     output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_image():
-    """Test instantiating the class from a Landsat ee.Image"""
+    """Test instantiating the class from a Landsat SR ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_etf():
-    """Test if ETf can be built for a Landsat images"""
+    """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).etf)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_et():
-    """Test if ET can be built for a Landsat images"""
+    """Test if ET can be built for a Landsat image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
         image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
@@ -822,8 +821,8 @@ def test_Image_from_landsat_c1_sr_exception():
         utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
 
 
-def test_Image_from_landsat_c1_sr_lst():
-    """Test if inputs (mainly LST) values are being scaled"""
+def test_Image_from_landsat_c1_sr_scaling():
+    """Test if Landsat SR images images are being scaled"""
     sr_img = ee.Image('LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
     input_img = ee.Image.constant([100, 100, 100, 100, 100, 100, 3000.0, 322])\
         .rename(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'])\
