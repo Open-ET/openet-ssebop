@@ -51,27 +51,30 @@ def default_image(lst=305, ndvi=0.8):
 # Setting etr_source and etr_band on the default image to simplify testing
 #   but these do not have defaults in the Image class init
 def default_image_args(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
-                       etr_band='etr', etr_factor=0.85):
+                       etr_band='etr', etr_factor=0.85, etr_resample='nearest'):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
         'etr_source': etr_source,
         'etr_band': etr_band,
         'etr_factor': etr_factor,
+        'etr_resample': etr_resample,
     }
 
 
 def default_image_obj(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
-                      etr_band='etr', etr_factor=0.85):
+                      etr_band='etr', etr_factor=0.85, etr_resample='nearest'):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
-        etr_source=etr_source, etr_band=etr_band, etr_factor=etr_factor))
+        etr_source=etr_source, etr_band=etr_band,
+        etr_factor=etr_factor, etr_resample=etr_resample))
 
 
 def test_Image_init_default_parameters():
     m = ssebop.Image(default_image())
     assert m.etr_source == None
     assert m.etr_band == None
-    assert m.etr_factor == 1.0
+    assert m.etr_factor == None
+    assert m.etr_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V1'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'IMAGE'

@@ -41,12 +41,14 @@ class Collection():
             cloud_cover_max=70,
             etr_source=None,
             etr_band=None,
-            etr_factor=1.0,
+            etr_factor=None,
+            etr_resample=None,
             filter_args=None,
             model_args=None,
             # model_args={'etr_source': 'IDAHO_EPSCOR/GRIDMET',
             #             'etr_band': 'etr',
-            #             'etr_factor': 0.85},
+            #             'etr_factor': 0.85,
+            #             'etr_resample': 'bilinear},
             # **kwargs
         ):
         """Earth Engine based SSEBop Image Collection
@@ -76,8 +78,12 @@ class Collection():
         etr_band : str, optional
             Reference ET band name (the default is None).  ETr Parameters must
             be be set here or in model args to interpolate ET, ETf, or ETr.
-        etr_factor : float, optional
-            Reference ET scaling factor (the default is 1.0).
+        etr_factor : float, None, optional
+            Reference ET scaling factor.  The default is None which is
+            equivalent to 1.0 (or no scaling).
+        etr_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
+            Reference ET resampling.  The default is None which is equivalent
+            to nearest neighbor resampling.
         filter_args : dict
             Image collection filter keyword arguments (the default is None).
             Organize filter arguments as a nested dictionary with the primary
@@ -108,14 +114,26 @@ class Collection():
         self.etr_source = etr_source
         self.etr_band = etr_band
         self.etr_factor = etr_factor
+        self.etr_resample = etr_resample
+
+        # Check reference ET parameters
+        if etr_factor and not utils.is_number(etr_factor):
+            raise ValueError('etr_factor must be a number')
+        if etr_factor and self.etr_factor < 0:
+            raise ValueError('etr_factor must be greater than zero')
+        etr_resample_methods = ['nearest', 'bilinear', 'bicubic']
+        if etr_resample and etr_resample.lower() not in etr_resample_methods:
+            raise ValueError('unsupported etr_resample method')
 
         # Set/update the ETr parameters in model_args if they were set in init()
-        if etr_source:
-            self.model_args['etr_source'] = etr_source
-        if etr_band:
-            self.model_args['etr_band'] = etr_band
-        if etr_factor != 1 and etr_factor:
-            self.model_args['etr_factor'] = etr_factor
+        if self.etr_source:
+            self.model_args['etr_source'] = self.etr_source
+        if self.etr_band:
+            self.model_args['etr_band'] = self.etr_band
+        if self.etr_factor:
+            self.model_args['etr_factor'] = self.etr_factor
+        if self.etr_resample:
+            self.model_args['etr_resample'] = self.etr_resample
 
         # Model specific variables that can be interpolated to a daily timestep
         # CGM - Should this be specified in the interpolation method instead?
@@ -437,16 +455,15 @@ class Collection():
             self.model_args['etr_band'] = kwargs['etr_band']
         if 'etr_factor' in kwargs.keys() and kwargs['etr_factor'] is not None:
             self.model_args['etr_factor'] = kwargs['etr_factor']
+        if 'etr_resample' in kwargs.keys() and kwargs['etr_resample'] is not None:
+            self.model_args['etr_resample'] = kwargs['etr_resample']
 
         # Check that all etr parameters were set
         # print(self.model_args)
-        for etr_param in ['etr_source', 'etr_band', 'etr_factor']:
-            # print(etr_param)
-            # print(etr_param not in self.model_args.keys())
-            # print(self.model_args[etr_param])
-            if (etr_param not in self.model_args.keys() or
-                    not self.model_args[etr_param]):
-                # print('raise')
+        for etr_param in ['etr_source', 'etr_band', 'etr_factor', 'etr_resample']:
+            if etr_param not in self.model_args.keys():
+                raise ValueError('{} was not set'.format(etr_param))
+            elif not self.model_args[etr_param]:
                 raise ValueError('{} was not set'.format(etr_param))
 
         if type(self.model_args['etr_source']) is str:
@@ -553,10 +570,15 @@ class Collection():
             """
             # if 'et' in variables or 'etf' in variables:
             et_img = daily_coll.filterDate(agg_start_date, agg_end_date)\
-                .select(['et']).sum().multiply(self.model_args['etr_factor'])
+                .select(['et']).sum()
             # if 'etr' in variables or 'etf' in variables:
             etr_img = daily_coll.filterDate(agg_start_date, agg_end_date)\
-                .select(['etr']).sum().multiply(self.model_args['etr_factor'])
+                .select(['etr']).sum()
+            if self.model_args['etr_factor']:
+                et_img = et_img.multiply(self.model_args['etr_factor'])
+                etr_img = etr_img.multiply(self.model_args['etr_factor'])
+            if self.etr_resample in ['bilinear', 'bicubic']:
+                etr_img = etr_img.resample(self.model_args['etr_resample'])
 
             # Round and save ET and ETr as integer values to save space
             # Ensure that ETr > 0 after rounding to avoid divide by zero

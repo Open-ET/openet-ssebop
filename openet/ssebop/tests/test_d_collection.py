@@ -25,7 +25,8 @@ default_coll_args = {
     'start_date': START_DATE, 'end_date': END_DATE,
     'variables': list(VARIABLES), 'cloud_cover_max': 70,
     'etr_source': 'IDAHO_EPSCOR/GRIDMET', 'etr_band': 'etr',
-    'etr_factor': 0.85, 'model_args': {}, 'filter_args': {},
+    'etr_factor': 0.85, 'etr_resample': 'nearest',
+    'model_args': {}, 'filter_args': {},
 }
 
 def default_coll_obj(**kwargs):
@@ -47,13 +48,15 @@ def test_Collection_init_default_parameters():
     del args['etr_source']
     del args['etr_band']
     del args['etr_factor']
+    del args['etr_resample']
     del args['variables']
 
     m = ssebop.Collection(**args)
     assert m.variables == None
     assert m.etr_source == None
     assert m.etr_band == None
-    assert m.etr_factor == 1.0
+    assert m.etr_factor == None
+    assert m.etr_resample == None
     assert m.cloud_cover_max == 70
     assert m.model_args == {}
     assert m.filter_args == {}
@@ -353,34 +356,60 @@ def test_Collection_interpolate_etr_factor_not_set():
             etr_factor=None, model_args={}).interpolate())
 
 
+def test_Collection_interpolate_etr_factor_exception():
+    """Test if Exception is raised if etr_factor is not a number or negative"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj(
+            etr_factor=-1, model_args={}).interpolate())
+
+
+def test_Collection_interpolate_etr_resample_not_set():
+    """Test if Exception is raised if etr_resample is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj(
+            etr_resample=None, model_args={}).interpolate())
+
+
+def test_Collection_interpolate_etr_resample_exception():
+    """Test if Exception is raised if etr_resample is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj(
+            etr_resample='deadbeef', model_args={}).interpolate())
+
+
 def test_Collection_interpolate_etr_params_kwargs():
     """Test setting etr parameters in the Collection init args"""
     output = utils.getinfo(default_coll_obj(
         etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr',
-        etr_factor=0.5, model_args={}).interpolate())
+        etr_factor=0.5, etr_resample='bilinear', model_args={}).interpolate())
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
     assert output['features'][0]['properties']['etr_factor'] == 0.5
+    assert output['features'][0]['properties']['etr_resample'] == 'bilinear'
 
 
 def test_Collection_interpolate_etr_params_model_args():
     """Test setting etr parameters in the model_args"""
     output = utils.getinfo(default_coll_obj(
-        etr_source=None, etr_band=None, etr_factor=None,
+        etr_source=None, etr_band=None, etr_factor=None, etr_resample=None,
         model_args={'etr_source': 'IDAHO_EPSCOR/GRIDMET',
-                    'etr_band': 'etr', 'etr_factor': 0.5}).interpolate())
+                    'etr_band': 'etr', 'etr_factor': 0.5,
+                    'etr_resample': 'bilinear'}).interpolate())
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
     assert output['features'][0]['properties']['etr_factor'] == 0.5
+    assert output['features'][0]['properties']['etr_resample'] == 'bilinear'
 
 
 def test_Collection_interpolate_etr_params_interpolate_args():
     """Test setting etr parameters in the interpolate call"""
     etr_args = {'etr_source': 'IDAHO_EPSCOR/GRIDMET',
-                'etr_band': 'etr', 'etr_factor': 0.5}
+                'etr_band': 'etr', 'etr_factor': 0.5,
+                'etr_resample': 'bilinear'}
     output = utils.getinfo(default_coll_obj(
-        etr_source=None, etr_band=None, etr_factor=None,
+        etr_source=None, etr_band=None, etr_factor=None, etr_resample=None,
         model_args={}).interpolate(**etr_args))
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
     assert output['features'][0]['properties']['etr_factor'] == 0.5
+    assert output['features'][0]['properties']['etr_resample'] == 'bilinear'
 
 
 def test_Collection_interpolate_t_interval_exception():

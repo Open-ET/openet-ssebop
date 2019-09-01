@@ -34,7 +34,8 @@ class Image():
             self, image,
             etr_source=None,
             etr_band=None,
-            etr_factor=1.0,
+            etr_factor=None,
+            etr_resample=None,
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
@@ -57,8 +58,12 @@ class Image():
             Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
         etr_band : str, optional
             Reference ET band name (the default is 'etr').
-        etr_factor : float, optional
-            Reference ET scaling factor (the default is 1.0).
+        etr_factor : float, None, optional
+            Reference ET scaling factor.  The default is None which is
+            equivalent to 1.0 (or no scaling).
+        etr_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
+            Reference ET resampling.  The default is None which is equivalent
+            to nearest neighbor resampling.
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
@@ -129,6 +134,16 @@ class Image():
         self.etr_source = etr_source
         self.etr_band = etr_band
         self.etr_factor = etr_factor
+        self.etr_resample = etr_resample
+
+        # Check reference ET parameters
+        if etr_factor and not utils.is_number(etr_factor):
+            raise ValueError('etr_factor must be a number')
+        if etr_factor and self.etr_factor < 0:
+            raise ValueError('etr_factor must be greater than zero')
+        etr_resample_methods = ['nearest', 'bilinear', 'bicubic']
+        if etr_resample and etr_resample.lower() not in etr_resample_methods:
+            raise ValueError('unsupported etr_resample method')
 
         # Model input parameters
         self._dt_source = dt_source
@@ -214,11 +229,12 @@ class Image():
             etr_img = ee.Image.constant(self.etr_source)
         elif type(self.etr_source) is str:
             # Assume a string source is an image collection ID (not an image ID)
-            etr_img = ee.Image(
-                ee.ImageCollection(self.etr_source)\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select([self.etr_band])\
-                    .first())
+            etr_coll = ee.ImageCollection(self.etr_source)\
+                .filterDate(self._start_date, self._end_date)\
+                .select([self.etr_band])
+            etr_img = ee.Image(etr_coll.first())
+            if self.etr_resample in ['bilinear', 'bicubic']:
+                etr_img = etr_img.resample(self.etr_resample)
         # elif type(self.etr_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
@@ -239,18 +255,20 @@ class Image():
             raise ValueError('unsupported etr_source: {}'.format(
                 self.etr_source))
 
+        if self.etr_factor:
+            etr_img = etr_img.multiply(self.etr_factor)
+
         # Map ETr values directly to the input (i.e. Landsat) image pixels
         # The benefit of this is the ETr image is now in the same crs as the
         #   input image.  Not all models may want this though.
         # CGM - Should the output band name match the input ETr band name?
         return self.ndvi.multiply(0).add(etr_img)\
-            .multiply(self.etr_factor)\
             .rename(['etr']).set(self._properties)
 
     @lazy_property
     def et(self):
         """Actual ET as fraction of reference times"""
-        return self.etf.multiply(self.etr)\
+        return self.etf.multiply(self.etr) \
             .rename(['et']).set(self._properties)
 
     @lazy_property
