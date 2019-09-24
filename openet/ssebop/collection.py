@@ -510,8 +510,15 @@ class Collection():
         if 'count' in variables:
             aggregate_coll = interp.aggregate_daily(
                 image_coll=scene_coll.select(['mask']),
-                start_date=start_date, end_date=end_date,
-            )
+                start_date=start_date, end_date=end_date)
+            # The following is needed because the aggregate collection can be
+            #   empty if there are no scenes in the target date range but there
+            #   are scenes in the interpolation date range.
+            # Without this the count image will not be built but the other
+            #   bands will be which causes a non-homogenous image collection.
+            aggregate_coll = aggregate_coll.merge(
+                ee.Image.constant(0).rename(['mask'])
+                    .set({'system:time_start': ee.Date(start_date).millis()}))
 
         # Including count/mask causes problems in interp.daily() function.
         # Issues with mask being an int but the values need to be double.
