@@ -23,6 +23,7 @@ def pytest_configure():
             '', key_file=EE_PRIVATE_KEY_FILE)
         ee.Initialize(EE_CREDENTIALS)
     else:
+        ee.Authenticate()
         ee.Initialize()
 
 
