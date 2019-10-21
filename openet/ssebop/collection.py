@@ -353,8 +353,7 @@ class Collection():
         return self._build(variables=variables)
 
     def interpolate(self, variables=None, t_interval='custom',
-                    interp_method='linear', interp_days=32,
-                    output_type='float', **kwargs):
+                    interp_method='linear', interp_days=32, **kwargs):
         """
 
         Parameters
@@ -371,10 +370,6 @@ class Collection():
         interp_days : int, str, optional
             Number of extra days before the start date and after the end date
             to include in the interpolation calculation. (the default is 32).
-        output_type : {'int8', 'uint8', 'int16', 'float', 'double'}, optional
-            Output data type for the ET and ETr bands (the default is 'float').
-            NDVI and ETf bands will always be written as float type.
-            Count band will always be written as uint8 type.
         kwargs : dict, optional
 
         Returns
@@ -414,10 +409,6 @@ class Collection():
                 variables = self.variables
             else:
                 raise ValueError('variables parameter must be set')
-
-        output_types = ['int8', 'uint8', 'int16', 'uint16', 'float', 'double']
-        if output_type.lower() not in output_types:
-            raise ValueError('unsupported output_type: {}'.format(output_type))
 
         # Adjust start/end dates based on t_interval
         # Increase the date range to fully include the time interval
@@ -569,67 +560,44 @@ class Collection():
 
             """
             # if 'et' in variables or 'etf' in variables:
-            et_img = daily_coll.filterDate(agg_start_date, agg_end_date)\
+            et_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
                 .select(['et']).sum()
             # if 'etr' in variables or 'etf' in variables:
-            etr_img = daily_coll.filterDate(agg_start_date, agg_end_date)\
+            etr_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
                 .select(['etr']).sum()
+
             if self.model_args['etr_factor']:
                 et_img = et_img.multiply(self.model_args['etr_factor'])
                 etr_img = etr_img.multiply(self.model_args['etr_factor'])
+
+            # DEADBEEF - This doesn't seem to be doing anything
             if self.etr_resample in ['bilinear', 'bicubic']:
                 etr_img = etr_img.resample(self.model_args['etr_resample'])
-
-            # Round and save ET and ETr as integer values to save space
-            # Ensure that ETr > 0 after rounding to avoid divide by zero
-            # Compute ETf from the rounded values
-            if output_type.lower() == 'int16':
-                etf_img = et_img.round().divide(etr_img.round().max(1)).float()
-                et_img = et_img.round().int16()
-                etr_img = etr_img.round().int16()
-            elif output_type.lower() == 'uint16':
-                etf_img = et_img.round().divide(etr_img.round().max(1)).float()
-                et_img = et_img.round().uint16()
-                etr_img = etr_img.round().uint16()
-            elif output_type.lower() == 'int8':
-                etf_img = et_img.round().divide(etr_img.round().max(1)).float()
-                et_img = et_img.round().int8()
-                etr_img = etr_img.round().int8()
-            elif output_type.lower() == 'uint8':
-                etf_img = et_img.round().divide(etr_img.round().max(1)).float()
-                et_img = et_img.round().uint8()
-                etr_img = etr_img.round().uint8()
-            elif output_type.lower() == 'float':
-                etf_img = et_img.divide(etr_img).float()
-                et_img = et_img.float()
-                etr_img = etr_img.float()
-            elif output_type.lower() == 'double':
-                # Casting to double may be redundant since these values should
-                #   all be doubles be default
-                etf_img = et_img.divide(etr_img).double()
-                et_img = et_img.double()
-                etr_img = etr_img.double()
+            # Will mapping ETr to the ET band trigger the resample?
+            # etr_img = et_img.multiply(0).add(etr_img)
 
             image_list = []
             if 'et' in variables:
-                image_list.append(et_img)
+                image_list.append(et_img.float())
             if 'etr' in variables:
-                image_list.append(etr_img)
+                image_list.append(etr_img.float())
             if 'etf' in variables:
-                image_list.append(etf_img.rename(['etf']))
+                # Compute average et fraction over the aggregation period
+                image_list.append(et_img.divide(etr_img).rename(['etf']).float())
             if 'ndvi' in variables:
-                ndvi_img = daily_coll\
-                    .filterDate(agg_start_date, agg_end_date)\
+                # Compute average ndvi over the aggregation period
+                ndvi_img = daily_coll \
+                    .filterDate(agg_start_date, agg_end_date) \
                     .mean().select(['ndvi']).float()
                 image_list.append(ndvi_img)
             if 'count' in variables:
-                count_img = aggregate_coll\
-                    .filterDate(agg_start_date, agg_end_date)\
+                count_img = aggregate_coll \
+                    .filterDate(agg_start_date, agg_end_date) \
                     .select(['mask']).count().rename('count').uint8()
                 image_list.append(count_img)
 
-            return ee.Image(image_list)\
-                .set(interp_properties)\
+            return ee.Image(image_list) \
+                .set(interp_properties) \
                 .set({
                     'system:index': ee.Date(agg_start_date).format(date_format),
                     'system:time_start': ee.Date(agg_start_date).millis(),
