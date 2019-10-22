@@ -452,3 +452,15 @@ def test_Collection_interpolate_output_type_default():
     assert(output[bands['et_fraction']]['data_type']['precision'] == 'float')
     assert(output[bands['ndvi']]['data_type']['precision'] == 'float')
     assert(output[bands['count']]['data_type']['precision'] == 'int')
+
+
+def test_Collection_interpolate_only_interpolate_images():
+    """Test if count band is returned if no images in the date range"""
+    variables = {'et', 'count'}
+    output = utils.getinfo(default_coll_obj(
+        collections=['LANDSAT/LC08/C01/T1_RT_TOA'],
+        geometry=ee.Geometry.Point(-123.623, 44.745),
+        start_date='2017-04-01', end_date='2017-04-30',
+        variables=list(variables), cloud_cover_max=70).interpolate())
+    pprint.pprint(output)
+    assert {y['id'] for x in output['features'] for y in x['bands']} == variables
