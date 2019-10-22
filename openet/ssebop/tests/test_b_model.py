@@ -45,11 +45,11 @@ def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
         [327, 0.08, 17, 0.985, 308, 0.0],
     ]
 )
-def test_Image_etf_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
-    output = utils.constant_image_value(model.etf(
+def test_Image_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
+    output = utils.constant_image_value(model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt))
-    assert abs(output['etf'] - expected) <= tol
+    assert abs(output['et_fraction'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -58,13 +58,13 @@ def test_Image_etf_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
         [300, 10, 0.98, 310, None],
     ]
 )
-def test_Image_etf_clamp_nodata(lst, dt, tcorr, tmax, expected):
+def test_Image_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
     """Test that ETf is set to nodata for ETf > 1.3"""
-    output_img = model.etf(
+    output_img = model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt)
     output = utils.constant_image_value(ee.Image(output_img))
-    assert output['etf'] is None and expected is None
+    assert output['et_fraction'] is None and expected is None
 
 
 @pytest.mark.parametrize(
@@ -77,14 +77,14 @@ def test_Image_etf_clamp_nodata(lst, dt, tcorr, tmax, expected):
         [315, 15, 2000, 0.98, 310, True, 0.1553],
     ]
 )
-def test_Image_etf_elr_param(lst, dt, elev, tcorr, tmax, elr_flag,
-                             expected, tol=0.0001):
+def test_Image_et_fraction_elr_param(lst, dt, elev, tcorr, tmax, elr_flag,
+                                     expected, tol=0.0001):
     """Test that elr_flag works and changes ETf values"""
-    output_img = model.etf(
+    output_img = model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt, elr_flag=elr_flag, elev=elev)
     output = utils.constant_image_value(ee.Image(output_img))
-    assert abs(output['etf'] - expected) <= tol
+    assert abs(output['et_fraction'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -95,14 +95,14 @@ def test_Image_etf_elr_param(lst, dt, elev, tcorr, tmax, elr_flag,
         [304, 15, 50, 0.98, 310, 5, None],
     ]
 )
-def test_Model_etf_tdiff_param(lst, dt, elev, tcorr, tmax, tdiff,
+def test_Model_et_fraction_tdiff_param(lst, dt, elev, tcorr, tmax, tdiff,
                                expected):
     """Test that ETf is set to nodata for tdiff values outside threshold"""
-    output_img = model.etf(
+    output_img = model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt, tdiff_threshold=tdiff, elev=elev)
     output = utils.constant_image_value(ee.Image(output_img))
-    assert output['etf'] is None and expected is None
+    assert output['et_fraction'] is None and expected is None
 
 
 @pytest.mark.parametrize(

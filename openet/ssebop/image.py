@@ -32,10 +32,10 @@ class Image():
 
     def __init__(
             self, image,
-            etr_source=None,
-            etr_band=None,
-            etr_factor=None,
-            etr_resample=None,
+            et_reference_source=None,
+            et_reference_band=None,
+            et_reference_factor=None,
+            et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
@@ -54,14 +54,16 @@ class Image():
             Image must have bands: "ndvi" and "lst".
             Image must have properties: 'system:id', 'system:index', and
                 'system:time_start'.
-        etr_source : str, float, optional
-            Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
-        etr_band : str, optional
-            Reference ET band name (the default is 'etr').
-        etr_factor : float, None, optional
+        et_reference_source : str, float, optional
+            Reference ET source (the default is None).
+            Parameter is required if computing 'et' or 'et_reference'.
+        et_reference_band : str, optional
+            Reference ET band name (the default is None).
+            Parameter is required if computing 'et' or 'et_reference'.
+        et_reference_factor : float, None, optional
             Reference ET scaling factor.  The default is None which is
             equivalent to 1.0 (or no scaling).
-        etr_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
+        et_reference_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
@@ -131,19 +133,20 @@ class Image():
             ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
         # Reference ET parameters
-        self.etr_source = etr_source
-        self.etr_band = etr_band
-        self.etr_factor = etr_factor
-        self.etr_resample = etr_resample
+        self.et_reference_source = et_reference_source
+        self.et_reference_band = et_reference_band
+        self.et_reference_factor = et_reference_factor
+        self.et_reference_resample = et_reference_resample
 
         # Check reference ET parameters
-        if etr_factor and not utils.is_number(etr_factor):
-            raise ValueError('etr_factor must be a number')
-        if etr_factor and self.etr_factor < 0:
-            raise ValueError('etr_factor must be greater than zero')
-        etr_resample_methods = ['nearest', 'bilinear', 'bicubic']
-        if etr_resample and etr_resample.lower() not in etr_resample_methods:
-            raise ValueError('unsupported etr_resample method')
+        if et_reference_factor and not utils.is_number(et_reference_factor):
+            raise ValueError('et_reference_factor must be a number')
+        if et_reference_factor and self.et_reference_factor < 0:
+            raise ValueError('et_reference_factor must be greater than zero')
+        et_reference_resample_methods = ['nearest', 'bilinear', 'bicubic']
+        if (et_reference_resample and
+                et_reference_resample.lower() not in et_reference_resample_methods):
+            raise ValueError('unsupported et_reference_resample method')
 
         # Model input parameters
         self._dt_source = dt_source
@@ -165,7 +168,7 @@ class Image():
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
 
-    def calculate(self, variables=['et', 'etr', 'etf']):
+    def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
         Parameters
@@ -181,10 +184,10 @@ class Image():
         for v in variables:
             if v.lower() == 'et':
                 output_images.append(self.et.float())
-            elif v.lower() == 'etf':
-                output_images.append(self.etf.float())
-            elif v.lower() == 'etr':
-                output_images.append(self.etr.float())
+            elif v.lower() == 'et_fraction':
+                output_images.append(self.et_fraction.float())
+            elif v.lower() == 'et_reference':
+                output_images.append(self.et_reference.float())
             elif v.lower() == 'lst':
                 output_images.append(self.lst.float())
             elif v.lower() == 'mask':
@@ -203,11 +206,11 @@ class Image():
         return ee.Image(output_images).set(self._properties)
 
     @lazy_property
-    def etf(self):
-        """Fraction of reference ET (ETf)"""
+    def et_fraction(self):
+        """Fraction of reference ET"""
         tcorr, tcorr_index = self.tcorr
 
-        etf = model.etf(
+        et_fraction = model.et_fraction(
             lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
             tdiff_threshold=self._tdiff_threshold, elr_flag=self._elr_flag,
             elev=self.elev)
@@ -215,60 +218,61 @@ class Image():
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
                 'IMAGE' not in self._tcorr_source.upper()):
-            etf = etf.set({'tcorr': tcorr, 'tcorr_index': tcorr_index})
+            et_fraction = et_fraction.set({
+                'tcorr': tcorr, 'tcorr_index': tcorr_index})
 
-        return etf.set(self._properties)
+        return et_fraction.set(self._properties)
 
     @lazy_property
-    def etr(self):
+    def et_reference(self):
         """Reference ET for the image date"""
-        if utils.is_number(self.etr_source):
+        if utils.is_number(self.et_reference_source):
             # Interpret numbers as constant images
             # CGM - Should we use the ee_types here instead?
-            #   i.e. ee.ee_types.isNumber(self.etr_source)
-            etr_img = ee.Image.constant(self.etr_source)
-        elif type(self.etr_source) is str:
+            #   i.e. ee.ee_types.isNumber(self.et_reference_source)
+            et_reference_img = ee.Image.constant(self.et_reference_source)
+        elif type(self.et_reference_source) is str:
             # Assume a string source is an image collection ID (not an image ID)
-            etr_coll = ee.ImageCollection(self.etr_source)\
+            et_reference_coll = ee.ImageCollection(self.et_reference_source)\
                 .filterDate(self._start_date, self._end_date)\
-                .select([self.etr_band])
-            etr_img = ee.Image(etr_coll.first())
-            if self.etr_resample in ['bilinear', 'bicubic']:
-                etr_img = etr_img.resample(self.etr_resample)
-        # elif type(self.etr_source) is list:
+                .select([self.et_reference_band])
+            et_reference_img = ee.Image(et_reference_coll.first())
+            if self.et_reference_resample in ['bilinear', 'bicubic']:
+                et_reference_img = et_reference_img.resample(self.et_reference_resample)
+        # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
         #     # CGM - Need to check the order of the collections
-        #     etr_coll = ee.ImageCollection([])
-        #     for coll_id in self.etr_source:
+        #     et_reference_coll = ee.ImageCollection([])
+        #     for coll_id in self.et_reference_source:
         #         coll = ee.ImageCollection(coll_id)\
-        #             .select([self.etr_band])\
+        #             .select([self.et_reference_band])\
         #             .filterDate(self.start_date, self.end_date)
-        #         etr_img = etr_coll.merge(coll)
-        #     etr_img = etr_coll.mosaic()
-        # elif isinstance(self.etr_source, computedobject.ComputedObject):
+        #         et_reference_img = et_reference_coll.merge(coll)
+        #     et_reference_img = et_reference_coll.mosaic()
+        # elif isinstance(self.et_reference_source, computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     etr_coll = ee.ImageCollection(self.etr_source)\
-        #         .select([self.etr_band])\
+        #     et_reference_coll = ee.ImageCollection(self.et_reference_source)\
+        #         .select([self.et_reference_band])\
         #         .filterDate(self.start_date, self.end_date)
         else:
-            raise ValueError('unsupported etr_source: {}'.format(
-                self.etr_source))
+            raise ValueError('unsupported et_reference_source: {}'.format(
+                self.et_reference_source))
 
-        if self.etr_factor:
-            etr_img = etr_img.multiply(self.etr_factor)
+        if self.et_reference_factor:
+            et_reference_img = et_reference_img.multiply(self.et_reference_factor)
 
         # Map ETr values directly to the input (i.e. Landsat) image pixels
         # The benefit of this is the ETr image is now in the same crs as the
         #   input image.  Not all models may want this though.
         # CGM - Should the output band name match the input ETr band name?
-        return self.ndvi.multiply(0).add(etr_img)\
-            .rename(['etr']).set(self._properties)
+        return self.ndvi.multiply(0).add(et_reference_img)\
+            .rename(['et_reference']).set(self._properties)
 
     @lazy_property
     def et(self):
         """Actual ET as fraction of reference times"""
-        return self.etf.multiply(self.etr) \
+        return self.et_fraction.multiply(self.et_reference) \
             .rename(['et']).set(self._properties)
 
     @lazy_property
@@ -278,8 +282,8 @@ class Image():
 
     @lazy_property
     def mask(self):
-        """Mask of all active pixels (based on the final etf)"""
-        return self.etf.multiply(0).add(1).updateMask(1)\
+        """Mask of all active pixels (based on the final et_fraction)"""
+        return self.et_fraction.multiply(0).add(1).updateMask(1)\
             .rename(['mask']).set(self._properties).uint8()
 
     @lazy_property
