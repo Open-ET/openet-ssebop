@@ -462,5 +462,4 @@ def test_Collection_interpolate_only_interpolate_images():
         geometry=ee.Geometry.Point(-123.623, 44.745),
         start_date='2017-04-01', end_date='2017-04-30',
         variables=list(variables), cloud_cover_max=70).interpolate())
-    pprint.pprint(output)
     assert {y['id'] for x in output['features'] for y in x['bands']} == variables

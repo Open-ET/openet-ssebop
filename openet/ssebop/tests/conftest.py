@@ -21,9 +21,9 @@ def pytest_configure():
             f.write(content)
         EE_CREDENTIALS = ee.ServiceAccountCredentials(
             '', key_file=EE_PRIVATE_KEY_FILE)
-        ee.Initialize(EE_CREDENTIALS)
+        ee.Initialize(EE_CREDENTIALS, use_cloud_api=False)
     else:
-        ee.Initialize()
+        ee.Initialize(use_cloud_api=False)
 
 
 @pytest.fixture(scope="session", autouse=True)

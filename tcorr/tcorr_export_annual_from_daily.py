@@ -61,9 +61,10 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
+                      use_cloud_api=False)
     else:
-        ee.Initialize()
+        ee.Initialize(use_cloud_api=False)
 
     logging.debug('\nTmax properties')
     tmax_name = ini[model_name]['tmax_source']

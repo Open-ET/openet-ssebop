@@ -508,6 +508,7 @@ class Collection():
             aggregate_coll = interp.aggregate_daily(
                 image_coll=scene_coll.select(['mask']),
                 start_date=start_date, end_date=end_date)
+
             # The following is needed because the aggregate collection can be
             #   empty if there are no scenes in the target date range but there
             #   are scenes in the interpolation date range.
@@ -575,6 +576,7 @@ class Collection():
             # if 'et' in variables or 'et_fraction' in variables:
             et_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
                 .select(['et']).sum()
+
             # if 'et_reference' in variables or 'et_fraction' in variables:
             et_reference_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
                 .select(['et_reference']).sum()
