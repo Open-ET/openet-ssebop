@@ -926,8 +926,6 @@ class Image():
     def tcorr_image(self):
         """Compute Tcorr for the current image
 
-        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
-
         Returns
         -------
         ee.Image of Tcorr values
@@ -942,11 +940,6 @@ class Image():
 
         # Remove low LST and low NDVI
         tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
-
-        # Filter extreme Tdiff values
-        tdiff = tmax.subtract(lst)
-        tcorr_mask = tcorr_mask.And(
-            tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
