@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         tcorr_cleanup_daily_image.py
-# Purpose:      Remove earlier versions of daily tcorr images
-#--------------------------------
-
 import argparse
 from builtins import input
 from collections import defaultdict
@@ -80,8 +75,8 @@ def main(ini_path=None):
 
 
     logging.info('\nInitializing Earth Engine')
-    ee.Initialize(use_cloud_api=False)
-    ee.Number(1).getInfo()
+    ee.Initialize(use_cloud_api=True)
+    utils.get_info(ee.Number(1))
 
 
     # Get list of existing images/files

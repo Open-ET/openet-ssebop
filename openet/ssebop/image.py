@@ -12,6 +12,10 @@ import openet.core.common as common
 # import openet.core.utils as utils
 
 
+PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
+# PROJECT_FOLDER = 'projects/usgs-ssebop'
+
+
 def lazy_property(fn):
     """Decorator that makes a property lazy-evaluated
 
@@ -41,7 +45,8 @@ class Image():
             tcorr_source='IMAGE',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
-            tdiff_threshold=15,
+            # DEADBEEF - Tdiff threshold parameter is being removed
+            # tdiff_threshold=15,
             dt_min=6,
             dt_max=25,
         ):
@@ -74,8 +79,7 @@ class Image():
                         'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
                         'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'IMAGE').
-        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
-                       'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
+        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'DAYMET_MEDIAN_V2',
                        'TOPOWX_MEDIAN_V0', or float}, optional
             Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
         elr_flag : bool, str, optional
@@ -154,7 +158,8 @@ class Image():
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
-        self._tdiff_threshold = float(tdiff_threshold)
+        # DEADBEEF - Tdiff threshold parameter is being removed
+        # self._tdiff_threshold = float(tdiff_threshold)
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
@@ -167,6 +172,14 @@ class Image():
             else:
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
+
+        # Image projection and geotransform
+        self.crs = image.projection().crs()
+        self.transform = ee.List(ee.Dictionary(
+            ee.Algorithms.Describe(image.projection())).get(
+            'transform'))
+        # self.crs = image.select([0]).projection().getInfo()['crs']
+        # self.transform = image.select([0]).projection().getInfo()['transform']
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -212,8 +225,11 @@ class Image():
 
         et_fraction = model.et_fraction(
             lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
-            tdiff_threshold=self._tdiff_threshold, elr_flag=self._elr_flag,
-            elev=self.elev)
+            # DEADBEEF - Tdiff threshold parameter is being removed
+            # tdiff_threshold=self._tdiff_threshold,
+            elr_flag=self._elr_flag,
+            elev=self.elev,
+        )
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
@@ -323,18 +339,19 @@ class Image():
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0')\
+            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1')\
+            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
 
         # Compute dT for the target date
         elif self._dt_source.upper() == 'CIMIS':
             input_img = ee.Image(
-                ee.ImageCollection('projects/climate-engine/cimis/daily')\
+                ee.ImageCollection('projects/earthengine-legacy/assets/'
+                                   'projects/climate-engine/cimis/daily')\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['Tx', 'Tn', 'Rs', 'Tdew'])
                     .first())
@@ -409,7 +426,7 @@ class Image():
         if utils.is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
-            elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
+            elev_image = ee.Image(PROJECT_FOLDER + '/srtm_1km')
         elif self._elev_source.upper() == 'GTOPO':
             elev_image = ee.Image('USGS/GTOPO30')
         elif self._elev_source.upper() == 'NED':
@@ -460,29 +477,30 @@ class Image():
         elif ('FEATURE' in self._tcorr_source.upper() or
                 self._tcorr_source.upper() == 'SCENE'):
             # Lookup Tcorr collections by keyword value
+            
             scene_coll_dict = {
-                'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_scene',
-                'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_scene',
-                'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_scene',
-                # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_scene',
-                'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_scene',
-                'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_scene',
-                'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_scene',
-                'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_scene',
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_scene',
-                'TOPOWX_MEDIAN_V0B': 'projects/usgs-ssebop/tcorr/topowx_median_v0b_scene',
+                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
+                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
+                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
+                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
+                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
+                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
+                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
+                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
+                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
             }
             month_coll_dict = {
-                'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_monthly',
-                'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_monthly',
-                'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_monthly',
-                # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_monthly',
-                'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_monthly',
-                'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_monthly',
-                'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_monthly',
-                'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_monthly',
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_monthly',
-                'TOPOWX_MEDIAN_V0B': 'projects/usgs-ssebop/tcorr/topowx_median_v0b_monthly',
+                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
+                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
+                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
+                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
+                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
+                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
+                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
+                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
+                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
             }
             # annual_coll_dict = {}
             default_value_dict = {
@@ -532,16 +550,20 @@ class Image():
         elif 'IMAGE' in self._tcorr_source.upper():
             # Lookup Tcorr collections by keyword value
             daily_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_daily'
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
             }
             month_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_monthly',
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
             }
             annual_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_annual',
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
             }
             default_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_default'
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
             }
 
             # Check Tmax source value
@@ -641,14 +663,14 @@ class Image():
                 .rename(['tmax'])\
                 .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
-            daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily')\
+            daily_coll = ee.ImageCollection('projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('TMAX_VERSION', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
@@ -663,7 +685,7 @@ class Image():
                 .set('TMAX_VERSION', date_today)
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
@@ -676,7 +698,7 @@ class Image():
                 .set('TMAX_VERSION', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
@@ -690,7 +712,7 @@ class Image():
         #
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
-        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
         #     median_image = ee.Image(median_coll.filter(doy_filter).first())\
         #         .set('TMAX_VERSION', median_version)
         #
@@ -699,37 +721,43 @@ class Image():
         elif self._tmax_source.upper() == 'CIMIS_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
+                .set('TMAX_VERSION', median_version)
+        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V2':
+            median_version = 'median_v2'
+            median_coll = ee.ImageCollection(
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first()) \
                 .set('TMAX_VERSION', median_version)
         elif self._tmax_source.upper() == 'GRIDMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
         elif self._tmax_source.upper() == 'TOPOWX_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
                 .set('TMAX_VERSION', median_version)
         # elif self.tmax_source.upper() == 'TOPOWX_MEDIAN_V1':
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
-        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
         #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
         else:
             raise ValueError('Unsupported tmax_source: {}\n'.format(
@@ -938,8 +966,15 @@ class Image():
         # Compute tcorr
         tcorr = lst.divide(tmax)
 
+        # Filter NDVI
+        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
+          .reproject(crs=self.crs, crsTransform=self.transform) \
+          .gt(0.7)
+        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
+            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
+
         # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
+        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
@@ -956,20 +991,21 @@ class Image():
         dictionary
 
         """
-        image_proj = self.image.select([0]).projection()
-        image_crs = image_proj.crs()
-        image_geo = ee.List(ee.Dictionary(
-            ee.Algorithms.Describe(image_proj)).get('transform'))
-        # image_shape = ee.List(ee.Dictionary(ee.List(ee.Dictionary(
-        #     ee.Algorithms.Describe(self.image)).get('bands')).get(0)).get('dimensions'))
-        # print(image_shape.getInfo())
-        # print(image_crs.getInfo())
-        # print(image_geo.getInfo())
+        # DEADBEEF - Moved to Image class init
+        # image_proj = self.image.select([0]).projection()
+        # image_crs = image_proj.crs()
+        # image_geo = ee.List(ee.Dictionary(
+        #     ee.Algorithms.Describe(image_proj)).get('transform'))
+        # # image_shape = ee.List(ee.Dictionary(ee.List(ee.Dictionary(
+        # #     ee.Algorithms.Describe(self.image)).get('bands')).get(0)).get('dimensions'))
+        # # print(image_shape.getInfo())
+        # # print(image_crs.getInfo())
+        # # print(image_geo.getInfo())
 
         return ee.Image(self.tcorr_image).reduceRegion(
             reducer=ee.Reducer.percentile([5]).combine(ee.Reducer.count(), '', True),
-            crs=image_crs,
-            crsTransform=image_geo,
+            crs=self.crs,
+            crsTransform=self.transform,
             geometry=ee.Image(self.image).geometry().buffer(1000),
             bestEffort=False,
             maxPixels=2*10000*10000,

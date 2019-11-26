@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         cancel_tasks.py
-# Purpose:      Cancel Earth Engine tasks
-#--------------------------------
-
 import argparse
 import datetime
 import logging

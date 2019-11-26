@@ -146,9 +146,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         logging.info('  Real-time')
         for asset_id in rt_id_list:
             logging.info('  {}'.format(asset_id))
-            t_stats = ssebop.Image.from_landsat_c1_toa(
-                    ee.Image(asset_id),
-                    tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
+            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
             if t_stats['tcorr_p5'] is None:
@@ -168,9 +166,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         logging.info('  Collection 1')
         for asset_id in c1_id_list:
             logging.info('  {}'.format(asset_id))
-            t_stats = ssebop.Image.from_landsat_c1_toa(
-                    ee.Image(asset_id),
-                    tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
+            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
             if t_stats['tcorr_p5'] is None:

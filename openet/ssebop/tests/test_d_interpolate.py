@@ -3,7 +3,7 @@ import pprint
 import ee
 import pytest
 
-import openet.ssebop.interpolate as interp
+import openet.ssebop.interpolate as interpolate
 import openet.ssebop.utils as utils
 
 

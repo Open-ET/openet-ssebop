@@ -86,7 +86,8 @@ def test_Image_init_default_parameters():
     assert m._tcorr_source == 'IMAGE'
     assert m._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert m._elr_flag == False
-    assert m._tdiff_threshold == 15
+    # DEADBEEF - Tdiff threshold parameter is being removed
+    # assert m._tdiff_threshold == 15
     assert m._dt_min == 6
     assert m._dt_max == 25
 
@@ -249,8 +250,8 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['2364.351', [-106.03249, 37.17777], 2364.351],
         [2364.351, [-106.03249, 37.17777], 2364.351],
         # Check custom images
-        ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
-        ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         # DEADBEEF - We should allow any EE image (not just users/projects)
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
     ]
@@ -342,12 +343,18 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
     [
-        # Check image sources (TOPOWX_MEDIAN_V0 only for now)
+        # TOPOWX_MEDIAN_V0
         ['IMAGE', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_DAILY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9723, 1]],
         ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9786, 2]],
         ['IMAGE_DEFAULT', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.978, 3]],
+        # DAYMET_MEDIAN_V2
+        # ['IMAGE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
+        # ['IMAGE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
+        # ['IMAGE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9723, 1]],
+        # ['IMAGE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9786, 2]],
+        # ['IMAGE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.978, 3]],
     ]
 )
 def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
@@ -479,6 +486,7 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
         ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
         ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
+        # ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
         ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
         ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
         # Check string/float constant values
@@ -531,6 +539,7 @@ today_dt = datetime.datetime.today()
         ['CIMIS_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
         ['DAYMET_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
         ['DAYMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
+        # ['DAYMET_MEDIAN_V2', {'TMAX_VERSION': 'median_v2'}],
         ['GRIDMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
         ['TOPOWX_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
         ['305', {'TMAX_VERSION': 'CUSTOM_305'}],
@@ -577,22 +586,23 @@ def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
     assert abs(output['et_fraction'] - expected) <= tol
 
 
-@pytest.mark.parametrize(
-    'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
-    [
-        [299, 0.80, 15, 50, 0.98, 310, 10, None],
-        [299, 0.80, 15, 50, 0.98, 310, 10, None],
-        [304, 0.10, 15, 50, 0.98, 310, 5, None],
-    ]
-)
-def test_Image_et_fraction_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
-                                       expected):
-    """Test that ETf is set to nodata for tdiff values outside threshold"""
-    output_img = ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).et_fraction
-    output = utils.constant_image_value(ee.Image(output_img))
-    assert output['et_fraction'] is None and expected is None
+# DEADBEEF - Tdiff threshold parameter is being removed
+# @pytest.mark.parametrize(
+#     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
+#     [
+#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
+#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
+#         [304, 0.10, 15, 50, 0.98, 310, 5, None],
+#     ]
+# )
+# def test_Image_et_fraction_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
+#                                        expected):
+#     """Test that ETf is set to nodata for tdiff values outside threshold"""
+#     output_img = ssebop.Image(
+#         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+#         tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).et_fraction
+#     output = utils.constant_image_value(ee.Image(output_img))
+#     assert output['et_fraction'] is None and expected is None
 
 
 def test_Image_et_fraction_properties():
@@ -884,8 +894,10 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     [
         [300, 0.69, 306, None],  # NDVI < 0.7
         [269, 0.69, 306, None],  # LST < 270
-        [290, 0.20, 306, None],  # Tdiff > 15
-        [307, 0.20, 306, None],  # Tdiff < 0
+        # DEADBEEF - Tdiff threshold parameter is being removed
+        # [290, 0.20, 306, None],  # Tdiff > 15
+        # [307, 0.20, 306, None],  # Tdiff < 0
+        # TODO: Add a test for the NDVI smoothing
     ]
 )
 def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):

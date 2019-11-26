@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         tcorr_export_daily_image.py
-# Purpose:      Compute/Export daily Tcorr images
-#--------------------------------
-
 import argparse
 from builtins import input
 import datetime
@@ -19,8 +14,8 @@ import utils
 # from . import utils
 
 
-def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
-         cron_flag=False, reverse_flag=False):
+def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
+         max_ready=-1, cron_flag=False, reverse_flag=False):
     """Compute daily Tcorr images
 
     Parameters
@@ -31,10 +26,14 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
         If True, overwrite existing files if the export dates are the same and
         generate new images (but with different export dates) even if the tile
         lists are the same.  The default is False.
-    delay : float, optional
-        Delay time between each export task (the default is 0).
-    key : str, optional
-        File path to an Earth Engine json key file (the default is None).
+    delay_time : float, optional
+        Delay time in seconds between starting export tasks (or checking the
+        number of queued tasks, see "max_ready" parameter).  The default is 0.
+    gee_key_file : str, None, optional
+        Earth Engine service account JSON key file (the default is None).
+    max_ready: int, optional
+        Maximum number of queued "READY" tasks.  The default is -1 which is
+        implies no limit to the number of tasks that will be submitted.
     cron_flag : bool, optional
         If True, only compute Tcorr daily image if existing image does not have
         all available image (using the 'wrs2_tiles' property) and limit the
@@ -55,9 +54,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
     elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
-            ini['INPUTS']['end_date'] > '2017-12-31'):
+            ini['INPUTS']['end_date'] > '2018-12-31'):
         logging.warning(
-            '\nDAYMET is not currently available past 2017-12-31, '
+            '\nDAYMET is not currently available past 2018-12-31, '
             'using median Tmax values\n')
         # sys.exit()
     # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
@@ -68,13 +67,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     #     # sys.exit()
 
     logging.info('\nInitializing Earth Engine')
-    if key:
-        logging.info('  Using service account key file: {}'.format(key))
+    if gee_key_file:
+        logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
-                      use_cloud_api=False)
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=gee_key_file),
+                      use_cloud_api=True)
     else:
-        ee.Initialize(use_cloud_api=False)
+        ee.Initialize(use_cloud_api=True)
 
     # Output Tcorr daily image collection
     tcorr_daily_coll_id = '{}/{}_daily'.format(
@@ -85,7 +84,8 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
-    tmax_coll_id = 'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
+    tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+                   'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
     tmax_coll = ee.ImageCollection(tmax_coll_id)
     tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
     logging.debug('  Collection: {}'.format(tmax_coll_id))
@@ -93,9 +93,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     logging.debug('  Version: {}'.format(tmax_version))
 
     logging.debug('\nExport properties')
-    export_geo = ee.Image(tmax_mask).projection().getInfo()['transform']
-    export_crs = ee.Image(tmax_mask).projection().getInfo()['crs']
-    export_shape = ee.Image(tmax_mask).getInfo()['bands'][0]['dimensions']
+    export_info = utils.get_info(ee.Image(tmax_mask))
+    # export_geo = ee.Image(tmax_mask).projection().getInfo()['transform']
+    # export_crs = ee.Image(tmax_mask).projection().getInfo()['crs']
+    # export_shape = ee.Image(tmax_mask).getInfo()['bands'][0]['dimensions']
+    export_crs = export_info['bands'][0]['crs']
+    export_geo = export_info['bands'][0]['crs_transform']
+    export_shape = export_info['bands'][0]['dimensions']
     export_extent = [
         export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
         export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
@@ -104,11 +108,17 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     logging.debug('  Geo: {}'.format(export_geo))
     logging.debug('  Shape: {}'.format(export_shape))
 
-    # # Limit export to a user defined study area or geometry?
-    # export_geom = ee.Geometry.Rectangle(
-    #     [-125, 24, -65, 50], proj='EPSG:4326', geodesic=False)  # CONUS
-    # export_geom = ee.Geometry.Rectangle(
-    #     [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)  # California
+
+    if 'daymet' in ini[model_name]['tmax_source'].lower():
+        # TODO: We could define a smaller/custom extent for the DAYMET grid
+        export_geom = ee.Geometry.Rectangle(
+            [-125, 15, -65, 55], proj='EPSG:4326', geodesic=False)
+    elif 'cimis' in ini[model_name]['tmax_source'].lower():
+        export_geom = ee.Geometry.Rectangle(
+            [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
+    else:
+        export_geom = tmax_mask.geometry()
+
 
     # If cell_size parameter is set in the INI,
     # adjust the output cellsize and recompute the transform and shape
@@ -124,20 +134,22 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     except KeyError:
         pass
 
+    if not ee.data.getInfo(tcorr_daily_coll_id):
+        logging.info('\nExport collection does not exist and will be built'
+                     '\n  {}'.format(tcorr_daily_coll_id))
+        input('Press ENTER to continue')
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_daily_coll_id)
+
     # Get current asset list
-    if ini['EXPORT']['export_dest'].upper() == 'ASSET':
-        logging.debug('\nGetting asset list')
-        # DEADBEEF - daily is hardcoded in the asset_id for now
-        asset_list = utils.get_ee_assets(tcorr_daily_coll_id)
-    else:
-        raise ValueError('invalid export destination: {}'.format(
-            ini['EXPORT']['export_dest']))
+    logging.debug('  Getting GEE asset list')
+    asset_list = utils.get_ee_assets(tcorr_daily_coll_id)
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
+
 
     collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
 
@@ -209,10 +221,11 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                             reverse=reverse_flag):
         export_date = export_dt.strftime('%Y-%m-%d')
         next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-        # if ((month_list and export_dt.month not in month_list) or
-        #         (year_list and export_dt.year not in year_list)):
         if month_list and export_dt.month not in month_list:
             logging.debug(f'Date: {export_date} - month not in INI - skipping')
+            continue
+        elif year_list and export_dt.year not in year_list:
+            logging.debug(f'Date: {export_date} - year not in INI - skipping')
             continue
         elif export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
             logging.debug(f'Date: {export_date} - unsupported date - skipping')
@@ -227,15 +240,13 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             .format(
                 product=tmax_name.lower(),
                 date=export_dt.strftime('%Y%m%d'),
-                export=datetime.datetime.today().strftime('%Y%m%d'),
-                dest=ini['EXPORT']['export_dest'].lower())
+                export=datetime.datetime.today().strftime('%Y%m%d'))
         logging.debug('  Export ID: {}'.format(export_id))
 
-        if ini['EXPORT']['export_dest'] == 'ASSET':
-            asset_id = '{}/{}_{}'.format(
-                tcorr_daily_coll_id, export_dt.strftime('%Y%m%d'),
-                datetime.datetime.today().strftime('%Y%m%d'))
-            logging.debug('  Asset ID: {}'.format(asset_id))
+        asset_id = '{}/{}_{}'.format(
+            tcorr_daily_coll_id, export_dt.strftime('%Y%m%d'),
+            datetime.datetime.today().strftime('%Y%m%d'))
+        logging.debug('  Asset ID: {}'.format(asset_id))
 
         if overwrite_flag:
             if export_id in tasks.keys():
@@ -243,16 +254,14 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 ee.data.cancelTask(tasks[export_id])
             # This is intentionally not an "elif" so that a task can be
             # cancelled and an existing image/file/asset can be removed
-            if (ini['EXPORT']['export_dest'].upper() == 'ASSET' and
-                    asset_id in asset_list):
+            if asset_id in asset_list:
                 logging.debug('  Asset already exists, removing')
                 ee.data.deleteAsset(asset_id)
         else:
             if export_id in tasks.keys():
                 logging.debug('  Task already submitted, exiting')
                 continue
-            elif (ini['EXPORT']['export_dest'].upper() == 'ASSET' and
-                    asset_id in asset_list):
+            elif asset_id in asset_list:
                 logging.debug('  Asset already exists, skipping')
                 continue
 
@@ -263,7 +272,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             end_date=(export_dt + datetime.timedelta(days=1)).strftime(
                 '%Y-%m-%d'),
             cloud_cover_max=float(ini['INPUTS']['cloud_cover']),
-            geometry=tmax_mask.geometry(),
+            geometry=export_geom,
             # model_args=model_args,
             # filter_args=filter_args,
         )
@@ -273,7 +282,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
         # input('ENTER')
 
         logging.debug('  Getting available WRS2 tile list')
-        landsat_id_list = landsat_coll.aggregate_array('system:id').getInfo()
+        landsat_id_list = utils.get_info(landsat_coll.aggregate_array('system:id'))
         wrs2_tiles_all = set([id.split('_')[-2] for id in landsat_id_list])
         if not wrs2_tiles_all:
             logging.info('  No available images - skipping')
@@ -293,7 +302,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id)\
                 .filterDate(export_date, next_date)\
                 .limit(1, 'date_ingested', False)
-            tcorr_daily_info = tcorr_daily_coll.getInfo()
+            tcorr_daily_info = utils.get_info(tcorr_daily_coll)
 
             if tcorr_daily_info['features']:
                 # Assume we won't be building a new image and only set flag
@@ -338,9 +347,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 logging.debug('    No previous exports')
 
         def tcorr_img_func(image):
-            t_stats = ssebop.Image.from_landsat_c1_toa(
-                    ee.Image(image),
-                    tdiff_threshold=float(ini[model_name]['tdiff_threshold'])) \
+            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(image)) \
                 .tcorr_stats
             t_stats = ee.Dictionary(t_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0},
@@ -412,22 +419,21 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
                 'wrs2_available': ','.join(sorted(wrs2_tiles_all)),
             })
 
-        # Build export tasks
-        if ini['EXPORT']['export_dest'] == 'ASSET':
-            logging.debug('  Building export task')
-            task = ee.batch.Export.image.toAsset(
-                image=ee.Image(tcorr_img),
-                description=export_id,
-                assetId=asset_id,
-                crs=export_crs,
-                crsTransform='[' + ','.join(list(map(str, export_geo))) + ']',
-                dimensions='{0}x{1}'.format(*export_shape),
-            )
-            logging.info('  Starting export task')
-            utils.ee_task_start(task)
+        logging.debug('  Building export task')
+        task = ee.batch.Export.image.toAsset(
+            image=ee.Image(tcorr_img),
+            description=export_id,
+            assetId=asset_id,
+            crs=export_crs,
+            crsTransform='[' + ','.join(list(map(str, export_geo))) + ']',
+            dimensions='{0}x{1}'.format(*export_shape),
+        )
 
-        # Pause before starting next task
-        utils.delay_task(delay)
+        logging.info('  Starting export task')
+        utils.ee_task_start(task)
+
+        # Pause before starting the next export task
+        utils.delay_task(delay_time, max_ready)
         logging.debug('')
 
 
@@ -445,6 +451,9 @@ def arg_parse():
     parser.add_argument(
         '--key', type=utils.arg_valid_file, metavar='FILE',
         help='JSON key file')
+    parser.add_argument(
+        '--ready', default=-1, type=int,
+        help='Maximum number of queued READY tasks')
     parser.add_argument(
         '--cron', default=False, action='store_true',
         help='Cron mode')
@@ -470,12 +479,8 @@ if __name__ == "__main__":
     args = arg_parse()
 
     logging.basicConfig(level=args.loglevel, format='%(message)s')
-    logging.info('\n{0}'.format('#' * 80))
-    logging.info('{0:<20s} {1}'.format(
-        'Run Time Stamp:', datetime.datetime.now().isoformat(' ')))
-    logging.info('{0:<20s} {1}'.format('Current Directory:', os.getcwd()))
-    logging.info('{0:<20s} {1}'.format(
-        'Script:', os.path.basename(sys.argv[0])))
+    logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
-    main(ini_path=args.ini, overwrite_flag=args.overwrite, delay=args.delay,
-         key=args.key, cron_flag=args.cron, reverse_flag=args.reverse)
+    main(ini_path=args.ini, overwrite_flag=args.overwrite,
+         delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready,
+         cron_flag=args.cron, reverse_flag=args.reverse)
