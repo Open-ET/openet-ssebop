@@ -532,26 +532,26 @@ today_dt = datetime.datetime.today()
 @pytest.mark.parametrize(
     'tmax_source, expected',
     [
-        ['CIMIS', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['DAYMET', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['GRIDMET', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        # ['TOPOWX', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['CIMIS_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        ['DAYMET_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
-        ['DAYMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        # ['DAYMET_MEDIAN_V2', {'TMAX_VERSION': 'median_v2'}],
-        ['GRIDMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        ['TOPOWX_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
-        ['305', {'TMAX_VERSION': 'CUSTOM_305'}],
-        [305, {'TMAX_VERSION': 'CUSTOM_305'}],
+        ['CIMIS', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['DAYMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['GRIDMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        # ['TOPOWX', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['CIMIS_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['DAYMET_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['DAYMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        # ['DAYMET_MEDIAN_V2', {'tmax_version': 'median_v2'}],
+        ['GRIDMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['TOPOWX_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['305', {'tmax_version': 'custom_305'}],
+        [305, {'tmax_version': 'custom_305'}],
     ]
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
     output = utils.getinfo(
         ssebop.Image(default_image(), tmax_source=tmax_source).tmax)
-    assert output['properties']['TMAX_SOURCE'] == tmax_source
-    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 @pytest.mark.parametrize(
@@ -917,8 +917,8 @@ def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
     output = utils.getinfo(default_image_obj().tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['TMAX_SOURCE'] == tmax_source
-    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):

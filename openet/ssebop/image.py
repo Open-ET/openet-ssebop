@@ -661,18 +661,18 @@ class Image():
         if utils.is_number(self._tmax_source):
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
-                .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
+                .set('tmax_version', 'custom_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
             daily_coll = ee.ImageCollection('projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'DAYMET':
@@ -682,12 +682,12 @@ class Image():
                 .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
                 .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'GRIDMET':
@@ -695,12 +695,12 @@ class Image():
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         # elif self.tmax_source.upper() == 'TOPOWX':
@@ -708,13 +708,13 @@ class Image():
         #         .filterDate(self.start_date, self.end_date)\
         #         .select(['tmmx'], ['tmax'])
         #     daily_image = ee.Image(daily_coll.first())\
-        #         .set('TMAX_VERSION', date_today)
+        #         .set('tmax_version', date_today)
         #
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
         #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
         #     median_image = ee.Image(median_coll.filter(doy_filter).first())\
-        #         .set('TMAX_VERSION', median_version)
+        #         .set('tmax_version', median_version)
         #
         #     tmax_image = ee.Image(ee.Algorithms.If(
         #         daily_coll.size().gt(0), daily_image, median_image))
@@ -723,37 +723,37 @@ class Image():
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V2':
             median_version = 'median_v2'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first()) \
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'GRIDMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'TOPOWX_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         # elif self.tmax_source.upper() == 'TOPOWX_MEDIAN_V1':
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
@@ -763,7 +763,7 @@ class Image():
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
-        return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
+        return ee.Image(tmax_image.set('tmax_source', self._tmax_source))
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):
@@ -979,8 +979,8 @@ class Image():
         return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
-                  'TMAX_SOURCE': tmax.get('TMAX_SOURCE'),
-                  'TMAX_VERSION': tmax.get('TMAX_VERSION')})
+                  'tmax_source': tmax.get('tmax_source'),
+                  'tmax_version': tmax.get('tmax_version')})
 
     @lazy_property
     def tcorr_stats(self):
