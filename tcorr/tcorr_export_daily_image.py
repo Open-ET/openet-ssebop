@@ -1,9 +1,10 @@
 import argparse
 from builtins import input
+from collections import defaultdict
 import datetime
+import json
 import logging
 import math
-import os
 import pprint
 import sys
 
@@ -94,23 +95,34 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     logging.debug('\nExport properties')
     export_info = utils.get_info(ee.Image(tmax_mask))
-    # export_geo = ee.Image(tmax_mask).projection().getInfo()['transform']
-    # export_crs = ee.Image(tmax_mask).projection().getInfo()['crs']
-    # export_shape = ee.Image(tmax_mask).getInfo()['bands'][0]['dimensions']
-    export_crs = export_info['bands'][0]['crs']
-    export_geo = export_info['bands'][0]['crs_transform']
-    export_shape = export_info['bands'][0]['dimensions']
-    export_extent = [
-        export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
-        export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    if 'daymet' in ini[model_name]['tmax_source'].lower():
+        # Custom smaller extent for DAYMET
+        export_extent = [-2099750, -3090500, 2900250, 1909500]
+        export_shape = [5000, 5000]
+        export_geo = [1000, 0, -2200750, 0, -1000, 1910500]
+        # # DAYMET grid from user guide
+        # export_extent = [-4560750, -3090500, 3253250, 4984500]
+        # export_shape = [7814, 8075]
+        # export_geo = [1000, 0, -4560750, 0, -1000, 4984500]
+        export_crs = export_info['bands'][0]['crs']
+    else:
+        export_crs = export_info['bands'][0]['crs']
+        export_geo = export_info['bands'][0]['crs_transform']
+        export_shape = export_info['bands'][0]['dimensions']
+        # export_geo = ee.Image(tmax_mask).projection().getInfo()['transform']
+        # export_crs = ee.Image(tmax_mask).projection().getInfo()['crs']
+        # export_shape = ee.Image(tmax_mask).getInfo()['bands'][0]['dimensions']
+        export_extent = [
+            export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
+            export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
     logging.debug('  CRS: {}'.format(export_crs))
     logging.debug('  Extent: {}'.format(export_extent))
     logging.debug('  Geo: {}'.format(export_geo))
     logging.debug('  Shape: {}'.format(export_shape))
 
 
+    # This extent will limit the WRS2 tiles that are included
     if 'daymet' in ini[model_name]['tmax_source'].lower():
-        # TODO: We could define a smaller/custom extent for the DAYMET grid
         export_geom = ee.Geometry.Rectangle(
             [-125, 15, -65, 55], proj='EPSG:4326', geodesic=False)
     elif 'cimis' in ini[model_name]['tmax_source'].lower():
@@ -141,8 +153,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_daily_coll_id)
 
     # Get current asset list
-    logging.debug('  Getting GEE asset list')
+    logging.debug('\nGetting GEE asset list')
     asset_list = utils.get_ee_assets(tcorr_daily_coll_id)
+    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+        pprint.pprint(asset_list[:10])
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -283,10 +297,39 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         logging.debug('  Getting available WRS2 tile list')
         landsat_id_list = utils.get_info(landsat_coll.aggregate_array('system:id'))
-        wrs2_tiles_all = set([id.split('_')[-2] for id in landsat_id_list])
-        if not wrs2_tiles_all:
+        if not landsat_id_list:
             logging.info('  No available images - skipping')
             continue
+        wrs2_tiles_all = set([id.split('_')[-2] for id in landsat_id_list])
+        # print(wrs2_tiles_all)
+        # print('\n')
+
+        def tile_set_2_str(tiles):
+            """Trying to build a more compact version of the WRS2 tile list"""
+            tile_dict = defaultdict(list)
+            for tile in tiles:
+                tile_dict[int(tile[:3])].append(int(tile[3:]))
+            tile_dict = {k: sorted(v) for k, v in tile_dict.items()}
+            tile_str = json.dumps(tile_dict, sort_keys=True) \
+                .replace('"', '').replace(' ', '')\
+                .replace('{', '').replace('}', '')
+            return tile_str
+        wrs2_tiles_all_str = tile_set_2_str(wrs2_tiles_all)
+        # pprint.pprint(wrs2_tiles_all_str)
+        # print('\n')
+
+        def tile_str_2_set(tile_str):
+            # tile_dict = eval(tile_str)
+
+            tile_set = set()
+            for t in tile_str.replace('[', '').split('],'):
+                path = int(t.split(':')[0])
+                for row in t.split(':')[1].replace(']', '').split(','):
+                    tile_set.add('{:03d}{:03d}'.format(path, int(row)))
+            return tile_set
+        # wrs2_tiles_all_dict = tile_str_2_set(wrs2_tiles_all_str)
+        # pprint.pprint(wrs2_tiles_all_dict)
+
 
         # If overwriting, start a new export no matter what
         # The default is to no overwrite, so this mode will not be used often
@@ -303,6 +346,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .filterDate(export_date, next_date)\
                 .limit(1, 'date_ingested', False)
             tcorr_daily_info = utils.get_info(tcorr_daily_coll)
+            # pprint.pprint(tcorr_daily_info)
+            # input('ENTER')
 
             if tcorr_daily_info['features']:
                 # Assume we won't be building a new image and only set flag
@@ -321,8 +366,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                         export_flag = True
                         break
 
-                    wrs2_tiles_old = set(
-                        tcorr_img['properties']['wrs2_available'].split(','))
+                    # DEADBEEF - The wrs2_available property is now a string
+                    # wrs2_tiles_old = set(tcorr_img['properties']['wrs2_available'].split(','))
+
+                    # Convert available dict str to a list of path/rows
+                    wrs2_tiles_old_str = tcorr_img['properties']['wrs2_available']
+                    wrs2_tiles_old = tile_str_2_set(wrs2_tiles_old_str)
 
                     if wrs2_tiles_all != wrs2_tiles_old:
                         logging.debug('  Tile Lists')
@@ -350,8 +399,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(image)) \
                 .tcorr_stats
             t_stats = ee.Dictionary(t_stats) \
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0},
-                         overwrite=False)
+                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
             count = ee.Number(t_stats.get('tcorr_count'))
 
@@ -368,6 +416,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .set({
                     'system:time_start': image.get('system:time_start'),
                     'scene_id': scene_id,
+                    'wrs2_path': ee.Number.parse(scene_id.slice(5, 8)),
+                    'wrs2_row': ee.Number.parse(scene_id.slice(8, 11)),
                     'wrs2_tile': scene_id.slice(5, 11),
                     'spacecraft_id': image.get('SPACECRAFT_ID'),
                     'tcorr': tcorr,
@@ -391,13 +441,48 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             tcorr_img_coll.median(),
             tmax_mask.updateMask(0))
 
+
+        # Build the tile list as a string of a dictionary of paths and rows
+        def tile_dict(path):
+            # Get the row list for each path
+            rows = tcorr_img_coll\
+                .filterMetadata('wrs2_path', 'equals', path)\
+                .aggregate_array('wrs2_row')
+            # Convert rows to integers (otherwise they come back as floats)
+            rows = ee.List(rows).sort().map(lambda row: ee.Number(row).int())
+            return ee.Number(path).format('%d').cat(':[')\
+                .cat(ee.List(rows).join(',')).cat(']')
+
+        path_list = ee.List(tcorr_img_coll.aggregate_array('wrs2_path'))\
+            .distinct().sort()
+        wrs2_tile_str = ee.List(path_list.map(tile_dict)).join(',')
+        # pprint.pprint(wrs2_tile_str.getInfo())
+        # input('ENTER')
+
+        # # DEADBEEF - This works but is really slow because of the getInfo
+        # logging.debug('  Getting Tcorr collection tile list')
+        # wrs2_tile_list = utils.get_info(
+        #     tcorr_img_coll.aggregate_array('wrs2_tile'))
+        # wrs2_tile_str = tile_set_2_str(wrs2_tile_list)
+        # pprint.pprint(wrs2_tile_list)
+        # pprint.pprint(wrs2_tile_str)
+        # input('ENTER')
+
+        # DEADBEEF - Old approach, tile lists for big areas are too long
+        # def unique_properties(coll, property):
+        #     return ee.String(ee.List(ee.Dictionary(
+        #         coll.aggregate_histogram(property)).keys()).join(','))
+        # wrs2_tile_list = ee.String('').cat(unique_properties(
+        #     tcorr_img_coll, 'wrs2_tile'))
+        # wrs2_tile_list = set([id.split('_')[-2] for id in wrs2_tile_list])
+
+
         def unique_properties(coll, property):
             return ee.String(ee.List(ee.Dictionary(
                 coll.aggregate_histogram(property)).keys()).join(','))
-        wrs2_tile_list = ee.String('').cat(unique_properties(
-            tcorr_img_coll, 'wrs2_tile'))
         landsat_list = ee.String('').cat(unique_properties(
             tcorr_img_coll, 'spacecraft_id'))
+
 
         # Cast to float and set properties
         tcorr_img = ee.Image(tcorr_img).rename(['tcorr']).double() \
@@ -415,9 +500,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 'model_version': ssebop.__version__,
                 'tmax_source': tmax_source.upper(),
                 'tmax_version': tmax_version.upper(),
-                'wrs2_tiles': wrs2_tile_list,
-                'wrs2_available': ','.join(sorted(wrs2_tiles_all)),
+                'wrs2_tiles': wrs2_tile_str,
+                'wrs2_available': wrs2_tiles_all_str,
             })
+        # pprint.pprint(tcorr_img.getInfo()['properties'])
+        # input('ENTER')
 
         logging.debug('  Building export task')
         task = ee.batch.Export.image.toAsset(
