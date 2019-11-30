@@ -17,10 +17,10 @@ def pytest_configure():
     if 'EE_PRIVATE_KEY_B64' in os.environ:
         print('Writing privatekey.json from environmental variable ...')
         content = base64.b64decode(os.environ['EE_PRIVATE_KEY_B64']).decode('ascii')
-        KEY_FILE = 'privatekey.json'
-        with open(KEY_FILE, 'w') as f:
+        GEE_KEY_FILE = 'privatekey.json'
+        with open(GEE_KEY_FILE, 'w') as f:
             f.write(content)
-        ee.Initialize(ee.ServiceAccountCredentials('', key_file=KEY_FILE),
+        ee.Initialize(ee.ServiceAccountCredentials('', key_file=GEE_KEY_FILE),
                       use_cloud_api=True)
     else:
         ee.Initialize(use_cloud_api=True)

@@ -853,8 +853,10 @@ class Image():
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
         prep_image = toa_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
-            .set('k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id))))\
-            .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
+            .set({
+                'k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id))),
+                'k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))),
+            })
 
         # Build the input image
         input_image = ee.Image([
@@ -914,8 +916,8 @@ class Image():
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-            .set('k1_constant', ee.Number(k1.get(spacecraft_id)))\
-            .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
+            .set({'k1_constant': ee.Number(k1.get(spacecraft_id)),
+                  'k2_constant': ee.Number(k2.get(spacecraft_id))})
         # k1 = ee.Dictionary({
         #     'LANDSAT_4': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
@@ -929,8 +931,8 @@ class Image():
         # prep_image = sr_image\
         #     .select(input_bands.get(spacecraft_id), output_bands)\
         #     .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-        #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id))))\
-        #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
+        #     .set({'k1_constant': ee.Number(sr_image.get(k1.get(spacecraft_id))),
+        #           'k2_constant': ee.Number(sr_image.get(k2.get(spacecraft_id)))})
 
         # Build the input image
         input_image = ee.Image([
@@ -941,15 +943,14 @@ class Image():
         # Apply the cloud mask and add properties
         input_image = input_image\
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
-            .set({
-                'system:index': sr_image.get('system:index'),
-                'system:time_start': sr_image.get('system:time_start'),
-                'system:id': sr_image.get('system:id'),
-            })
+            .set({'system:index': sr_image.get('system:index'),
+                  'system:time_start': sr_image.get('system:time_start'),
+                  'system:id': sr_image.get('system:id')})
 
         # Instantiate the class
         return cls(input_image, **kwargs)
 
+    # TODO: Move calculation to model.py
     @lazy_property
     def tcorr_image(self):
         """Compute Tcorr for the current image
@@ -963,12 +964,12 @@ class Image():
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
 
-        # Compute tcorr
+        # Compute Tcorr
         tcorr = lst.divide(tmax)
 
-        # Filter NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
-          .reproject(crs=self.crs, crsTransform=self.transform) \
+        # Select high NDVI pixels that are also surrounded by high NDVI
+        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters')\
+          .reproject(crs=self.crs, crsTransform=self.transform)\
           .gt(0.7)
         ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
             ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
@@ -991,22 +992,13 @@ class Image():
         dictionary
 
         """
-        # DEADBEEF - Moved to Image class init
-        # image_proj = self.image.select([0]).projection()
-        # image_crs = image_proj.crs()
-        # image_geo = ee.List(ee.Dictionary(
-        #     ee.Algorithms.Describe(image_proj)).get('transform'))
-        # # image_shape = ee.List(ee.Dictionary(ee.List(ee.Dictionary(
-        # #     ee.Algorithms.Describe(self.image)).get('bands')).get(0)).get('dimensions'))
-        # # print(image_shape.getInfo())
-        # # print(image_crs.getInfo())
-        # # print(image_geo.getInfo())
-
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([5]).combine(ee.Reducer.count(), '', True),
+            reducer=ee.Reducer.percentile([5])\
+                .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
             geometry=ee.Image(self.image).geometry().buffer(1000),
             bestEffort=False,
             maxPixels=2*10000*10000,
-            tileScale=1)
+            tileScale=1,
+        )

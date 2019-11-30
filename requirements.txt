@@ -1,3 +1,3 @@
-earthengine-api>=0.1.185
-openet-core>=0.0.10
+earthengine-api>=0.1.204
+openet-core>=0.0.14
 python-dateutil
