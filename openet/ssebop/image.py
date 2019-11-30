@@ -12,6 +12,10 @@ import openet.core.common as common
 # import openet.core.utils as utils
 
 
+PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
+# PROJECT_FOLDER = 'projects/usgs-ssebop'
+
+
 def lazy_property(fn):
     """Decorator that makes a property lazy-evaluated
 
@@ -32,16 +36,17 @@ class Image():
 
     def __init__(
             self, image,
-            etr_source=None,
-            etr_band=None,
-            etr_factor=None,
-            etr_resample=None,
+            et_reference_source=None,
+            et_reference_band=None,
+            et_reference_factor=None,
+            et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
-            tdiff_threshold=15,
+            # DEADBEEF - Tdiff threshold parameter is being removed
+            # tdiff_threshold=15,
             dt_min=6,
             dt_max=25,
         ):
@@ -54,14 +59,16 @@ class Image():
             Image must have bands: "ndvi" and "lst".
             Image must have properties: 'system:id', 'system:index', and
                 'system:time_start'.
-        etr_source : str, float, optional
-            Reference ET source (the default is 'IDAHO_EPSCOR/GRIDMET').
-        etr_band : str, optional
-            Reference ET band name (the default is 'etr').
-        etr_factor : float, None, optional
+        et_reference_source : str, float, optional
+            Reference ET source (the default is None).
+            Parameter is required if computing 'et' or 'et_reference'.
+        et_reference_band : str, optional
+            Reference ET band name (the default is None).
+            Parameter is required if computing 'et' or 'et_reference'.
+        et_reference_factor : float, None, optional
             Reference ET scaling factor.  The default is None which is
             equivalent to 1.0 (or no scaling).
-        etr_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
+        et_reference_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
@@ -72,8 +79,7 @@ class Image():
                         'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
                         'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'IMAGE').
-        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'CIMIS_MEDIAN_V1',
-                       'DAYMET_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
+        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'DAYMET_MEDIAN_V2',
                        'TOPOWX_MEDIAN_V0', or float}, optional
             Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
         elr_flag : bool, str, optional
@@ -131,19 +137,20 @@ class Image():
             ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
         # Reference ET parameters
-        self.etr_source = etr_source
-        self.etr_band = etr_band
-        self.etr_factor = etr_factor
-        self.etr_resample = etr_resample
+        self.et_reference_source = et_reference_source
+        self.et_reference_band = et_reference_band
+        self.et_reference_factor = et_reference_factor
+        self.et_reference_resample = et_reference_resample
 
         # Check reference ET parameters
-        if etr_factor and not utils.is_number(etr_factor):
-            raise ValueError('etr_factor must be a number')
-        if etr_factor and self.etr_factor < 0:
-            raise ValueError('etr_factor must be greater than zero')
-        etr_resample_methods = ['nearest', 'bilinear', 'bicubic']
-        if etr_resample and etr_resample.lower() not in etr_resample_methods:
-            raise ValueError('unsupported etr_resample method')
+        if et_reference_factor and not utils.is_number(et_reference_factor):
+            raise ValueError('et_reference_factor must be a number')
+        if et_reference_factor and self.et_reference_factor < 0:
+            raise ValueError('et_reference_factor must be greater than zero')
+        et_reference_resample_methods = ['nearest', 'bilinear', 'bicubic']
+        if (et_reference_resample and
+                et_reference_resample.lower() not in et_reference_resample_methods):
+            raise ValueError('unsupported et_reference_resample method')
 
         # Model input parameters
         self._dt_source = dt_source
@@ -151,7 +158,8 @@ class Image():
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
-        self._tdiff_threshold = float(tdiff_threshold)
+        # DEADBEEF - Tdiff threshold parameter is being removed
+        # self._tdiff_threshold = float(tdiff_threshold)
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
@@ -165,7 +173,15 @@ class Image():
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
 
-    def calculate(self, variables=['et', 'etr', 'etf']):
+        # Image projection and geotransform
+        self.crs = image.projection().crs()
+        self.transform = ee.List(ee.Dictionary(
+            ee.Algorithms.Describe(image.projection())).get(
+            'transform'))
+        # self.crs = image.select([0]).projection().getInfo()['crs']
+        # self.transform = image.select([0]).projection().getInfo()['transform']
+
+    def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
         Parameters
@@ -181,10 +197,10 @@ class Image():
         for v in variables:
             if v.lower() == 'et':
                 output_images.append(self.et.float())
-            elif v.lower() == 'etf':
-                output_images.append(self.etf.float())
-            elif v.lower() == 'etr':
-                output_images.append(self.etr.float())
+            elif v.lower() == 'et_fraction':
+                output_images.append(self.et_fraction.float())
+            elif v.lower() == 'et_reference':
+                output_images.append(self.et_reference.float())
             elif v.lower() == 'lst':
                 output_images.append(self.lst.float())
             elif v.lower() == 'mask':
@@ -203,72 +219,76 @@ class Image():
         return ee.Image(output_images).set(self._properties)
 
     @lazy_property
-    def etf(self):
-        """Fraction of reference ET (ETf)"""
+    def et_fraction(self):
+        """Fraction of reference ET"""
         tcorr, tcorr_index = self.tcorr
 
-        etf = model.etf(
+        et_fraction = model.et_fraction(
             lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
-            tdiff_threshold=self._tdiff_threshold, elr_flag=self._elr_flag,
-            elev=self.elev)
+            # DEADBEEF - Tdiff threshold parameter is being removed
+            # tdiff_threshold=self._tdiff_threshold,
+            elr_flag=self._elr_flag,
+            elev=self.elev,
+        )
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
         if (type(self._tcorr_source) is str and
                 'IMAGE' not in self._tcorr_source.upper()):
-            etf = etf.set({'tcorr': tcorr, 'tcorr_index': tcorr_index})
+            et_fraction = et_fraction.set({
+                'tcorr': tcorr, 'tcorr_index': tcorr_index})
 
-        return etf.set(self._properties)
+        return et_fraction.set(self._properties)
 
     @lazy_property
-    def etr(self):
+    def et_reference(self):
         """Reference ET for the image date"""
-        if utils.is_number(self.etr_source):
+        if utils.is_number(self.et_reference_source):
             # Interpret numbers as constant images
             # CGM - Should we use the ee_types here instead?
-            #   i.e. ee.ee_types.isNumber(self.etr_source)
-            etr_img = ee.Image.constant(self.etr_source)
-        elif type(self.etr_source) is str:
+            #   i.e. ee.ee_types.isNumber(self.et_reference_source)
+            et_reference_img = ee.Image.constant(self.et_reference_source)
+        elif type(self.et_reference_source) is str:
             # Assume a string source is an image collection ID (not an image ID)
-            etr_coll = ee.ImageCollection(self.etr_source)\
+            et_reference_coll = ee.ImageCollection(self.et_reference_source)\
                 .filterDate(self._start_date, self._end_date)\
-                .select([self.etr_band])
-            etr_img = ee.Image(etr_coll.first())
-            if self.etr_resample in ['bilinear', 'bicubic']:
-                etr_img = etr_img.resample(self.etr_resample)
-        # elif type(self.etr_source) is list:
+                .select([self.et_reference_band])
+            et_reference_img = ee.Image(et_reference_coll.first())
+            if self.et_reference_resample in ['bilinear', 'bicubic']:
+                et_reference_img = et_reference_img.resample(self.et_reference_resample)
+        # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
         #     # CGM - Need to check the order of the collections
-        #     etr_coll = ee.ImageCollection([])
-        #     for coll_id in self.etr_source:
+        #     et_reference_coll = ee.ImageCollection([])
+        #     for coll_id in self.et_reference_source:
         #         coll = ee.ImageCollection(coll_id)\
-        #             .select([self.etr_band])\
+        #             .select([self.et_reference_band])\
         #             .filterDate(self.start_date, self.end_date)
-        #         etr_img = etr_coll.merge(coll)
-        #     etr_img = etr_coll.mosaic()
-        # elif isinstance(self.etr_source, computedobject.ComputedObject):
+        #         et_reference_img = et_reference_coll.merge(coll)
+        #     et_reference_img = et_reference_coll.mosaic()
+        # elif isinstance(self.et_reference_source, computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     etr_coll = ee.ImageCollection(self.etr_source)\
-        #         .select([self.etr_band])\
+        #     et_reference_coll = ee.ImageCollection(self.et_reference_source)\
+        #         .select([self.et_reference_band])\
         #         .filterDate(self.start_date, self.end_date)
         else:
-            raise ValueError('unsupported etr_source: {}'.format(
-                self.etr_source))
+            raise ValueError('unsupported et_reference_source: {}'.format(
+                self.et_reference_source))
 
-        if self.etr_factor:
-            etr_img = etr_img.multiply(self.etr_factor)
+        if self.et_reference_factor:
+            et_reference_img = et_reference_img.multiply(self.et_reference_factor)
 
         # Map ETr values directly to the input (i.e. Landsat) image pixels
         # The benefit of this is the ETr image is now in the same crs as the
         #   input image.  Not all models may want this though.
         # CGM - Should the output band name match the input ETr band name?
-        return self.ndvi.multiply(0).add(etr_img)\
-            .rename(['etr']).set(self._properties)
+        return self.ndvi.multiply(0).add(et_reference_img)\
+            .rename(['et_reference']).set(self._properties)
 
     @lazy_property
     def et(self):
         """Actual ET as fraction of reference times"""
-        return self.etf.multiply(self.etr) \
+        return self.et_fraction.multiply(self.et_reference) \
             .rename(['et']).set(self._properties)
 
     @lazy_property
@@ -278,8 +298,8 @@ class Image():
 
     @lazy_property
     def mask(self):
-        """Mask of all active pixels (based on the final etf)"""
-        return self.etf.multiply(0).add(1).updateMask(1)\
+        """Mask of all active pixels (based on the final et_fraction)"""
+        return self.et_fraction.multiply(0).add(1).updateMask(1)\
             .rename(['mask']).set(self._properties).uint8()
 
     @lazy_property
@@ -319,18 +339,19 @@ class Image():
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v0')\
+            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
-            dt_coll = ee.ImageCollection('projects/usgs-ssebop/dt/daymet_median_v1')\
+            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
 
         # Compute dT for the target date
         elif self._dt_source.upper() == 'CIMIS':
             input_img = ee.Image(
-                ee.ImageCollection('projects/climate-engine/cimis/daily')\
+                ee.ImageCollection('projects/earthengine-legacy/assets/'
+                                   'projects/climate-engine/cimis/daily')\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['Tx', 'Tn', 'Rs', 'Tdew'])
                     .first())
@@ -405,7 +426,7 @@ class Image():
         if utils.is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
-            elev_image = ee.Image('projects/usgs-ssebop/srtm_1km')
+            elev_image = ee.Image(PROJECT_FOLDER + '/srtm_1km')
         elif self._elev_source.upper() == 'GTOPO':
             elev_image = ee.Image('USGS/GTOPO30')
         elif self._elev_source.upper() == 'NED':
@@ -456,29 +477,30 @@ class Image():
         elif ('FEATURE' in self._tcorr_source.upper() or
                 self._tcorr_source.upper() == 'SCENE'):
             # Lookup Tcorr collections by keyword value
+            
             scene_coll_dict = {
-                'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_scene',
-                'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_scene',
-                'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_scene',
-                # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_scene',
-                'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_scene',
-                'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_scene',
-                'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_scene',
-                'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_scene',
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_scene',
-                'TOPOWX_MEDIAN_V0B': 'projects/usgs-ssebop/tcorr/topowx_median_v0b_scene',
+                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
+                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
+                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
+                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
+                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
+                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
+                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
+                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
+                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
             }
             month_coll_dict = {
-                'CIMIS': 'projects/usgs-ssebop/tcorr/cimis_monthly',
-                'DAYMET': 'projects/usgs-ssebop/tcorr/daymet_monthly',
-                'GRIDMET': 'projects/usgs-ssebop/tcorr/gridmet_monthly',
-                # 'TOPOWX': 'projects/usgs-ssebop/tcorr/topowx_monthly',
-                'CIMIS_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/cimis_median_v1_monthly',
-                'DAYMET_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/daymet_median_v0_monthly',
-                'DAYMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/daymet_median_v1_monthly',
-                'GRIDMET_MEDIAN_V1': 'projects/usgs-ssebop/tcorr/gridmet_median_v1_monthly',
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr/topowx_median_v0_monthly',
-                'TOPOWX_MEDIAN_V0B': 'projects/usgs-ssebop/tcorr/topowx_median_v0b_monthly',
+                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
+                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
+                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
+                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
+                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
+                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
+                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
+                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
+                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
             }
             # annual_coll_dict = {}
             default_value_dict = {
@@ -528,16 +550,20 @@ class Image():
         elif 'IMAGE' in self._tcorr_source.upper():
             # Lookup Tcorr collections by keyword value
             daily_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_daily'
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
             }
             month_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_monthly',
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
             }
             annual_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_annual',
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
             }
             default_dict = {
-                'TOPOWX_MEDIAN_V0': 'projects/usgs-ssebop/tcorr_image/topowx_median_v0_default'
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
+                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
             }
 
             # Check Tmax source value
@@ -635,18 +661,18 @@ class Image():
         if utils.is_number(self._tmax_source):
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
-                .set('TMAX_VERSION', 'CUSTOM_{}'.format(self._tmax_source))
+                .set('tmax_version', 'custom_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
-            daily_coll = ee.ImageCollection('projects/climate-engine/cimis/daily')\
+            daily_coll = ee.ImageCollection('projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'DAYMET':
@@ -656,12 +682,12 @@ class Image():
                 .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
                 .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'GRIDMET':
@@ -669,12 +695,12 @@ class Image():
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
             daily_image = ee.Image(daily_coll.first())\
-                .set('TMAX_VERSION', date_today)
+                .set('tmax_version', date_today)
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
             tmax_image = ee.Image(ee.Algorithms.If(
                 daily_coll.size().gt(0), daily_image, median_image))
         # elif self.tmax_source.upper() == 'TOPOWX':
@@ -682,56 +708,62 @@ class Image():
         #         .filterDate(self.start_date, self.end_date)\
         #         .select(['tmmx'], ['tmax'])
         #     daily_image = ee.Image(daily_coll.first())\
-        #         .set('TMAX_VERSION', date_today)
+        #         .set('tmax_version', date_today)
         #
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
-        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
         #     median_image = ee.Image(median_coll.filter(doy_filter).first())\
-        #         .set('TMAX_VERSION', median_version)
+        #         .set('tmax_version', median_version)
         #
         #     tmax_image = ee.Image(ee.Algorithms.If(
         #         daily_coll.size().gt(0), daily_image, median_image))
         elif self._tmax_source.upper() == 'CIMIS_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/cimis_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/daymet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
+        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V2':
+            median_version = 'median_v2'
+            median_coll = ee.ImageCollection(
+                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
+            tmax_image = ee.Image(median_coll.filter(doy_filter).first()) \
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'GRIDMET_MEDIAN_V1':
             median_version = 'median_v1'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/gridmet_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         elif self._tmax_source.upper() == 'TOPOWX_MEDIAN_V0':
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
-                'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+                PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
             tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('TMAX_VERSION', median_version)
+                .set('tmax_version', median_version)
         # elif self.tmax_source.upper() == 'TOPOWX_MEDIAN_V1':
         #     median_version = 'median_v1'
         #     median_coll = ee.ImageCollection(
-        #         'projects/usgs-ssebop/tmax/topowx_{}'.format(median_version))
+        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
         #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
         else:
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
-        return ee.Image(tmax_image.set('TMAX_SOURCE', self._tmax_source))
+        return tmax_image.set('tmax_source', self._tmax_source)
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):
@@ -821,8 +853,8 @@ class Image():
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
         prep_image = toa_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
-            .set('k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id))))\
-            .set('k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))))
+            .set({'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
+                  'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id)))})
 
         # Build the input image
         input_image = ee.Image([
@@ -882,8 +914,8 @@ class Image():
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-            .set('k1_constant', ee.Number(k1.get(spacecraft_id)))\
-            .set('k2_constant', ee.Number(k2.get(spacecraft_id)))
+            .set({'k1_constant': ee.Number(k1.get(spacecraft_id)),
+                  'k2_constant': ee.Number(k2.get(spacecraft_id))})
         # k1 = ee.Dictionary({
         #     'LANDSAT_4': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
@@ -897,8 +929,8 @@ class Image():
         # prep_image = sr_image\
         #     .select(input_bands.get(spacecraft_id), output_bands)\
         #     .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-        #     .set('k1_constant', ee.Number(sr_image.get(k1.get(spacecraft_id))))\
-        #     .set('k2_constant', ee.Number(sr_image.get(k2.get(spacecraft_id))))
+        #     .set({'k1_constant': ee.Number(sr_image.get(k1.get(spacecraft_id))),
+        #           'k2_constant': ee.Number(sr_image.get(k2.get(spacecraft_id)))})
 
         # Build the input image
         input_image = ee.Image([
@@ -909,20 +941,17 @@ class Image():
         # Apply the cloud mask and add properties
         input_image = input_image\
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
-            .set({
-                'system:index': sr_image.get('system:index'),
-                'system:time_start': sr_image.get('system:time_start'),
-                'system:id': sr_image.get('system:id'),
-            })
+            .set({'system:index': sr_image.get('system:index'),
+                  'system:time_start': sr_image.get('system:time_start'),
+                  'system:id': sr_image.get('system:id')})
 
         # Instantiate the class
         return cls(input_image, **kwargs)
 
+    # TODO: Move calculation to model.py
     @lazy_property
     def tcorr_image(self):
         """Compute Tcorr for the current image
-
-        Apply Tdiff cloud mask buffer (mask values of 0 are set to nodata)
 
         Returns
         -------
@@ -933,22 +962,24 @@ class Image():
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
 
-        # Compute tcorr
+        # Compute Tcorr
         tcorr = lst.divide(tmax)
 
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi.gt(0.7))
+        # Select high NDVI pixels that are also surrounded by high NDVI
+        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters')\
+          .reproject(crs=self.crs, crsTransform=self.transform)\
+          .gt(0.7)
+        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
+            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
 
-        # Filter extreme Tdiff values
-        tdiff = tmax.subtract(lst)
-        tcorr_mask = tcorr_mask.And(
-            tdiff.gt(0).And(tdiff.lte(self._tdiff_threshold)))
+        # Remove low LST and low NDVI
+        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
-                  'TMAX_SOURCE': tmax.get('TMAX_SOURCE'),
-                  'TMAX_VERSION': tmax.get('TMAX_VERSION')})
+                  'tmax_source': tmax.get('tmax_source'),
+                  'tmax_version': tmax.get('tmax_version')})
 
     @lazy_property
     def tcorr_stats(self):
@@ -959,21 +990,13 @@ class Image():
         dictionary
 
         """
-        image_proj = self.image.select([0]).projection()
-        image_crs = image_proj.crs()
-        image_geo = ee.List(ee.Dictionary(
-            ee.Algorithms.Describe(image_proj)).get('transform'))
-        # image_shape = ee.List(ee.Dictionary(ee.List(ee.Dictionary(
-        #     ee.Algorithms.Describe(self.image)).get('bands')).get(0)).get('dimensions'))
-        # print(image_shape.getInfo())
-        # print(image_crs.getInfo())
-        # print(image_geo.getInfo())
-
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([5]).combine(ee.Reducer.count(), '', True),
-            crs=image_crs,
-            crsTransform=image_geo,
+            reducer=ee.Reducer.percentile([5])\
+                .combine(ee.Reducer.count(), '', True),
+            crs=self.crs,
+            crsTransform=self.transform,
             geometry=ee.Image(self.image).geometry().buffer(1000),
             bestEffort=False,
             maxPixels=2*10000*10000,
-            tileScale=1)
+            tileScale=1,
+        )

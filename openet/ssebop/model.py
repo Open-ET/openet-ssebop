@@ -3,7 +3,8 @@ import math
 import ee
 
 
-def etf(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False, elev=None):
+def et_fraction(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False,
+                elev=None):
     """SSEBop fraction of reference ET (ETf)
 
     Parameters
@@ -39,14 +40,19 @@ def etf(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False, elev=None):
     if elr_flag:
         tmax = ee.Image(lapse_adjust(tmax, ee.Image(elev)))
 
-    etf = lst.expression(
+    et_fraction = lst.expression(
         '(lst * (-1) + tmax * tcorr + dt) / dt',
         {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
 
-    return etf.updateMask(etf.lt(1.3))\
+    return et_fraction.updateMask(et_fraction.lt(1.3))\
         .clamp(0, 1.05)\
-        .updateMask(tmax.subtract(lst).lte(tdiff_threshold))\
-        .rename(['etf'])
+        .rename(['et_fraction'])
+
+    # DEADBEEF - Tdiff threshold parameter is being removed
+    # return et_fraction.updateMask(et_fraction.lt(1.3))\
+    #     .clamp(0, 1.05)\
+    #     .updateMask(tmax.subtract(lst).lte(tdiff_threshold))\
+    #     .rename(['et_fraction'])
 
 
 def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):

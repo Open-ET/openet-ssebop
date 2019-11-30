@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         cancel_tasks.py
-# Purpose:      Cancel Earth Engine tasks
-#--------------------------------
-
 import argparse
 import datetime
 import logging
@@ -36,9 +31,10 @@ def main(key=None, state='READY'):
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
+                      use_cloud_api=False)
     else:
-        ee.Initialize()
+        ee.Initialize(use_cloud_api=False)
 
     # Get current task list
     tasks = utils.get_ee_tasks(states=states)

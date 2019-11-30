@@ -1,14 +1,8 @@
-#--------------------------------
-# Name:         dt_export_daily_image.py
-# Purpose:      Compute/Export daily dT images
-#--------------------------------
-
 import argparse
 from builtins import input
 from collections import defaultdict
 import datetime
 import logging
-import math
 import os
 import pprint
 import re
@@ -80,9 +74,10 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
+                      use_cloud_api=False)
     else:
-        ee.Initialize()
+        ee.Initialize(use_cloud_api=False)
 
     # Output dT daily image collection
     dt_daily_coll_id = '{}/{}_daily'.format(

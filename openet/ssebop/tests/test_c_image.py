@@ -48,39 +48,46 @@ def default_image(lst=305, ndvi=0.8):
         })
 
 
-# Setting etr_source and etr_band on the default image to simplify testing
-#   but these do not have defaults in the Image class init
-def default_image_args(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
-                       etr_band='etr', etr_factor=0.85, etr_resample='nearest'):
+# Setting et_reference_source and et_reference_band on the default image to
+#   simplify testing but these do not have defaults in the Image class init
+def default_image_args(lst=305, ndvi=0.8,
+                       et_reference_source='IDAHO_EPSCOR/GRIDMET',
+                       et_reference_band='etr', et_reference_factor=0.85,
+                       et_reference_resample='nearest'):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
-        'etr_source': etr_source,
-        'etr_band': etr_band,
-        'etr_factor': etr_factor,
-        'etr_resample': etr_resample,
+        'et_reference_source': et_reference_source,
+        'et_reference_band': et_reference_band,
+        'et_reference_factor': et_reference_factor,
+        'et_reference_resample': et_reference_resample,
     }
 
 
-def default_image_obj(lst=305, ndvi=0.8, etr_source='IDAHO_EPSCOR/GRIDMET',
-                      etr_band='etr', etr_factor=0.85, etr_resample='nearest'):
+def default_image_obj(lst=305, ndvi=0.8,
+                      et_reference_source='IDAHO_EPSCOR/GRIDMET',
+                      et_reference_band='etr', et_reference_factor=0.85,
+                      et_reference_resample='nearest'):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
-        etr_source=etr_source, etr_band=etr_band,
-        etr_factor=etr_factor, etr_resample=etr_resample))
+        et_reference_source=et_reference_source,
+        et_reference_band=et_reference_band,
+        et_reference_factor=et_reference_factor,
+        et_reference_resample=et_reference_resample))
 
 
 def test_Image_init_default_parameters():
     m = ssebop.Image(default_image())
-    assert m.etr_source == None
-    assert m.etr_band == None
-    assert m.etr_factor == None
-    assert m.etr_resample == None
+    assert m.et_reference_source == None
+    assert m.et_reference_band == None
+    assert m.et_reference_factor == None
+    assert m.et_reference_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V1'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'IMAGE'
     assert m._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert m._elr_flag == False
-    assert m._tdiff_threshold == 15
+    # DEADBEEF - Tdiff threshold parameter is being removed
+    # assert m._tdiff_threshold == 15
     assert m._dt_min == 6
     assert m._dt_max == 25
 
@@ -243,8 +250,8 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['2364.351', [-106.03249, 37.17777], 2364.351],
         [2364.351, [-106.03249, 37.17777], 2364.351],
         # Check custom images
-        ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
-        ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         # DEADBEEF - We should allow any EE image (not just users/projects)
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
     ]
@@ -336,12 +343,18 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
     [
-        # Check image sources (TOPOWX_MEDIAN_V0 only for now)
+        # TOPOWX_MEDIAN_V0
         ['IMAGE', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_DAILY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
         ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9723, 1]],
         ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9786, 2]],
         ['IMAGE_DEFAULT', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.978, 3]],
+        # DAYMET_MEDIAN_V2
+        # ['IMAGE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
+        # ['IMAGE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
+        # ['IMAGE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9723, 1]],
+        # ['IMAGE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9786, 2]],
+        # ['IMAGE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.978, 3]],
     ]
 )
 def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
@@ -473,6 +486,7 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
         ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
         ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
+        # ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
         ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
         ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
         # Check string/float constant values
@@ -518,37 +532,38 @@ today_dt = datetime.datetime.today()
 @pytest.mark.parametrize(
     'tmax_source, expected',
     [
-        ['CIMIS', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['DAYMET', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['GRIDMET', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        # ['TOPOWX', {'TMAX_VERSION': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['CIMIS_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        ['DAYMET_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
-        ['DAYMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        ['GRIDMET_MEDIAN_V1', {'TMAX_VERSION': 'median_v1'}],
-        ['TOPOWX_MEDIAN_V0', {'TMAX_VERSION': 'median_v0'}],
-        ['305', {'TMAX_VERSION': 'CUSTOM_305'}],
-        [305, {'TMAX_VERSION': 'CUSTOM_305'}],
+        ['CIMIS', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['DAYMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['GRIDMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        # ['TOPOWX', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['CIMIS_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['DAYMET_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['DAYMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        # ['DAYMET_MEDIAN_V2', {'tmax_version': 'median_v2'}],
+        ['GRIDMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['TOPOWX_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['305', {'tmax_version': 'custom_305'}],
+        [305, {'tmax_version': 'custom_305'}],
     ]
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
     output = utils.getinfo(
         ssebop.Image(default_image(), tmax_source=tmax_source).tmax)
-    assert output['properties']['TMAX_SOURCE'] == tmax_source
-    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 @pytest.mark.parametrize(
     'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
 )
-def test_Image_etf_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
+def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
     output_img = ssebop.Image(
         default_image(), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax).etf
+        tcorr_source=tcorr, tmax_source=tmax).et_fraction
     output = utils.constant_image_value(ee.Image(output_img))
-    assert abs(output['etf'] - expected) <= tol
-    # assert output['etf'] > 0
+    assert abs(output['et_fraction'] - expected) <= tol
+    # assert output['et_fraction'] > 0
 
 
 @pytest.mark.parametrize(
@@ -561,71 +576,72 @@ def test_Image_etf_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
         [315, 0.10, 15, 2000, 0.98, 310, True, 0.1553],
     ]
 )
-def test_Image_etf_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
-                             expected, tol=0.0001):
+def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
+                                     expected, tol=0.0001):
     """Test that elr_flag works and changes ETf values"""
     output_img = ssebop.Image(
         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr_flag).etf
+        tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr_flag).et_fraction
     output = utils.constant_image_value(ee.Image(output_img))
-    assert abs(output['etf'] - expected) <= tol
+    assert abs(output['et_fraction'] - expected) <= tol
 
 
-@pytest.mark.parametrize(
-    'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
-    [
-        [299, 0.80, 15, 50, 0.98, 310, 10, None],
-        [299, 0.80, 15, 50, 0.98, 310, 10, None],
-        [304, 0.10, 15, 50, 0.98, 310, 5, None],
-    ]
-)
-def test_Image_etf_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
-                               expected):
-    """Test that ETf is set to nodata for tdiff values outside threshold"""
-    output_img = ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-        tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).etf
-    output = utils.constant_image_value(ee.Image(output_img))
-    assert output['etf'] is None and expected is None
+# DEADBEEF - Tdiff threshold parameter is being removed
+# @pytest.mark.parametrize(
+#     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
+#     [
+#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
+#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
+#         [304, 0.10, 15, 50, 0.98, 310, 5, None],
+#     ]
+# )
+# def test_Image_et_fraction_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
+#                                        expected):
+#     """Test that ETf is set to nodata for tdiff values outside threshold"""
+#     output_img = ssebop.Image(
+#         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+#         tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).et_fraction
+#     output = utils.constant_image_value(ee.Image(output_img))
+#     assert output['et_fraction'] is None and expected is None
 
 
-def test_Image_etf_properties():
+def test_Image_et_fraction_properties():
     """Test if properties are set on the ETf image"""
-    output = utils.getinfo(default_image_obj().etf)
-    assert output['bands'][0]['id'] == 'etf'
+    output = utils.getinfo(default_image_obj().et_fraction)
+    assert output['bands'][0]['id'] == 'et_fraction'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
 
 
-def test_Image_etf_image_tcorr_properties():
+def test_Image_et_fraction_image_tcorr_properties():
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
-        ssebop.Image(default_image(), tcorr_source='IMAGE').etf)
+        ssebop.Image(default_image(), tcorr_source='IMAGE').et_fraction)
     assert 'tcorr' not in output['properties'].keys()
     assert 'tcorr_index' not in output['properties'].keys()
 
 
-def test_Image_etf_feature_tcorr_properties(tol=0.0001):
+def test_Image_et_fraction_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
     output = utils.getinfo(
-        ssebop.Image(default_image(), tcorr_source='FEATURE').etf)
+        ssebop.Image(default_image(), tcorr_source='FEATURE').et_fraction)
     assert abs(output['properties']['tcorr'] - 0.9752) <= tol
     assert output['properties']['tcorr_index'] == 0
 
 
-def test_Image_etr_properties():
+def test_Image_et_reference_properties():
     """Test if properties are set on the ETr image"""
-    output =  utils.getinfo(default_image_obj().etr)
-    assert output['bands'][0]['id'] == 'etr'
+    output =  utils.getinfo(default_image_obj().et_reference)
+    assert output['bands'][0]['id'] == 'et_reference'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['image_id'] == COLL_ID + SCENE_ID
 
 
-def test_Image_etr_values(tol=0.0001):
+def test_Image_et_reference_values(tol=0.0001):
     output = utils.constant_image_value(
-        ssebop.Image(default_image(), etr_source=10).etr)
-    assert abs(output['etr'] - 10) <= tol
+        ssebop.Image(default_image(), et_reference_source=10).et_reference)
+    assert abs(output['et_reference'] - 10) <= tol
 
 
 def test_Image_et_properties(tol=0.0001):
@@ -640,7 +656,7 @@ def test_Image_et_properties(tol=0.0001):
 def test_Image_et_values(tol=0.0001):
     output_img = ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310, etr_source=10).et
+        tcorr_source=0.98, tmax_source=310, et_reference_source=10).et
     output = utils.constant_image_value(output_img)
     assert abs(output['et'] - 5.8) <= tol
 
@@ -672,8 +688,8 @@ def test_Image_time_properties():
 
 
 def test_Image_time_values():
-    # The time image is currently being built from the etf image, so all the
-    #   ancillary values must be set for the constant_image_value to work.
+    # The time image is currently being built from the et_fraction image, so all
+    #   the ancillary values must be set for the constant_image_value to work.
     output = utils.constant_image_value(ssebop.Image(
         default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).time)
@@ -690,7 +706,7 @@ def test_Image_calculate_properties():
 
 def test_Image_calculate_variables_default():
     output = utils.getinfo(default_image_obj().calculate())
-    assert {x['id'] for x in output['bands']} == {'et', 'etr', 'etf'}
+    assert {x['id'] for x in output['bands']} == {'et', 'et_reference', 'et_fraction'}
 
 
 def test_Image_calculate_variables_custom():
@@ -700,7 +716,7 @@ def test_Image_calculate_variables_custom():
 
 
 def test_Image_calculate_variables_all():
-    variables = {'et', 'etf', 'etr', 'mask', 'ndvi', 'time'}
+    variables = {'et', 'et_fraction', 'et_reference', 'mask', 'ndvi', 'time'}
     output = utils.getinfo(default_image_obj().calculate(variables=variables))
     assert {x['id'] for x in output['bands']} == variables
 
@@ -709,12 +725,12 @@ def test_Image_calculate_values(tol=0.0001):
     """Test if the calculate method returns ET, ETr, and ETf values"""
     output_img = ssebop.Image(
             default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
-            tcorr_source=0.98, tmax_source=310, etr_source=10)\
-        .calculate(['et', 'etr', 'etf'])
+            tcorr_source=0.98, tmax_source=310, et_reference_source=10)\
+        .calculate(['et', 'et_reference', 'et_fraction'])
     output = utils.constant_image_value(output_img)
     assert abs(output['et'] - 5.8) <= tol
-    assert abs(output['etr'] - 10) <= tol
-    assert abs(output['etf'] - 0.58) <= tol
+    assert abs(output['et_reference'] - 10) <= tol
+    assert abs(output['et_fraction'] - 0.58) <= tol
 
 
 def test_Image_calculate_variables_valueerror():
@@ -754,10 +770,10 @@ def test_Image_from_landsat_c1_toa_image():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-def test_Image_from_landsat_c1_toa_etf():
+def test_Image_from_landsat_c1_toa_et_fraction():
     """Test if ETf can be built for a Landsat TOA image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).etf)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -765,7 +781,8 @@ def test_Image_from_landsat_c1_toa_et():
     """Test if ET can be built for a Landsat TOA image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
+        image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
+        et_reference_band='etr').et)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -803,10 +820,10 @@ def test_Image_from_landsat_c1_sr_image():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-def test_Image_from_landsat_c1_sr_etf():
+def test_Image_from_landsat_c1_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).etf)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -814,7 +831,8 @@ def test_Image_from_landsat_c1_sr_et():
     """Test if ET can be built for a Landsat image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
-        image_id, etr_source='IDAHO_EPSCOR/GRIDMET', etr_band='etr').et)
+        image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
+        et_reference_band='etr').et)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -876,8 +894,10 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     [
         [300, 0.69, 306, None],  # NDVI < 0.7
         [269, 0.69, 306, None],  # LST < 270
-        [290, 0.20, 306, None],  # Tdiff > 15
-        [307, 0.20, 306, None],  # Tdiff < 0
+        # DEADBEEF - Tdiff threshold parameter is being removed
+        # [290, 0.20, 306, None],  # Tdiff > 15
+        # [307, 0.20, 306, None],  # Tdiff < 0
+        # TODO: Add a test for the NDVI smoothing
     ]
 )
 def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
@@ -892,13 +912,13 @@ def test_Image_tcorr_image_band_name():
 
 
 def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
-                                      expected={'TMAX_VERSION': 'median_v0'}):
+                                      expected={'tmax_version': 'median_v0'}):
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj().tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['TMAX_SOURCE'] == tmax_source
-    assert output['properties']['TMAX_VERSION'] == expected['TMAX_VERSION']
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
@@ -920,11 +940,11 @@ def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         {'tcorr_p5': 0.99255660, 'tcorr_count': 969952}],  # 0.99255676, 971875
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463005}],  # 0.99255676, 971875
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
-         {'tcorr_p5': 0.98302061, 'tcorr_count': 1700386}], # 0.98302000, 1700567
+         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}], # 0.98302000, 1700567
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
-         {'tcorr_p5': 0.95788534, 'tcorr_count': 2315635}], # 0.95788514, 2315630
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}], # 0.95788514, 2315630
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):

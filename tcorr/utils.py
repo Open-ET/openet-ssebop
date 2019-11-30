@@ -4,7 +4,6 @@ import configparser
 import datetime
 import logging
 import os
-import subprocess
 import sys
 import time
 
@@ -50,31 +49,57 @@ def date_range(start_dt, end_dt, days=1, skip_leap_days=True):
         curr_dt += datetime.timedelta(days=days)
 
 
-def delay_task(delay_time):
-    """"""
-    if delay_time and delay_time > 0:
+def delay_task(delay_time=0, max_ready=-1):
+    """Delay script execution based on number of RUNNING and READY tasks
+
+    Parameters
+    ----------
+    delay_time : float, int
+        Delay time in seconds between starting export tasks or checking the
+        number of queued tasks if "max_ready" is > 0.  The default is 0.
+        The delay time will be set to a minimum of 30 seconds if max_ready > 0.
+    max_ready : int, optional
+        Maximum number of queued "READY" tasks.  The default is -1 which
+        implies no limit to the number of tasks that will be submitted.
+
+    Returns
+    -------
+    None
+
+    """
+    # Force delay time to be a positive value
+    # (since parameter used to support negative values)
+    if delay_time < 0:
+        delay_time = abs(delay_time)
+
+    logging.debug('  Pausing {} seconds'.format(delay_time))
+
+    if max_ready <= 0:
         time.sleep(delay_time)
-    elif delay_time and delay_time <= -1:
-        # Don't continue to the next export until all tasks are RUNNING
+    elif max_ready > 0:
+        # Don't continue to the next export until the number of READY tasks
+        # is greater than or equal to "max_ready"
+
+        # Force delay_time to be at least 30 seconds if max_ready is set
+        #   to avoid excessive EE calls
+        delay_time = max(delay_time, 30)
+
         # Make an initial pause before checking tasks lists to allow
         #   for previous export to start up.
-        delay_time = abs(delay_time)
-        logging.debug('  Pausing {} seconds'.format(delay_time))
         time.sleep(delay_time)
 
-        # Don't continue until all there are no "READY" tasks
         while True:
             ready_tasks = get_ee_tasks(states=['READY'], verbose=True)
-            logging.debug('  Ready tasks: {}'.format(
-                ', '.join(sorted(ready_tasks.keys()))))
+            ready_task_count = len(ready_tasks.keys())
+            # logging.debug('  Ready tasks: {}'.format(
+            #     ', '.join(sorted(ready_tasks.keys()))))
 
-            # Try to keep 2 tasks queued
-            if len(ready_tasks.keys()) >= 2:
-                logging.debug(
-                    '  Waiting {} seconds to start more tasks'.format(delay_time))
+            if ready_task_count >= max_ready:
+                logging.debug('  {} tasks queued, waiting {} seconds to start '
+                              'more tasks'.format(ready_task_count, delay_time))
                 time.sleep(delay_time)
             else:
-                logging.debug('  All tasks running, continuing iteration')
+                logging.debug('  Continuing iteration')
                 break
 
 
@@ -92,15 +117,13 @@ def ee_task_start(task, n=10):
     return task
 
 
-def get_ee_assets(asset_id, shell_flag=False):
+def get_ee_assets(asset_id):
     """Return Google Earth Engine assets
 
     Parameters
     ----------
     asset_id : str
         A folder or image collection ID.
-    shell_flag : bool, optional
-        If True, execute the command through the shell (the default is True).
 
     Returns
     -------
@@ -108,19 +131,18 @@ def get_ee_assets(asset_id, shell_flag=False):
 
     """
     try:
-        asset_list = subprocess.check_output(
-            ['earthengine', '--no-use_cloud_api', 'ls', asset_id],
-            universal_newlines=True, shell=shell_flag)
-        asset_list = [x.strip() for x in asset_list.split('\n') if x]
+        asset_list = ee.data.getList({'id': asset_id})
+        asset_list = [x['id'] for x in asset_list if x['type'] == 'Image']
+        # asset_list = ee.data.listImages(asset_id)
         # logging.debug(asset_list)
-    except ValueError as e:
-        logging.info('  Collection doesn\'t exist')
-        logging.debug('  {}'.format(str(e)))
-        asset_list = []
     except Exception as e:
         logging.error('\n  Unknown error, returning False')
         logging.error(e)
         sys.exit()
+    # except ValueError as e:
+    #     logging.info('  Collection doesn\'t exist')
+    #     logging.debug('  {}'.format(str(e)))
+    #     asset_list = []
     return asset_list
 
 
@@ -136,23 +158,27 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=True):
 
     Returns
     -------
-    dict : task descriptions (key) and IDs (value)
+    dict : task descriptions (key) and full task info dictionary (value)
 
     """
     logging.debug('\nActive Tasks')
     for i in range(1, 10):
         try:
             task_list = ee.data.getTaskList()
+            # task_list = ee.data.listOperations()
             break
         except Exception as e:
-            logging.warning(
-                '  Exception retrieving task list {} retrying'.format(e))
+            logging.warning('  Exception retrieving task list, retrying')
+            logging.debug('    {}'.format(e))
             time.sleep(i ** 2)
             # return {}
 
-    task_list = sorted([
-        [t['state'], t['description'], t['id']] for t in task_list
-        if t['state'] in states])
+    task_list = sorted(
+        [task for task in task_list if task['state'] in states],
+        key=lambda t: (t['state'], t['description'], t['id']))
+    # task_list = sorted([
+    #     [t['state'], t['description'], t['id']] for t in task_list
+    #     if t['state'] in states])
     if verbose:
         if task_list:
             logging.debug('  {:8s} {}'.format('STATE', 'DESCRIPTION'))
@@ -161,13 +187,51 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=True):
             logging.debug('  None')
 
     tasks = {}
-    for t_state, t_desc, t_id in task_list:
+    for task in task_list:
+        tasks[task['description']] = task
+        # tasks[task['description']] = task['id']
         if verbose:
-            logging.debug('  {:8s} {}'.format(t_state, t_desc))
-            # logging.debug('  {:8s} {} {}'.format(t_state, t_desc, t_id))
-        tasks[t_desc] = t_id
-        # tasks[t_id] = t_desc
+            if task['state'] == 'RUNNING':
+                start_dt = datetime.datetime.utcfromtimestamp(
+                    task['start_timestamp_ms'] / 1000)
+                update_dt = datetime.datetime.utcfromtimestamp(
+                    task['update_timestamp_ms'] / 1000)
+                logging.debug('  {:8s} {}  {:0.2f}  {}'.format(
+                    task['state'], task['description'],
+                    (update_dt - start_dt).total_seconds() / 3600,
+                    task['id']))
+            else:
+                logging.debug('  {:8s} {}'.format(
+                    task['state'], task['description']))
+
     return tasks
+
+
+def get_info(ee_obj, max_retries=2):
+    """Make an exponential back off getInfo call on an Earth Engine object"""
+    output = None
+    for i in range(1, max_retries):
+        try:
+            output = ee_obj.getInfo()
+        except ee.ee_exception.EEException as e:
+            if ('Earth Engine memory capacity exceeded' in str(e) or
+                    'Earth Engine capacity exceeded' in str(e)):
+                logging.info('    Resending query ({}/{})'.format(i, max_retries))
+                logging.debug('    {}'.format(e))
+                time.sleep(i ** 2)
+            else:
+                logging.debug('Unhandled Earth Engine exception, exiting')
+                raise e
+        except Exception as e:
+            logging.info('    Resending query ({}/{})'.format(i, max_retries))
+            logging.debug('    {}'.format(e))
+            time.sleep(i ** 2)
+
+        if output:
+            break
+
+    # output = ee_obj.getInfo()
+    return output
 
 
 def image_exists(asset_id):

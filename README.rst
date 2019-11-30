@@ -71,9 +71,9 @@ Example
     import openet.ssebop as ssebop
 
     landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
-    etf_img = ssebop.Image.from_landsat_c1_toa(landsat_img).etf
-    eto_img = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('eto')
-    eta_img = etf_img.multiply(eto_img)
+    et_fraction = ssebop.Image.from_landsat_c1_toa(landsat_img).et_fraction
+    et_reference = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('eto')
+    et_actual = et_fraction.multiply(et_reference)
 
 Custom Input Image
 ------------------
@@ -89,7 +89,7 @@ SSEBop images can also be built manually by instantiating the class with an ee.I
         .set({
             'system:index': 'LC08_044033_20170716',
             'system:time_start': ee.Date.fromYMD(2017, 7, 16).millis()})
-    etf_img = ssebop.Image(input_img).etf
+    et_fraction = ssebop.Image(input_img).et_fraction
 
 Example Notebooks
 =================

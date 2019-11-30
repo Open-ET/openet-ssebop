@@ -49,9 +49,10 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
+                      use_cloud_api=False)
     else:
-        ee.Initialize()
+        ee.Initialize(use_cloud_api=False)
 
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
@@ -145,9 +146,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         logging.info('  Real-time')
         for asset_id in rt_id_list:
             logging.info('  {}'.format(asset_id))
-            t_stats = ssebop.Image.from_landsat_c1_toa(
-                    ee.Image(asset_id),
-                    tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
+            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
             if t_stats['tcorr_p5'] is None:
@@ -167,9 +166,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
         logging.info('  Collection 1')
         for asset_id in c1_id_list:
             logging.info('  {}'.format(asset_id))
-            t_stats = ssebop.Image.from_landsat_c1_toa(
-                    ee.Image(asset_id),
-                    tdiff_threshold=float(ini[model_name]['tdiff_threshold']))\
+            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
             if t_stats['tcorr_p5'] is None:
