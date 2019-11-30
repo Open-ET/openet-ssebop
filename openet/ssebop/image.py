@@ -763,7 +763,7 @@ class Image():
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
-        return ee.Image(tmax_image.set('tmax_source', self._tmax_source))
+        return tmax_image.set('tmax_source', self._tmax_source)
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):

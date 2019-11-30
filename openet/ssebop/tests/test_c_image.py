@@ -912,7 +912,7 @@ def test_Image_tcorr_image_band_name():
 
 
 def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
-                                      expected={'TMAX_VERSION': 'median_v0'}):
+                                      expected={'tmax_version': 'median_v0'}):
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj().tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
@@ -940,11 +940,11 @@ def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         {'tcorr_p5': 0.99255660, 'tcorr_count': 969952}],  # 0.99255676, 971875
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463005}],  # 0.99255676, 971875
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
-         {'tcorr_p5': 0.98302061, 'tcorr_count': 1700386}], # 0.98302000, 1700567
+         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}], # 0.98302000, 1700567
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
-         {'tcorr_p5': 0.95788534, 'tcorr_count': 2315635}], # 0.95788514, 2315630
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}], # 0.95788514, 2315630
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):
