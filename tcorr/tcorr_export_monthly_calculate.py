@@ -104,9 +104,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #     ini['EXPORT']['export_coll'], tmax_name.lower())
 
     # Get current asset list
-    logging.debug('\nGetting asset list')
-    # DEADBEEF - "monthly" is hardcoded in the asset_id for now
+    logging.debug('\nGetting GEE asset list')
     asset_list = utils.get_ee_assets(tcorr_monthly_coll_id)
+    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+        pprint.pprint(asset_list[:10])
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
