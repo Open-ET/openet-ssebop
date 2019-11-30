@@ -853,10 +853,8 @@ class Image():
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
         prep_image = toa_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
-            .set({
-                'k1_constant', ee.Number(toa_image.get(k1.get(spacecraft_id))),
-                'k2_constant', ee.Number(toa_image.get(k2.get(spacecraft_id))),
-            })
+            .set({'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
+                  'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id)))})
 
         # Build the input image
         input_image = ee.Image([
