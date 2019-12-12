@@ -483,13 +483,18 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
     'tmax_source, xy, expected',
     [
         ['CIMIS', [-120.113, 36.336], 307.725],
-        ['DAYMET', [-120.113, 36.336], 308.650],
+        ['DAYMET', [-120.113, 36.336], 308.150],
         ['GRIDMET', [-120.113, 36.336], 306.969],
         # ['TOPOWX', [-120.113, 36.336], 301.67],
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
         ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
         ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
-        # ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
+        ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
+        # Added extra test point where DAYMET median values differ
+        # TEST_POINT, [-119.0, 37.5], [-122.1622, 39.1968], [-106.03249, 37.17777]
+        ['DAYMET_MEDIAN_V0', [-122.1622, 39.1968], 308.15],
+        ['DAYMET_MEDIAN_V1', [-122.1622, 39.1968], 308.4],
+        ['DAYMET_MEDIAN_V2', [-122.1622, 39.1968], 308.65],
         ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
         ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
         # Check string/float constant values
