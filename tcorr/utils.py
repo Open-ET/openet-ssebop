@@ -243,6 +243,14 @@ def image_exists(asset_id):
         return False
 
 
+def is_number(x):
+    try:
+        float(x)
+        return True
+    except:
+        return False
+
+
 def millis(input_dt):
     """Convert datetime to milliseconds since epoch"""
     # Python 3 (or 2 with future module)

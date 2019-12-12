@@ -537,7 +537,8 @@ class Collection():
         # if 'et' in variables or 'et_fraction' in variables:
         def compute_et(img):
             """This function assumes reference ET and ET fraction are present"""
-            et_img = img.select(['et_fraction']).multiply(img.select(['et_reference']))
+            et_img = img.select(['et_fraction'])\
+                .multiply(img.select(['et_reference']))
             return img.addBands(et_img.rename('et'))
         daily_coll = daily_coll.map(compute_et)
 

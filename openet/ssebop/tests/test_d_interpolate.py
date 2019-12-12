@@ -39,7 +39,8 @@ def test_from_scene_et_fraction_values():
         start_date='2017-07-01', end_date='2017-07-31',
         variables=['et', 'et_reference', 'et_fraction', 'ndvi', 'count'],
         model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
-                    'et_reference_band': 'etr'},
+                    'et_reference_band': 'etr',
+                    'et_reference_resample': 'nearest'},
         t_interval='monthly', interp_method='linear', interp_days=32)
 
     TEST_POINT = (-121.5265, 38.7399)

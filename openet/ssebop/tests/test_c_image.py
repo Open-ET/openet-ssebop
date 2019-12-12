@@ -72,7 +72,8 @@ def default_image_obj(lst=305, ndvi=0.8,
         et_reference_source=et_reference_source,
         et_reference_band=et_reference_band,
         et_reference_factor=et_reference_factor,
-        et_reference_resample=et_reference_resample))
+        et_reference_resample=et_reference_resample,
+    ))
 
 
 def test_Image_init_default_parameters():
@@ -81,9 +82,11 @@ def test_Image_init_default_parameters():
     assert m.et_reference_band == None
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
+    # TODO: Change to 'DAYMET_MEDIAN_V0'
     assert m._dt_source == 'DAYMET_MEDIAN_V1'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'IMAGE'
+    # TODO: Change to 'DAYMET_MEDIAN_V2'
     assert m._tmax_source == 'TOPOWX_MEDIAN_V0'
     assert m._elr_flag == False
     # DEADBEEF - Tdiff threshold parameter is being removed

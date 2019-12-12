@@ -67,6 +67,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #         'using median Tmax values\n')
     #     # sys.exit()
 
+    # Extract the model keyword arguments from the INI
+    # Set the property name to lower case and try to cast values to numbers
+    model_args = {
+        k.lower(): float(v) if utils.is_number(v) else v
+        for k, v in dict(ini[model_name]).items()}
+    # et_reference_args = {
+    #     k: model_args.pop(k)
+    #     for k in [k for k in model_args.keys() if k.startswith('et_reference_')]}
+
+
     logging.info('\nInitializing Earth Engine')
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
@@ -85,25 +95,29 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
-    tmax_coll_id = 'projects/earthengine-legacy/assets/' \
-                   'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
-    tmax_coll = ee.ImageCollection(tmax_coll_id)
-    tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
+    if 'MEDIAN' in tmax_name.upper():
+        tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+                       'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
+        tmax_coll = ee.ImageCollection(tmax_coll_id)
+        tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
+    else:
+        # TODO: Add support for non-median tmax sources
+        raise ValueError('unsupported tmax_source: {}'.format(tmax_name))
     logging.debug('  Collection: {}'.format(tmax_coll_id))
-    logging.debug('  Source: {}'.format(tmax_source))
+    logging.debug('  Source:  {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
 
     logging.debug('\nExport properties')
     export_info = utils.get_info(ee.Image(tmax_mask))
     if 'daymet' in ini[model_name]['tmax_source'].lower():
-        # Custom smaller extent for DAYMET
-        export_extent = [-2099750, -3090500, 2900250, 1909500]
-        export_shape = [5000, 5000]
-        export_geo = [1000, 0, -2200750, 0, -1000, 1910500]
-        # # DAYMET grid from user guide
-        # export_extent = [-4560750, -3090500, 3253250, 4984500]
-        # export_shape = [7814, 8075]
-        # export_geo = [1000, 0, -4560750, 0, -1000, 4984500]
+        # Custom smaller extent for DAYMET focused on CONUS
+        export_extent = [-2099750, -1890500, 2600250, 1109500]
+        export_shape = [4700, 3000]
+        export_geo = [1000, 0, -2099750, 0, -1000, 1109500]
+        # Custom medium extent for DAYMET of CONUS, Mexico, and southern Canada
+        # export_extent = [-2099750, -3090500, 2900250, 1909500]
+        # export_shape = [5000, 5000]
+        # export_geo = [1000, 0, -2099750, 0, -1000, 1909500]
         export_crs = export_info['bands'][0]['crs']
     else:
         export_crs = export_info['bands'][0]['crs']
@@ -122,9 +136,13 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
     # This extent will limit the WRS2 tiles that are included
+    # This is needed especially for non-median DAYMET Tmax since the default
+    #   extent is huge but we are only processing a subset
     if 'daymet' in ini[model_name]['tmax_source'].lower():
         export_geom = ee.Geometry.Rectangle(
-            [-125, 15, -65, 55], proj='EPSG:4326', geodesic=False)
+            [-125, 25, -65, 53], proj='EPSG:4326', geodesic=False)
+        # export_geom = ee.Geometry.Rectangle(
+        #     [-135, 15, -55, 60], proj='EPSG:4326', geodesic=False)
     elif 'cimis' in ini[model_name]['tmax_source'].lower():
         export_geom = ee.Geometry.Rectangle(
             [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
@@ -265,7 +283,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         if overwrite_flag:
             if export_id in tasks.keys():
                 logging.debug('  Task already submitted, cancelling')
-                ee.data.cancelTask(tasks[export_id])
+                ee.data.cancelTask(tasks[export_id]['id'])
             # This is intentionally not an "elif" so that a task can be
             # cancelled and an existing image/file/asset can be removed
             if asset_id in asset_list:
@@ -287,7 +305,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 '%Y-%m-%d'),
             cloud_cover_max=float(ini['INPUTS']['cloud_cover']),
             geometry=export_geom,
-            # model_args=model_args,
+            model_args=model_args,
             # filter_args=filter_args,
         )
         landsat_coll = model_obj.overpass(variables=['ndvi'])
@@ -375,14 +393,14 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
                     if wrs2_tiles_all != wrs2_tiles_old:
                         logging.debug('  Tile Lists')
-                        logging.debug('  Previous: {}'.format(
-                            ', '.join(sorted(wrs2_tiles_old))))
-                        logging.debug('  Available: {}'.format(
-                            ', '.join(sorted(wrs2_tiles_all))))
-                        logging.debug('  New: {}'.format(
-                            ', '.join(sorted(wrs2_tiles_all.difference(wrs2_tiles_old)))))
-                        logging.debug('  Dropped: {}'.format(
-                            ', '.join(sorted(wrs2_tiles_old.difference(wrs2_tiles_all)))))
+                        logging.debug('  Previous: {}'.format(', '.join(
+                            sorted(wrs2_tiles_old))))
+                        logging.debug('  Available: {}'.format(', '.join(
+                            sorted(wrs2_tiles_all))))
+                        logging.debug('  New: {}'.format(', '.join(
+                            sorted(wrs2_tiles_all.difference(wrs2_tiles_old)))))
+                        logging.debug('  Dropped: {}'.format(', '.join(
+                            sorted(wrs2_tiles_old.difference(wrs2_tiles_all)))))
 
                         export_flag = True
                         break
@@ -396,9 +414,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 logging.debug('    No previous exports')
 
         def tcorr_img_func(image):
-            t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(image)) \
-                .tcorr_stats
-            t_stats = ee.Dictionary(t_stats) \
+            t_obj = ssebop.Image.from_landsat_c1_toa(
+                ee.Image(image), **model_args)
+            t_stats = ee.Dictionary(t_obj.tcorr_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
             count = ee.Number(t_stats.get('tcorr_count'))

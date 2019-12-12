@@ -234,7 +234,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             if overwrite_flag:
                 if export_id in tasks.keys():
                     logging.debug('  Task already submitted, cancelling')
-                    ee.data.cancelTask(tasks[export_id])
+                    ee.data.cancelTask(tasks[export_id]['id'])
                 # This is intentionally not an "elif" so that a task can be
                 # cancelled and an existing image/file/asset can be removed
                 if asset_id in asset_list:

@@ -40,9 +40,11 @@ class Image():
             et_reference_band=None,
             et_reference_factor=None,
             et_reference_resample=None,
+            # TODO: Change to 'DAYMET_MEDIAN_V0'
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
+            # TODO: Change to 'DAYMET_MEDIAN_V2'
             tmax_source='TOPOWX_MEDIAN_V0',
             elr_flag=False,
             # DEADBEEF - Tdiff threshold parameter is being removed
@@ -683,6 +685,7 @@ class Image():
                 .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('tmax_version', date_today)
+            # TODO: change to 'median_v2' once new median is built
             median_version = 'median_v0'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
