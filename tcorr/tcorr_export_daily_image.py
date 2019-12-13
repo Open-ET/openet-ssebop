@@ -111,9 +111,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     export_info = utils.get_info(ee.Image(tmax_mask))
     if 'daymet' in ini[model_name]['tmax_source'].lower():
         # Custom smaller extent for DAYMET focused on CONUS
-        export_extent = [-2099750, -1890500, 2600250, 1109500]
-        export_shape = [4700, 3000]
-        export_geo = [1000, 0, -2099750, 0, -1000, 1109500]
+        export_extent = [-1999750, -1890500, 2500250, 1109500]
+        export_shape = [4500, 3000]
+        export_geo = [1000, 0, -1999750, 0, -1000, 1109500]
         # Custom medium extent for DAYMET of CONUS, Mexico, and southern Canada
         # export_extent = [-2099750, -3090500, 2900250, 1909500]
         # export_shape = [5000, 5000]
