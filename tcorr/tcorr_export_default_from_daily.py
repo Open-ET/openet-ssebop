@@ -2,14 +2,14 @@ import argparse
 from builtins import input
 import datetime
 import logging
-import os
 import pprint
 import sys
 
 import ee
 
 import openet.ssebop as ssebop
-from . import utils
+import utils
+# from . import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
@@ -39,18 +39,25 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     model_name = 'SSEBOP'
     # model_name = ini['INPUTS']['et_model'].upper()
 
-    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
+    tmax_name = ini[model_name]['tmax_source']
+
+    export_id_fmt = 'tcorr_image_{product}_default'
+
+    tcorr_default_coll_id = '{}/{}_default'.format(
+        ini['EXPORT']['export_coll'], tmax_name.lower())
+
+    if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
-            ini['INPUTS']['end_date'] > '2017-12-31'):
+    elif (tmax_name.upper() == 'DAYMET' and
+            ini['INPUTS']['end_date'] > '2018-12-31'):
         logging.warning(
-            '\nDAYMET is not currently available past 2017-12-31, '
+            '\nDAYMET is not currently available past 2018-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
+    # elif (tmax_name.upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
@@ -61,13 +68,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=gee_key_file),
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
                       use_cloud_api=True)
     else:
         ee.Initialize(use_cloud_api=True)
 
     logging.debug('\nTmax properties')
-    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     tmax_coll_id = 'projects/earthengine-legacy/assets/' \
@@ -83,7 +89,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tcorr_daily_coll_id = '{}/{}_daily'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
-    tcorr_info = utils.ee_getinfo(ee.Image(tcorr_img))
+    tcorr_info = utils.get_info(ee.Image(tcorr_img))
     tcorr_geo = tcorr_info['bands'][0]['crs_transform']
     tcorr_crs = tcorr_info['bands'][0]['crs']
     tcorr_shape = tcorr_info['bands'][0]['dimensions']
@@ -97,13 +103,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Geo: {}'.format(tcorr_geo))
     logging.debug('  CRS: {}'.format(tcorr_crs))
 
-    # Output Tcorr annual image collection
-    tcorr_annual_coll_id = '{}/{}_default'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
+    if not ee.data.getInfo(tcorr_default_coll_id):
+        logging.info('\nExport collection does not exist and will be built'
+                     '\n  {}'.format(tcorr_default_coll_id))
+        input('Press ENTER to continue')
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_default_coll_id)
 
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(tcorr_annual_coll_id)
+    asset_list = utils.get_ee_assets(tcorr_default_coll_id)
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         pprint.pprint(asset_list[:10])
 
@@ -113,19 +121,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
 
-    # Limit by year
-    try:
-        year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
-    except:
-        logging.info('\nTCORR "years" parameter not set in the INI,'
-                     '\n  Defaulting to all available years\n')
-        year_list = []
+    # # Limit by year
+    # try:
+    #     year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
+    # except:
+    #     logging.info('\nTCORR "years" parameter not set in the INI,'
+    #                  '\n  Defaulting to all available years\n')
+    #     year_list = []
 
-    export_id = ini['EXPORT']['export_id_fmt'] \
-        .format(product=tmax_name.lower(), date='default')
+    export_id = export_id_fmt.format(product=tmax_name.lower())
     logging.info('  Export ID: {}'.format(export_id))
 
-    asset_id = '{}'.format(tcorr_annual_coll_id)
+    asset_id = '{}'.format(tcorr_default_coll_id)
     logging.info('  Asset ID: {}'.format(asset_id))
 
     if overwrite_flag:

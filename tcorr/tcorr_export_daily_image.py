@@ -49,18 +49,26 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     model_name = 'SSEBOP'
     # model_name = ini['INPUTS']['et_model'].upper()
 
-    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
+    tmax_name = ini[model_name]['tmax_source']
+
+    export_id_fmt = 'tcorr_image_{product}_{date}_{export}'
+    asset_id_fmt = '{coll_id}/{date}_{export}'
+
+    tcorr_daily_coll_id = '{}/{}_daily'.format(
+        ini['EXPORT']['export_coll'], tmax_name.lower())
+
+    if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
+    elif (tmax_name.upper() == 'DAYMET' and
             ini['INPUTS']['end_date'] > '2018-12-31'):
         logging.warning(
             '\nDAYMET is not currently available past 2018-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
+    # elif (tmax_name.upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
@@ -81,18 +89,13 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=gee_key_file),
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
                       use_cloud_api=True)
     else:
         ee.Initialize(use_cloud_api=True)
 
-    # Output Tcorr daily image collection
-    tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_coll'], ini[model_name]['tmax_source'].lower())
-
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
-    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     if 'MEDIAN' in tmax_name.upper():
@@ -109,7 +112,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     logging.debug('\nExport properties')
     export_info = utils.get_info(ee.Image(tmax_mask))
-    if 'daymet' in ini[model_name]['tmax_source'].lower():
+    if 'daymet' in tmax_name.lower():
         # Custom smaller extent for DAYMET focused on CONUS
         export_extent = [-1999750, -1890500, 2500250, 1109500]
         export_shape = [4500, 3000]
@@ -138,12 +141,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # This extent will limit the WRS2 tiles that are included
     # This is needed especially for non-median DAYMET Tmax since the default
     #   extent is huge but we are only processing a subset
-    if 'daymet' in ini[model_name]['tmax_source'].lower():
+    if 'daymet' in tmax_name.lower():
         export_geom = ee.Geometry.Rectangle(
             [-125, 25, -65, 53], proj='EPSG:4326', geodesic=False)
         # export_geom = ee.Geometry.Rectangle(
         #     [-135, 15, -55, 60], proj='EPSG:4326', geodesic=False)
-    elif 'cimis' in ini[model_name]['tmax_source'].lower():
+    elif 'cimis' in tmax_name.lower():
         export_geom = ee.Geometry.Rectangle(
             [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
     else:
@@ -268,16 +271,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             continue
         logging.info(f'Date: {export_date}')
 
-        export_id = ini['EXPORT']['export_id_fmt'] \
-            .format(
-                product=tmax_name.lower(),
-                date=export_dt.strftime('%Y%m%d'),
-                export=datetime.datetime.today().strftime('%Y%m%d'))
+        export_id = export_id_fmt.format(
+            product=tmax_name.lower(),
+            date=export_dt.strftime('%Y%m%d'),
+            export=datetime.datetime.today().strftime('%Y%m%d'))
         logging.debug('  Export ID: {}'.format(export_id))
 
-        asset_id = '{}/{}_{}'.format(
-            tcorr_daily_coll_id, export_dt.strftime('%Y%m%d'),
-            datetime.datetime.today().strftime('%Y%m%d'))
+        asset_id = asset_id_fmt.format(
+            coll_id=tcorr_daily_coll_id,
+            date=export_dt.strftime('%Y%m%d'),
+            export=datetime.datetime.today().strftime('%Y%m%d'))
         logging.debug('  Asset ID: {}'.format(asset_id))
 
         if overwrite_flag:

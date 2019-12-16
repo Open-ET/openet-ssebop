@@ -63,7 +63,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
             '\nDAYMET is not currently available past 2017-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
+    # elif (ini[model_name]['dt_source'].upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '

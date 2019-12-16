@@ -201,8 +201,8 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=True):
                     (update_dt - start_dt).total_seconds() / 3600,
                     task['id']))
             else:
-                logging.debug('  {:8s} {}'.format(
-                    task['state'], task['description']))
+                logging.debug('  {:8s} {}        {}'.format(
+                    task['state'], task['description'], task['id']))
 
     return tasks
 

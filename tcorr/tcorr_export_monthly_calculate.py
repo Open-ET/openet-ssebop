@@ -2,14 +2,14 @@ import argparse
 from builtins import input
 import datetime
 import logging
-import os
 import pprint
 import sys
 
 import ee
 
 import openet.ssebop as ssebop
-from . import utils
+import utils
+# from . import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
@@ -39,35 +39,54 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     model_name = 'SSEBOP'
     # model_name = ini['INPUTS']['et_model'].upper()
 
-    if (ini[model_name]['tmax_source'].upper() == 'CIMIS' and
+    tmax_name = ini[model_name]['tmax_source']
+
+    export_id_fmt = 'tcorr_image_{product}_month{month:02d}_cycle{cycle:02d}_test'
+    asset_id_fmt = '{coll_id}/{month:02d}_cycle{cycle:02d}'
+
+    tcorr_monthly_coll_id = '{}/{}_monthly_test'.format(
+        ini['EXPORT']['export_coll'], tmax_name.lower())
+
+    wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
+                   'projects/usgs-ssebop/wrs2_descending_custom'
+
+    if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
         logging.error(
             '\nCIMIS is not currently available before 2003-10-01, exiting\n')
         sys.exit()
-    elif (ini[model_name]['tmax_source'].upper() == 'DAYMET' and
-            ini['INPUTS']['end_date'] > '2017-12-31'):
+    elif (tmax_name.upper() == 'DAYMET' and
+            ini['INPUTS']['end_date'] > '2018-12-31'):
         logging.warning(
-            '\nDAYMET is not currently available past 2017-12-31, '
+            '\nDAYMET is not currently available past 2018-12-31, '
             'using median Tmax values\n')
         # sys.exit()
-    # elif (ini[model_name]['tmax_source'].upper() == 'TOPOWX' and
+    # elif (tmax_name.upper() == 'TOPOWX' and
     #         ini['INPUTS']['end_date'] > '2017-12-31'):
     #     logging.warning(
     #         '\nDAYMET is not currently available past 2017-12-31, '
     #         'using median Tmax values\n')
     #     # sys.exit()
 
+    # Extract the model keyword arguments from the INI
+    # Set the property name to lower case and try to cast values to numbers
+    model_args = {
+        k.lower(): float(v) if utils.is_number(v) else v
+        for k, v in dict(ini[model_name]).items()}
+    # et_reference_args = {
+    #     k: model_args.pop(k)
+    #     for k in [k for k in model_args.keys() if k.startswith('et_reference_')]}
+
     logging.info('\nInitializing Earth Engine')
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=gee_key_file),
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
                       use_cloud_api=True)
     else:
         ee.Initialize(use_cloud_api=True)
 
     logging.debug('\nTmax properties')
-    tmax_name = ini[model_name]['tmax_source']
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
     tmax_coll_id = 'projects/earthengine-legacy/assets/' \
@@ -83,7 +102,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tcorr_daily_coll_id = '{}/{}_daily'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
-    tcorr_info = utils.ee_getinfo(ee.Image(tcorr_img))
+    tcorr_info = utils.get_info(ee.Image(tcorr_img))
     tcorr_geo = tcorr_info['bands'][0]['crs_transform']
     tcorr_crs = tcorr_info['bands'][0]['crs']
     tcorr_shape = tcorr_info['bands'][0]['dimensions']
@@ -97,11 +116,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Geo: {}'.format(tcorr_geo))
     logging.debug('  CRS: {}'.format(tcorr_crs))
 
-    # Output Tcorr monthly image collection
-    tcorr_monthly_coll_id = '{}/{}_monthly_test'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
-    # tcorr_monthly_coll_id = '{}/{}_monthly'.format(
-    #     ini['EXPORT']['export_coll'], tmax_name.lower())
+    if not ee.data.getInfo(tcorr_monthly_coll_id):
+        logging.info('\nExport collection does not exist and will be built'
+                     '\n  {}'.format(tcorr_monthly_coll_id))
+        input('Press ENTER to continue')
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_monthly_coll_id)
 
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
@@ -192,7 +211,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     for month in month_list:
         logging.info('\nMonth: {}'.format(month))
 
-        for cycle_day, ref_date in cycle_dates.items():
+        for cycle_day, ref_date in sorted(cycle_dates.items()):
             logging.info('Cycle Day: {}'.format(cycle_day))
             # # DEADBEEF
             # if cycle_day not in [2]:
@@ -211,19 +230,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     (int(d.year) in year_list))]
             logging.debug('  Dates: {}'.format(', '.join(date_list)))
 
-            # DEADBEEF - Added "_test" to export ID
-            export_id = ini['EXPORT']['export_id_fmt'] \
-                .format(
-                    product=tmax_name.lower(),
-                    date='month{:02d}_cycle{:02d}'.format(month, cycle_day),
-            ) + '_test'
+            export_id = export_id_fmt.format(
+                product=tmax_name.lower(), month=month, cycle=cycle_day)
             logging.info('  Export ID: {}'.format(export_id))
 
-            # DEADBEEF - "monthly" is hardcoded in the asset_id for now
-            asset_id = '{}/{}'.format(
-                tcorr_monthly_coll_id,
-                '{:02d}_cycle{:02d}'.format(month, cycle_day))
-            #     tcorr_monthly_coll_id, '{:02d}'.format(month))
+            asset_id = asset_id_fmt.format(
+                coll_id=tcorr_monthly_coll_id, month=month, cycle=cycle_day)
             logging.info('  Asset ID: {}'.format(asset_id))
 
             if overwrite_flag:
@@ -243,8 +255,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     logging.debug('  Asset already exists, skipping')
                     continue
 
-            wrs2_coll = ee.FeatureCollection('projects/earthengine-legacy/assets/'
-                                             'projects/usgs-ssebop/wrs2_descending_custom') \
+            wrs2_coll = ee.FeatureCollection(wrs2_coll_id) \
                 .filterBounds(tmax_mask.geometry()) \
                 .filter(ee.Filter.inList('PATH', cycle_paths[cycle_day]))
             #     .filter(ee.Filter.inList('PATH', [44]))
@@ -294,9 +305,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 #     l8_coll.merge(l7_coll).merge(l5_coll).merge(l4_coll))
 
                 def tcorr_img_func(image):
-                    t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(image)) \
-                        .tcorr_stats
-                    t_stats = ee.Dictionary(t_stats) \
+                    t_obj = ssebop.Image.from_landsat_c1_toa(
+                        ee.Image(image), **model_args)
+                    t_stats = ee.Dictionary(t_obj.tcorr_stats) \
                         .combine({'tcorr_p5': 0, 'tcorr_count': 0},
                                  overwrite=False)
                     tcorr = ee.Number(t_stats.get('tcorr_p5'))
