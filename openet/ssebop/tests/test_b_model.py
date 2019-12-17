@@ -87,25 +87,6 @@ def test_Image_et_fraction_elr_param(lst, dt, elev, tcorr, tmax, elr_flag,
     assert abs(output['et_fraction'] - expected) <= tol
 
 
-# DEADBEEF - Tdiff threshold parameter is being removed
-# @pytest.mark.parametrize(
-#     'lst, dt, elev, tcorr, tmax, tdiff, expected',
-#     [
-#         [299, 15, 50, 0.98, 310, 10, None],
-#         [299, 15, 50, 0.98, 310, 10, None],
-#         [304, 15, 50, 0.98, 310, 5, None],
-#     ]
-# )
-# def test_Model_et_fraction_tdiff_param(lst, dt, elev, tcorr, tmax, tdiff,
-#                                expected):
-#     """Test that ETf is set to nodata for tdiff values outside threshold"""
-#     output_img = model.et_fraction(
-#         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
-#         tcorr=tcorr, dt=dt, tdiff_threshold=tdiff, elev=elev)
-#     output = utils.constant_image_value(ee.Image(output_img))
-#     assert output['et_fraction'] is None and expected is None
-
-
 @pytest.mark.parametrize(
     'tmax, tmin, elev, doy, lat, expected',
     [

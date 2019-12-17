@@ -3,7 +3,7 @@ import math
 import ee
 
 
-def et_fraction(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False,
+def et_fraction(lst, tmax, tcorr, dt, elr_flag=False,
                 elev=None):
     """SSEBop fraction of reference ET (ETf)
 
@@ -17,10 +17,6 @@ def et_fraction(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False,
         Tcorr.
     dt : ee.Image, ee.Number
         Temperature difference [K].
-    tdiff_threshold : float, optional
-        Threshold value [K] for cloud masking based on Tdiff.
-        Pixels with (Tmax - LST) > Tdiff threshold will be masked.
-        (the default is 15).
     elr_flag : bool, optional
         If True, apply Elevation Lapse Rate (ELR) adjustment
         (the default is False).
@@ -47,12 +43,6 @@ def et_fraction(lst, tmax, tcorr, dt, tdiff_threshold=15, elr_flag=False,
     return et_fraction.updateMask(et_fraction.lt(1.3))\
         .clamp(0, 1.05)\
         .rename(['et_fraction'])
-
-    # DEADBEEF - Tdiff threshold parameter is being removed
-    # return et_fraction.updateMask(et_fraction.lt(1.3))\
-    #     .clamp(0, 1.05)\
-    #     .updateMask(tmax.subtract(lst).lte(tdiff_threshold))\
-    #     .rename(['et_fraction'])
 
 
 def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):

@@ -88,8 +88,6 @@ def test_Image_init_default_parameters():
     assert m._tcorr_source == 'IMAGE'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
-    # DEADBEEF - Tdiff threshold parameter is being removed
-    # assert m._tdiff_threshold == 15
     assert m._dt_min == 6
     assert m._dt_max == 25
 
@@ -595,25 +593,6 @@ def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
     assert abs(output['et_fraction'] - expected) <= tol
 
 
-# DEADBEEF - Tdiff threshold parameter is being removed
-# @pytest.mark.parametrize(
-#     'lst, ndvi, dt, elev, tcorr, tmax, tdiff, expected',
-#     [
-#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
-#         [299, 0.80, 15, 50, 0.98, 310, 10, None],
-#         [304, 0.10, 15, 50, 0.98, 310, 5, None],
-#     ]
-# )
-# def test_Image_et_fraction_tdiff_param(lst, ndvi, dt, elev, tcorr, tmax, tdiff,
-#                                        expected):
-#     """Test that ETf is set to nodata for tdiff values outside threshold"""
-#     output_img = ssebop.Image(
-#         default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
-#         tcorr_source=tcorr, tmax_source=tmax, tdiff_threshold=tdiff).et_fraction
-#     output = utils.constant_image_value(ee.Image(output_img))
-#     assert output['et_fraction'] is None and expected is None
-
-
 def test_Image_et_fraction_properties():
     """Test if properties are set on the ETf image"""
     pprint.pprint(vars(default_image_obj()))
@@ -903,9 +882,6 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     [
         [300, 0.69, 306, None],  # NDVI < 0.7
         [269, 0.69, 306, None],  # LST < 270
-        # DEADBEEF - Tdiff threshold parameter is being removed
-        # [290, 0.20, 306, None],  # Tdiff > 15
-        # [307, 0.20, 306, None],  # Tdiff < 0
         # TODO: Add a test for the NDVI smoothing
     ]
 )

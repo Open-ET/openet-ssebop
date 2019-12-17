@@ -46,8 +46,6 @@ class Image():
             tcorr_source='IMAGE',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
-            # DEADBEEF - Tdiff threshold parameter is being removed
-            # tdiff_threshold=15,
             dt_min=6,
             dt_max=25,
         ):
@@ -86,10 +84,6 @@ class Image():
         elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
-        tdiff_threshold : float, optional
-            Threshold value [K] for cloud masking based on Tdiff.
-            Pixels with (Tmax - LST) > Tdiff threshold will be masked.
-            (the default is 15).
         dt_min : float, optional
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
@@ -159,8 +153,6 @@ class Image():
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
-        # DEADBEEF - Tdiff threshold parameter is being removed
-        # self._tdiff_threshold = float(tdiff_threshold)
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
@@ -226,10 +218,7 @@ class Image():
 
         et_fraction = model.et_fraction(
             lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
-            # DEADBEEF - Tdiff threshold parameter is being removed
-            # tdiff_threshold=self._tdiff_threshold,
-            elr_flag=self._elr_flag,
-            elev=self.elev,
+            elr_flag=self._elr_flag, elev=self.elev,
         )
 
         # Don't set TCORR and INDEX properties for IMAGE Tcorr sources
