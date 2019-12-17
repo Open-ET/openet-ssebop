@@ -44,8 +44,7 @@ class Image():
             dt_source='DAYMET_MEDIAN_V1',
             elev_source='SRTM',
             tcorr_source='IMAGE',
-            # TODO: Change to 'DAYMET_MEDIAN_V2'
-            tmax_source='TOPOWX_MEDIAN_V0',
+            tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             # DEADBEEF - Tdiff threshold parameter is being removed
             # tdiff_threshold=15,
@@ -665,7 +664,9 @@ class Image():
                 .rename(['tmax'])\
                 .set('tmax_version', 'custom_{}'.format(self._tmax_source))
         elif self._tmax_source.upper() == 'CIMIS':
-            daily_coll = ee.ImageCollection('projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily')\
+            daily_coll_id = 'projects/earthengine-legacy/assets/' \
+                            'projects/climate-engine/cimis/daily'
+            daily_coll = ee.ImageCollection(daily_coll_id)\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\

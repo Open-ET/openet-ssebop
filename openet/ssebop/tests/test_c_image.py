@@ -86,8 +86,7 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'DAYMET_MEDIAN_V1'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'IMAGE'
-    # TODO: Change to 'DAYMET_MEDIAN_V2'
-    assert m._tmax_source == 'TOPOWX_MEDIAN_V0'
+    assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     # DEADBEEF - Tdiff threshold parameter is being removed
     # assert m._tdiff_threshold == 15
@@ -253,8 +252,10 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['2364.351', [-106.03249, 37.17777], 2364.351],
         [2364.351, [-106.03249, 37.17777], 2364.351],
         # Check custom images
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
+         [-106.03249, 37.17777], 2369.0],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
+         [-106.03249, 37.17777], 2369.0],
         # DEADBEEF - We should allow any EE image (not just users/projects)
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
     ]
@@ -274,6 +275,89 @@ def test_Image_elev_sources_exception():
 def test_Image_elev_band_name():
     output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
     assert output == 'elev'
+
+
+@pytest.mark.parametrize(
+    'tmax_source, xy, expected',
+    [
+        ['CIMIS', [-120.113, 36.336], 307.725],
+        ['DAYMET', [-120.113, 36.336], 308.150],
+        ['GRIDMET', [-120.113, 36.336], 306.969],
+        # ['TOPOWX', [-120.113, 36.336], 301.67],
+        ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
+        ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
+        ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
+        ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
+        # Added extra test point where DAYMET median values differ
+        # TEST_POINT, [-119.0, 37.5], [-122.1622, 39.1968], [-106.03249, 37.17777]
+        ['DAYMET_MEDIAN_V0', [-122.1622, 39.1968], 308.15],
+        ['DAYMET_MEDIAN_V1', [-122.1622, 39.1968], 308.4],
+        ['DAYMET_MEDIAN_V2', [-122.1622, 39.1968], 308.65],
+        ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
+        ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
+        # Check string/float constant values
+        ['305', [-120.113, 36.336], 305],
+        [305, [-120.113, 36.336], 305],
+    ]
+)
+def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
+    """Test getting Tmax values for a single date at a real point"""
+    output_img = ssebop.Image(default_image(), tmax_source=tmax_source).tmax
+    output = utils.point_image_value(ee.Image(output_img), xy)
+    assert abs(output['tmax'] - expected) <= tol
+
+
+def test_Image_tmax_sources_exception():
+    with pytest.raises(ValueError):
+        utils.getinfo(ssebop.Image(default_image(), tmax_source='').tmax)
+
+
+@pytest.mark.parametrize(
+    'tmax_source, xy, expected',
+    [
+        ['CIMIS', [-120.113, 36.336], 308.946],
+        ['DAYMET', [-120.113, 36.336], 310.150],
+        ['GRIDMET', [-120.113, 36.336], 310.436],
+        # ['TOPOWX', [-106.03249, 37.17777], 298.91],
+    ]
+)
+def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
+    """Test getting Tmax median value when daily doesn't exist
+
+    To test this, move the test date into the future
+    """
+    input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
+        .set({'system:index': SCENE_ID,
+              'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
+    output_img = ssebop.Image(input_img, tmax_source=tmax_source).tmax
+    output = utils.point_image_value(ee.Image(output_img), xy)
+    assert abs(output['tmax'] - expected) <= tol
+
+
+today_dt = datetime.datetime.today()
+@pytest.mark.parametrize(
+    'tmax_source, expected',
+    [
+        ['CIMIS', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['DAYMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['GRIDMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        # ['TOPOWX', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
+        ['CIMIS_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['DAYMET_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['DAYMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['DAYMET_MEDIAN_V2', {'tmax_version': 'median_v2'}],
+        ['GRIDMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
+        ['TOPOWX_MEDIAN_V0', {'tmax_version': 'median_v0'}],
+        ['305', {'tmax_version': 'custom_305'}],
+        [305, {'tmax_version': 'custom_305'}],
+    ]
+)
+def test_Image_tmax_properties(tmax_source, expected):
+    """Test if properties are set on the Tmax image"""
+    output = utils.getinfo(ssebop.Image(
+        default_image(), tmax_source=tmax_source).tmax)
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 @pytest.mark.parametrize(
@@ -353,11 +437,11 @@ def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
         ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9786, 2]],
         ['IMAGE_DEFAULT', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.978, 3]],
         # DAYMET_MEDIAN_V2
-        # ['IMAGE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
-        # ['IMAGE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9752, 0]],
-        # ['IMAGE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9723, 1]],
-        # ['IMAGE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9786, 2]],
-        # ['IMAGE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.978, 3]],
+        ['IMAGE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9744, 0]],
+        ['IMAGE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9744, 0]],
+        ['IMAGE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9756, 1]],
+        ['IMAGE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9829, 2]],
+        ['IMAGE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.978, 3]],
     ]
 )
 def test_Image_tcorr_image_source(tcorr_source, tmax_source, scene_id,
@@ -480,89 +564,6 @@ def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
 
 
 @pytest.mark.parametrize(
-    'tmax_source, xy, expected',
-    [
-        ['CIMIS', [-120.113, 36.336], 307.725],
-        ['DAYMET', [-120.113, 36.336], 308.150],
-        ['GRIDMET', [-120.113, 36.336], 306.969],
-        # ['TOPOWX', [-120.113, 36.336], 301.67],
-        ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
-        ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
-        ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
-        ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
-        # Added extra test point where DAYMET median values differ
-        # TEST_POINT, [-119.0, 37.5], [-122.1622, 39.1968], [-106.03249, 37.17777]
-        ['DAYMET_MEDIAN_V0', [-122.1622, 39.1968], 308.15],
-        ['DAYMET_MEDIAN_V1', [-122.1622, 39.1968], 308.4],
-        ['DAYMET_MEDIAN_V2', [-122.1622, 39.1968], 308.65],
-        ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
-        ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
-        # Check string/float constant values
-        ['305', [-120.113, 36.336], 305],
-        [305, [-120.113, 36.336], 305],
-    ]
-)
-def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
-    """Test getting Tmax values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), tmax_source=tmax_source).tmax
-    output = utils.point_image_value(ee.Image(output_img), xy)
-    assert abs(output['tmax'] - expected) <= tol
-
-
-def test_Image_tmax_sources_exception():
-    with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), tmax_source='').tmax)
-
-
-@pytest.mark.parametrize(
-    'tmax_source, xy, expected',
-    [
-        ['CIMIS', [-120.113, 36.336], 308.946],
-        ['DAYMET', [-120.113, 36.336], 310.150],
-        ['GRIDMET', [-120.113, 36.336], 310.436],
-        # ['TOPOWX', [-106.03249, 37.17777], 298.91],
-    ]
-)
-def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
-    """Test getting Tmax median value when daily doesn't exist
-
-    To test this, move the test date into the future
-    """
-    input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
-        .set({'system:index': SCENE_ID,
-              'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
-    output_img = ssebop.Image(input_img, tmax_source=tmax_source).tmax
-    output = utils.point_image_value(ee.Image(output_img), xy)
-    assert abs(output['tmax'] - expected) <= tol
-
-
-today_dt = datetime.datetime.today()
-@pytest.mark.parametrize(
-    'tmax_source, expected',
-    [
-        ['CIMIS', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['DAYMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['GRIDMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        # ['TOPOWX', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['CIMIS_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        ['DAYMET_MEDIAN_V0', {'tmax_version': 'median_v0'}],
-        ['DAYMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        # ['DAYMET_MEDIAN_V2', {'tmax_version': 'median_v2'}],
-        ['GRIDMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        ['TOPOWX_MEDIAN_V0', {'tmax_version': 'median_v0'}],
-        ['305', {'tmax_version': 'custom_305'}],
-        [305, {'tmax_version': 'custom_305'}],
-    ]
-)
-def test_Image_tmax_properties(tmax_source, expected):
-    """Test if properties are set on the Tmax image"""
-    output = utils.getinfo(
-        ssebop.Image(default_image(), tmax_source=tmax_source).tmax)
-    assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
-
-
-@pytest.mark.parametrize(
     'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
 )
 def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
@@ -615,6 +616,7 @@ def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
 
 def test_Image_et_fraction_properties():
     """Test if properties are set on the ETf image"""
+    pprint.pprint(vars(default_image_obj()))
     output = utils.getinfo(default_image_obj().et_fraction)
     assert output['bands'][0]['id'] == 'et_fraction'
     assert output['properties']['system:index'] == SCENE_ID
@@ -623,16 +625,17 @@ def test_Image_et_fraction_properties():
 
 def test_Image_et_fraction_image_tcorr_properties():
     """Test if Tcorr properties are set when tcorr_source is a feature"""
-    output = utils.getinfo(
-        ssebop.Image(default_image(), tcorr_source='IMAGE').et_fraction)
+    output = utils.getinfo(ssebop.Image(
+        default_image(), tcorr_source='IMAGE').et_fraction)
     assert 'tcorr' not in output['properties'].keys()
     assert 'tcorr_index' not in output['properties'].keys()
 
 
 def test_Image_et_fraction_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
-    output = utils.getinfo(
-        ssebop.Image(default_image(), tcorr_source='FEATURE').et_fraction)
+    output = utils.getinfo(ssebop.Image(
+        default_image(), tcorr_source='FEATURE',
+        tmax_source='TOPOWX_MEDIAN_V0').et_fraction)
     assert abs(output['properties']['tcorr'] - 0.9752) <= tol
     assert output['properties']['tcorr_index'] == 0
 
@@ -808,9 +811,7 @@ def test_Image_from_landsat_c1_sr_default_image():
 @pytest.mark.parametrize(
     'image_id',
     [
-        # 'LANDSAT/LC08/C01/T1_RT_SR/LC08_044033_20170716',
         'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
-        # 'LANDSAT/LE07/C01/T1_RT_SR/LE07_044033_20170708',
         'LANDSAT/LE07/C01/T1_SR/LE07_044033_20170708',
         'LANDSAT/LT05/C01/T1_SR/LT05_044033_20110716',
     ]
@@ -919,8 +920,8 @@ def test_Image_tcorr_image_band_name():
     assert output['bands'][0]['id'] == 'tcorr'
 
 
-def test_Image_tcorr_image_properties(tmax_source='TOPOWX_MEDIAN_V0',
-                                      expected={'tmax_version': 'median_v0'}):
+def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
+                                      expected={'tmax_version': 'median_v2'}):
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj().tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
