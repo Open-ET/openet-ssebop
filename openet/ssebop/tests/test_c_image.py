@@ -10,7 +10,7 @@ import openet.ssebop.utils as utils
 # import openet.core.utils as utils
 
 
-COLL_ID = 'LANDSAT/LC08/C01/T1_TOA/'
+COLL_ID = 'LANDSAT/LC08/C01/T1_TOA'
 SCENE_ID = 'LC08_042035_20150713'
 SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
 SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
@@ -22,57 +22,99 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 # SCENE_TIME = utils.getinfo(ee.Date(SCENE_DATE).millis())
 # SCENE_POINT = (-119.44252382373145, 36.04047742246546)
 # SCENE_POINT = utils.getinfo(
-#     ee.Image(COLL_ID + SCENE_ID).geometry().centroid())['coordinates']
+#     ee.Image(f'{COLL_ID}/{SCENE_ID}').geometry().centroid())['coordinates']
 
 
 # Should these be test fixtures instead?
 # I'm not sure how to make them fixtures and allow input parameters
 def toa_image(red=0.1, nir=0.9, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
-    return ee.Image.constant([red, nir, bt])\
-        .rename(['red', 'nir', 'lst']) \
+    mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['B3']).multiply(0)
+    return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
+        .rename(['red', 'nir', 'lst'])\
         .set({
             'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
+    # return ee.Image.constant([red, nir, bt])\
+    #     .rename(['red', 'nir', 'lst']) \
+    #     .set({
+    #         'system:time_start': ee.Date(SCENE_DATE).millis(),
+    #         'k1_constant': ee.Number(607.76),
+    #         'k2_constant': ee.Number(1260.56),
+    #     })
 
 
 def default_image(lst=305, ndvi=0.8):
     # First construct a fake 'prepped' input image
-    return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
+    mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['B3']).multiply(0)
+    return ee.Image([mask_img.add(lst), mask_img.add(ndvi)]) \
+        .rename(['lst', 'ndvi']) \
         .set({
             'system:index': SCENE_ID,
             'system:time_start': ee.Date(SCENE_DATE).millis(),
-            'system:id': COLL_ID + SCENE_ID,
+            'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
+    # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
+    #     .set({
+    #         'system:index': SCENE_ID,
+    #         'system:time_start': ee.Date(SCENE_DATE).millis(),
+    #         'system:id': f'{COLL_ID}/{SCENE_ID}',
+    #     })
 
 
 # Setting et_reference_source and et_reference_band on the default image to
 #   simplify testing but these do not have defaults in the Image class init
 def default_image_args(lst=305, ndvi=0.8,
-                       et_reference_source='IDAHO_EPSCOR/GRIDMET',
-                       et_reference_band='etr', et_reference_factor=0.85,
-                       et_reference_resample='nearest'):
+                       # et_reference_source='IDAHO_EPSCOR/GRIDMET',
+                       et_reference_source=9.5730,
+                       et_reference_band='etr',
+                       et_reference_factor=1,
+                       et_reference_resample='nearest',
+                       dt_source=18,
+                       elev_source=67,
+                       elr_flag=False,
+                       tcorr_source=0.9744,
+                       tmax_source=310.15,
+                       ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
         'et_reference_source': et_reference_source,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
         'et_reference_resample': et_reference_resample,
+        'dt_source': dt_source,
+        'elev_source': elev_source,
+        'elr_flag': elr_flag,
+        'tcorr_source': tcorr_source,
+        'tmax_source': tmax_source,
     }
 
 
 def default_image_obj(lst=305, ndvi=0.8,
-                      et_reference_source='IDAHO_EPSCOR/GRIDMET',
-                      et_reference_band='etr', et_reference_factor=0.85,
-                      et_reference_resample='nearest'):
+                      # et_reference_source='IDAHO_EPSCOR/GRIDMET',
+                      et_reference_source=9.5730,
+                      et_reference_band='etr',
+                      et_reference_factor=1,
+                      et_reference_resample='nearest',
+                      dt_source=18,
+                      elev_source=67,
+                      elr_flag=False,
+                      tcorr_source=0.9744,
+                      tmax_source=310.15,
+                      ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
         et_reference_source=et_reference_source,
         et_reference_band=et_reference_band,
         et_reference_factor=et_reference_factor,
         et_reference_resample=et_reference_resample,
+        dt_source=dt_source,
+        elev_source=elev_source,
+        elr_flag=elr_flag,
+        tcorr_source=tcorr_source,
+        tmax_source=tmax_source,
     ))
 
 
@@ -82,8 +124,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_band == None
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
-    # TODO: Change to 'DAYMET_MEDIAN_V0'
-    assert m._dt_source == 'DAYMET_MEDIAN_V1'
+    assert m._dt_source == 'DAYMET_MEDIAN_V0'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'IMAGE'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
@@ -123,33 +164,71 @@ def test_Image_init_scene_id_property():
 
 def test_Image_init_elr_flag_str():
     """Test that the elr_flag can be read as a string"""
-    assert ssebop.Image(default_image(), elr_flag='FALSE')._elr_flag == False
-    assert ssebop.Image(default_image(), elr_flag='true')._elr_flag == True
+    assert default_image_obj(elr_flag='FALSE')._elr_flag == False
+    assert default_image_obj(elr_flag='true')._elr_flag == True
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), elr_flag='FOO')._elr_flag)
+        utils.getinfo(default_image_obj(elr_flag='FOO')._elr_flag)
 
 
 def test_Image_ndvi_properties():
     """Test if properties are set on the NDVI image"""
-    output = utils.getinfo(ssebop.Image(default_image()).ndvi)
+    output = utils.getinfo(default_image_obj().ndvi)
     assert output['bands'][0]['id'] == 'ndvi'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
 def test_Image_lst_properties():
     """Test if properties are set on the LST image"""
-    output = utils.getinfo(ssebop.Image(default_image()).lst)
+    output = utils.getinfo(default_image_obj().lst)
     assert output['bands'][0]['id'] == 'lst'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
+
+
+@pytest.mark.parametrize(
+    'elev_source, xy, expected',
+    [
+        ['SRTM', TEST_POINT, 67.0],
+        ['SRTM', [-122.1622, 39.1968], 18.0],
+        ['ASSET', [-106.03249, 37.17777], 2369.0],
+        ['GTOPO', [-106.03249, 37.17777], 2369.0],
+        ['NED', [-106.03249, 37.17777], 2364.351],
+        ['SRTM', [-106.03249, 37.17777], 2362.0],
+        # Check string/float constant values
+        ['2364.351', [-106.03249, 37.17777], 2364.351],
+        [2364.351, [-106.03249, 37.17777], 2364.351],
+        # Check custom images
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
+         [-106.03249, 37.17777], 2369.0],
+        # ['projects/assets/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
+        # DEADBEEF - We should allow any EE image (not just users/projects)
+        # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
+    ]
+)
+def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
+    """Test getting elevation values for a single date at a real point"""
+    output = utils.point_image_value(default_image_obj(
+        elev_source=elev_source).elev, xy)
+    assert abs(output['elev'] - expected) <= tol
+
+
+def test_Image_elev_sources_exception():
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(elev_source='').elev)
+
+
+def test_Image_elev_band_name():
+    output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
+    assert output == 'elev'
 
 
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
+        ['DAYMET_MEDIAN_V1', SCENE_DOY, TEST_POINT, 18],
         ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
         ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
         ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
@@ -157,7 +236,7 @@ def test_Image_lst_properties():
 )
 def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
     """Test getting median dT values for a single date at a real point"""
-    m = ssebop.Image(default_image(), dt_source=dt_source)
+    m = default_image_obj(dt_source=dt_source)
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
@@ -173,7 +252,7 @@ def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
 )
 def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
     """Check that dT values are clamped to dt_min and dt_max (6, 25)"""
-    m = ssebop.Image(default_image(), dt_source=dt_source)
+    m = default_image_obj(dt_source=dt_source)
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
@@ -187,23 +266,26 @@ def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
     ]
 )
 def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
-    """Test getting condatnt dT values for a single date at a real point"""
-    m = ssebop.Image(default_image(), dt_source=dt_source)
+    """Test getting constant dT values for a single date at a real point"""
+    m = default_image_obj(dt_source=dt_source)
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
-    'dt_source, date, xy, expected',
+    'dt_source, elev, date, xy, expected',
     [
-        ['CIMIS', '2017-07-16', [-122.1622, 39.1968], 17.1013],
-        ['DAYMET', '2017-07-16', [-122.1622, 39.1968], 13.5525],
-        ['GRIDMET', '2017-07-16', [-122.1622, 39.1968], 18.1711],
+        ['CIMIS', 18, '2017-07-16', [-122.1622, 39.1968], 17.1013],
+        ['DAYMET', 18, '2017-07-16', [-122.1622, 39.1968], 13.5525],
+        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1711],
+        # ['CIMIS', 67, SCENE_DATE, TEST_POINT, 17.10647],
+        # ['DAYMET', 67, SCENE_DATE, TEST_POINT, 12.99047],
+        # ['GRIDMET', 67, SCENE_DATE, TEST_POINT, 17.79065],
     ]
 )
-def test_Image_dt_source_calculated(dt_source, date, xy, expected, tol=0.001):
+def test_Image_dt_source_calculated(dt_source, elev, date, xy, expected, tol=0.001):
     """Test getting calculated dT values for a single date at a real point"""
-    m = ssebop.Image(default_image(), dt_source=dt_source)
+    m = default_image_obj(dt_source=dt_source, elev_source=elev)
     # Start/end date are needed to filter the source collection
     m._start_date = ee.Date.parse('yyyy-MM-dd', date)
     m._end_date = ee.Date.parse('yyyy-MM-dd', date).advance(1, 'day')
@@ -216,7 +298,7 @@ def test_Image_dt_source_calculated(dt_source, date, xy, expected, tol=0.001):
 
 def test_Image_dt_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), dt_source='').dt)
+        utils.getinfo(default_image_obj(dt_source='').dt)
 
 
 @pytest.mark.parametrize(
@@ -228,8 +310,9 @@ def test_Image_dt_sources_exception():
     ]
 )
 def test_Image_dt_clamping(doy, dt_min, dt_max):
-    m = ssebop.Image(default_image(), dt_source='DAYMET_MEDIAN_V1',
-                    dt_min=dt_min, dt_max=dt_max)
+    m = default_image_obj(dt_source='DAYMET_MEDIAN_V1')
+    m._dt_min = dt_min
+    m._dt_max = dt_max
     m._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
     output = utils.getinfo(ee.Image(m.dt)\
@@ -240,44 +323,9 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 
 
 @pytest.mark.parametrize(
-    'elev_source, xy, expected',
-    [
-        ['ASSET', [-106.03249, 37.17777], 2369.0],
-        ['GTOPO', [-106.03249, 37.17777], 2369.0],
-        ['NED', [-106.03249, 37.17777], 2364.351],
-        ['SRTM', [-106.03249, 37.17777], 2362.0],
-        # Check string/float constant values
-        ['2364.351', [-106.03249, 37.17777], 2364.351],
-        [2364.351, [-106.03249, 37.17777], 2364.351],
-        # Check custom images
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
-         [-106.03249, 37.17777], 2369.0],
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
-         [-106.03249, 37.17777], 2369.0],
-        # DEADBEEF - We should allow any EE image (not just users/projects)
-        # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
-    ]
-)
-def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
-    """Test getting elevation values for a single date at a real point"""
-    output = utils.point_image_value(
-        ssebop.Image(default_image(), elev_source=elev_source).elev, xy)
-    assert abs(output['elev'] - expected) <= tol
-
-
-def test_Image_elev_sources_exception():
-    with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), elev_source='').elev)
-
-
-def test_Image_elev_band_name():
-    output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
-    assert output == 'elev'
-
-
-@pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
+        ['DAYMET_MEDIAN_V2', TEST_POINT, 310.15],
         ['CIMIS', [-120.113, 36.336], 307.725],
         ['DAYMET', [-120.113, 36.336], 308.150],
         ['GRIDMET', [-120.113, 36.336], 306.969],
@@ -300,14 +348,14 @@ def test_Image_elev_band_name():
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
-    output_img = ssebop.Image(default_image(), tmax_source=tmax_source).tmax
+    output_img = default_image_obj(tmax_source=tmax_source).tmax
     output = utils.point_image_value(ee.Image(output_img), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
 def test_Image_tmax_sources_exception():
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), tmax_source='').tmax)
+        utils.getinfo(default_image_obj(tmax_source='').tmax)
 
 
 @pytest.mark.parametrize(
@@ -324,7 +372,7 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
 
     To test this, move the test date into the future
     """
-    input_img = ee.Image.constant([300, 0.8]).rename(['lst', 'ndvi']) \
+    input_img = default_image() \
         .set({'system:index': SCENE_ID,
               'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
     output_img = ssebop.Image(input_img, tmax_source=tmax_source).tmax
@@ -352,8 +400,7 @@ today_dt = datetime.datetime.today()
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
-    output = utils.getinfo(ssebop.Image(
-        default_image(), tmax_source=tmax_source).tmax)
+    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tmax)
     assert output['properties']['tmax_source'] == tmax_source
     assert output['properties']['tmax_version'] == expected['tmax_version']
 
@@ -542,7 +589,7 @@ def test_Image_tcorr_image_daily_last_date_ingested():
 )
 def test_Image_tcorr_sources_exception(tcorr_src):
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), tcorr_source=tcorr_src).tcorr)
+        utils.getinfo(default_image_obj(tcorr_source=tcorr_src).tcorr)
 
 
 @pytest.mark.parametrize(
@@ -554,21 +601,29 @@ def test_Image_tcorr_sources_exception(tcorr_src):
 )
 def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
     with pytest.raises(ValueError):
-        utils.getinfo(ssebop.Image(default_image(), tcorr_source=tcorr_src,
-                                   tmax_source=tmax_src).tcorr)
+        utils.getinfo(default_image_obj(
+            tcorr_source=tcorr_src, tmax_source=tmax_src).tcorr)
 
 
 # TODO: Add test for when there is no Tcorr image for the Landsat date
+
+
+def test_Image_et_fraction_properties():
+    """Test if properties are set on the ETf image"""
+    output = utils.getinfo(default_image_obj().et_fraction)
+    assert output['bands'][0]['id'] == 'et_fraction'
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
 
 
 @pytest.mark.parametrize(
     'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
 )
 def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
-    output_img = ssebop.Image(
-        default_image(), dt_source=dt, elev_source=elev,
+    output_img = default_image_obj(
+        dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax).et_fraction
-    output = utils.constant_image_value(ee.Image(output_img))
+    output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
     assert abs(output['et_fraction'] - expected) <= tol
     # assert output['et_fraction'] > 0
 
@@ -586,35 +641,25 @@ def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
 def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
                                      expected, tol=0.0001):
     """Test that elr_flag works and changes ETf values"""
-    output_img = ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), dt_source=dt, elev_source=elev,
+    output_img = default_image_obj(
+        lst=lst, ndvi=ndvi, dt_source=dt, elev_source=elev,
         tcorr_source=tcorr, tmax_source=tmax, elr_flag=elr_flag).et_fraction
-    output = utils.constant_image_value(ee.Image(output_img))
+    output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
     assert abs(output['et_fraction'] - expected) <= tol
 
 
-def test_Image_et_fraction_properties():
-    """Test if properties are set on the ETf image"""
-    pprint.pprint(vars(default_image_obj()))
-    output = utils.getinfo(default_image_obj().et_fraction)
-    assert output['bands'][0]['id'] == 'et_fraction'
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-
-
-def test_Image_et_fraction_image_tcorr_properties():
-    """Test if Tcorr properties are set when tcorr_source is a feature"""
-    output = utils.getinfo(ssebop.Image(
-        default_image(), tcorr_source='IMAGE').et_fraction)
+def test_Image_et_fraction_image_tcorr_properties(tol=0.0001):
+    """Test if Tcorr properties are set when tcorr_source is an image"""
+    output = utils.getinfo(default_image_obj(
+        tcorr_source='IMAGE', tmax_source='DAYMET_MEDIAN_V2').et_fraction)
     assert 'tcorr' not in output['properties'].keys()
     assert 'tcorr_index' not in output['properties'].keys()
 
 
 def test_Image_et_fraction_feature_tcorr_properties(tol=0.0001):
     """Test if Tcorr properties are set when tcorr_source is a feature"""
-    output = utils.getinfo(ssebop.Image(
-        default_image(), tcorr_source='FEATURE',
-        tmax_source='TOPOWX_MEDIAN_V0').et_fraction)
+    output = utils.getinfo(default_image_obj(
+        tcorr_source='FEATURE', tmax_source='TOPOWX_MEDIAN_V0').et_fraction)
     assert abs(output['properties']['tcorr'] - 0.9752) <= tol
     assert output['properties']['tcorr_index'] == 0
 
@@ -625,29 +670,49 @@ def test_Image_et_reference_properties():
     assert output['bands'][0]['id'] == 'et_reference'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
-def test_Image_et_reference_values(tol=0.0001):
-    output = utils.constant_image_value(
-        ssebop.Image(default_image(), et_reference_source=10).et_reference)
-    assert abs(output['et_reference'] - 10) <= tol
+@pytest.mark.parametrize(
+    'source, band, factor, xy, expected',
+    [
+        ['IDAHO_EPSCOR/GRIDMET', 'etr', 1, TEST_POINT, 9.5730],
+        ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
+        ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
+         'ETr_ASCE', 1, TEST_POINT, 10.0220],
+        [10, 'FOO', 1, TEST_POINT, 10.0],
+        [10, 'FOO', 0.85, TEST_POINT, 8.5],
+    ]
+)
+def test_Image_et_reference_sources(source, band, factor, xy, expected,
+                                    tol=0.001):
+    """Test getting reference ET values for a single date at a real point"""
+    output = utils.point_image_value(default_image_obj(
+        et_reference_source=source, et_reference_band=band,
+        et_reference_factor=factor).et_reference, xy)
+    assert abs(output['et_reference'] - expected) <= tol
 
 
-def test_Image_et_properties(tol=0.0001):
+# TODO: Exception should be raised if source is not named like a collection
+# def test_Image_et_reference_sources_exception():
+#     with pytest.raises(ValueError):
+#         utils.getinfo(default_image_obj(et_reference_source='DEADBEEF').et_reference)
+
+
+def test_Image_et_properties():
     """Test if properties are set on the ET image"""
     output =  utils.getinfo(default_image_obj().et)
     assert output['bands'][0]['id'] == 'et'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
 def test_Image_et_values(tol=0.0001):
-    output_img = ssebop.Image(
-        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+    output_img = default_image_obj(
+        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310, et_reference_source=10).et
-    output = utils.constant_image_value(output_img)
+    output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['et'] - 5.8) <= tol
 
 
@@ -657,14 +722,14 @@ def test_Image_mask_properties():
     assert output['bands'][0]['id'] == 'mask'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
 def test_Image_mask_values():
-    output_img = ssebop.Image(
-        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+    output_img = default_image_obj(
+        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).mask
-    output = utils.constant_image_value(output_img)
+    output = utils.point_image_value(output_img, TEST_POINT)
     assert output['mask'] == 1
 
 
@@ -674,15 +739,16 @@ def test_Image_time_properties():
     assert output['bands'][0]['id'] == 'time'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
 def test_Image_time_values():
     # The time image is currently being built from the et_fraction image, so all
-    #   the ancillary values must be set for the constant_image_value to work.
-    output = utils.constant_image_value(ssebop.Image(
-        default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).time)
+    #   the ancillary values must be set.
+    output_img = default_image_obj(
+        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).time
+    output = utils.point_image_value(output_img, TEST_POINT)
     assert output['time'] == SCENE_TIME
 
 
@@ -691,7 +757,7 @@ def test_Image_calculate_properties():
     output =  utils.getinfo(default_image_obj().calculate(['ndvi']))
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == COLL_ID + SCENE_ID
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
 def test_Image_calculate_variables_default():
@@ -713,11 +779,11 @@ def test_Image_calculate_variables_all():
 
 def test_Image_calculate_values(tol=0.0001):
     """Test if the calculate method returns ET, ETr, and ETf values"""
-    output_img = ssebop.Image(
-            default_image(ndvi=0.5, lst=308), dt_source=10, elev_source=50,
+    output_img = default_image_obj(
+            ndvi=0.5, lst=308, dt_source=10, elev_source=50,
             tcorr_source=0.98, tmax_source=310, et_reference_source=10)\
         .calculate(['et', 'et_reference', 'et_fraction'])
-    output = utils.constant_image_value(output_img)
+    output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['et'] - 5.8) <= tol
     assert abs(output['et_reference'] - 10) <= tol
     assert abs(output['et_fraction'] - 0.58) <= tol
@@ -732,7 +798,7 @@ def test_Image_calculate_variables_valueerror():
 # How should these @classmethods be tested?
 def test_Image_from_landsat_c1_toa_default_image():
     """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_toa(ee.Image(COLL_ID + SCENE_ID))
+    output = ssebop.Image.from_landsat_c1_toa(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
     assert type(output) == type(default_image_obj())
 
 
@@ -763,7 +829,8 @@ def test_Image_from_landsat_c1_toa_image():
 def test_Image_from_landsat_c1_toa_et_fraction():
     """Test if ETf can be built for a Landsat TOA image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).et_fraction)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
+        image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -778,12 +845,13 @@ def test_Image_from_landsat_c1_toa_et():
 
 def test_Image_from_landsat_c1_toa_exception():
     with pytest.raises(Exception):
-        utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi)
+        # Intentionally using .getInfo()
+        ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi.getInfo()
 
 
 def test_Image_from_landsat_c1_sr_default_image():
     """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_sr(ee.Image(COLL_ID + SCENE_ID))
+    output = ssebop.Image.from_landsat_c1_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
     assert type(output) == type(default_image_obj())
 
 
@@ -804,14 +872,16 @@ def test_Image_from_landsat_c1_sr_image_id(image_id):
 def test_Image_from_landsat_c1_sr_image():
     """Test instantiating the class from a Landsat SR ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
+        ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).et_fraction)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
+        image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -827,7 +897,8 @@ def test_Image_from_landsat_c1_sr_et():
 def test_Image_from_landsat_c1_sr_exception():
     """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
-        utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi)
+        # Intentionally using .getInfo()
+        ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi.getInfo()
 
 
 def test_Image_from_landsat_c1_sr_scaling():
@@ -871,8 +942,9 @@ def test_Image_from_method_kwargs():
 
 def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
                                   tol=0.0001):
-    output = utils.constant_image_value(ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
+    output_img = default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+    output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
 
 
@@ -886,8 +958,8 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     ]
 )
 def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
-    output = utils.constant_image_value(ssebop.Image(
-        default_image(lst=lst, ndvi=ndvi), tmax_source=tmax).tcorr_image)
+    output = utils.constant_image_value(default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
     assert output['tcorr'] is None and expected is None
 
 
@@ -899,41 +971,50 @@ def test_Image_tcorr_image_band_name():
 def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
                                       expected={'tmax_version': 'median_v2'}):
     """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj().tcorr_image)
+    output = utils.getinfo(default_image_obj(
+        tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
     assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
-def test_Image_tcorr_stats_constant(expected=0.993548387, tol=0.00000001):
-    # The input image needs to be clipped otherwise it is unbounded
-    input_image = ee.Image(default_image(ndvi=0.8, lst=308)) \
-        .clip(ee.Geometry.Rectangle(-120, 39, -119, 40))
-    output = utils.getinfo(
-        ssebop.Image(input_image, dt_source=10, elev_source=50,
-                     tcorr_source=0.98, tmax_source=310).tcorr_stats)
-    assert abs(output['tcorr_p5'] - expected) <= tol
-    assert output['tcorr_count'] == 1
+def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
+                                    tol=0.00000001):
+    output = utils.getinfo(default_image_obj(
+        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).tcorr_stats)
+    assert abs(output['tcorr_p5'] - tcorr) <= tol
+    assert output['tcorr_count'] == count
 
 
 @pytest.mark.parametrize(
-    'image_id, expected',
+    'image_id, tmax_source, expected',
     [
-        # TopoWX median v0 values
+        # TOPOWX_MEDIAN_V0
         # Note, these values are slightly different than those in the tcorr
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
          {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463005}],  # 0.99255676, 971875
-        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
-         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}], # 0.98302000, 1700567
-        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
-         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}], # 0.95788514, 2315630
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}],   # 0.95788514, 2315630
+        # DAYMET_MEDIAN_V2
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.988044466826636, 'tcorr_count': 2462991}],
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
     ]
 )
-def test_Image_tcorr_stats_landsat(image_id, expected, tol=0.00000001):
+def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
+                                   tol=0.00000001):
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id)).tcorr_stats)
+        ee.Image(image_id), tmax_source=tmax_source).tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']

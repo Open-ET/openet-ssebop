@@ -40,8 +40,7 @@ class Image():
             et_reference_band=None,
             et_reference_factor=None,
             et_reference_resample=None,
-            # TODO: Change to 'DAYMET_MEDIAN_V0'
-            dt_source='DAYMET_MEDIAN_V1',
+            dt_source='DAYMET_MEDIAN_V0',
             elev_source='SRTM',
             tcorr_source='IMAGE',
             tmax_source='DAYMET_MEDIAN_V2',
@@ -507,11 +506,12 @@ class Image():
             }
 
             # Check Tmax source value
-            tmax_key = self._tmax_source.upper()
-            if tmax_key not in default_value_dict.keys():
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in default_value_dict.keys()):
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
 
             default_coll = ee.FeatureCollection([
                 ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
@@ -557,11 +557,12 @@ class Image():
             }
 
             # Check Tmax source value
-            tmax_key = self._tmax_source.upper()
-            if tmax_key not in default_dict.keys():
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in default_dict.keys()):
                 raise ValueError(
-                    '\nInvalid tmax_source: {} / {}\n'.format(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
 
             # The mask image will be merged into all the Tcorr image collections
             #   to ensure that all collections (daily, monthly, annual) have data
@@ -807,8 +808,8 @@ class Image():
 
         Parameters
         ----------
-        toa_image : ee.Image
-            A raw Landsat Collection 1 TOA image.
+        toa_image : ee.Image, str
+            A raw Landsat Collection 1 TOA image or image ID.
         cloudmask_args : dict
             keyword arguments to pass through to cloud mask function
         kwargs : dict
@@ -874,8 +875,8 @@ class Image():
 
         Parameters
         ----------
-        sr_image : ee.Image
-            A raw Landsat Collection 1 SR image.
+        sr_image : ee.Image, str
+            A raw Landsat Collection 1 SR image or image ID.
 
         Returns
         -------
