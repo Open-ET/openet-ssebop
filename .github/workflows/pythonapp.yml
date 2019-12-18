@@ -1,4 +1,4 @@
-name: Python application
+name: python_app
 
 on: [push]
 
