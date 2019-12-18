@@ -43,8 +43,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     export_id_fmt = 'tcorr_image_{product}_default'
 
-    tcorr_default_coll_id = '{}/{}_default'.format(
+    tcorr_daily_coll_id = '{}/{}_daily'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
+    tcorr_default_img_id = '{}/{}_default'.format(
+        ini['EXPORT']['export_coll'], tmax_name.lower())
+
+    try:
+        tcorr_default = ini[model_name]['tcorr_default']
+    except:
+        tcorr_default = 0.978
 
     if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
@@ -76,18 +83,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('\nTmax properties')
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
-    tmax_coll_id = 'projects/earthengine-legacy/assets/' \
-                   'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
-    tmax_coll = ee.ImageCollection(tmax_coll_id)
-    tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
-    logging.debug('  Collection: {}'.format(tmax_coll_id))
+    # tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+    #                'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
+    # tmax_coll = ee.ImageCollection(tmax_coll_id)
+    # tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
+    # logging.debug('  Collection: {}'.format(tmax_coll_id))
     logging.debug('  Source: {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
 
     # Get the Tcorr daily image collection properties
     logging.debug('\nTcorr Image properties')
-    tcorr_daily_coll_id = '{}/{}_daily'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
     tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
     tcorr_info = utils.get_info(ee.Image(tcorr_img))
     tcorr_geo = tcorr_info['bands'][0]['crs_transform']
@@ -102,18 +107,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Extent: {}'.format(tcorr_extent))
     logging.debug('  Geo: {}'.format(tcorr_geo))
     logging.debug('  CRS: {}'.format(tcorr_crs))
-
-    if not ee.data.getInfo(tcorr_default_coll_id):
-        logging.info('\nExport collection does not exist and will be built'
-                     '\n  {}'.format(tcorr_default_coll_id))
-        input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_default_coll_id)
-
-    # Get current asset list
-    logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(tcorr_default_coll_id)
-    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        pprint.pprint(asset_list[:10])
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -131,9 +124,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     export_id = export_id_fmt.format(product=tmax_name.lower())
     logging.info('  Export ID: {}'.format(export_id))
-
-    asset_id = '{}'.format(tcorr_default_coll_id)
-    logging.info('  Asset ID: {}'.format(asset_id))
+    logging.info('  Asset ID: {}'.format(tcorr_default_img_id))
 
     if overwrite_flag:
         if export_id in tasks.keys():
@@ -141,20 +132,20 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             ee.data.cancelTask(tasks[export_id]['id'])
         # This is intentionally not an "elif" so that a task can be
         # cancelled and an existing image/file/asset can be removed
-        if asset_id in asset_list:
+        if ee.data.getInfo(tcorr_default_img_id):
             logging.debug('  Asset already exists, removing')
-            ee.data.deleteAsset(asset_id)
+            ee.data.deleteAsset(tcorr_default_img_id)
     else:
         if export_id in tasks.keys():
             logging.debug('  Task already submitted, exiting')
             return False
-        elif asset_id in asset_list:
+        elif ee.data.getInfo(tcorr_default_img_id):
             logging.debug('  Asset already exists, exiting')
             return False
 
     tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id)
 
-    output_img = tcorr_daily_coll.mosaic().multiply(0).add(0.978)\
+    output_img = tcorr_daily_coll.mosaic().multiply(0).add(tcorr_default)\
         .updateMask(1).rename(['tcorr'])\
         .set({
             # 'system:time_start': utils.millis(iter_start_dt),
@@ -169,7 +160,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     task = ee.batch.Export.image.toAsset(
         image=ee.Image(output_img),
         description=export_id,
-        assetId=asset_id,
+        assetId=tcorr_default_img_id,
         crs=tcorr_crs,
         crsTransform='[' + ','.join(list(map(str, tcorr_geo))) + ']',
         dimensions='{0}x{1}'.format(*tcorr_shape),
