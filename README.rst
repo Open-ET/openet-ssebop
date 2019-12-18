@@ -199,8 +199,9 @@ References
  | Schauer, M.,Senay, G. (2019). Characterizing Crop Water Use Dynamics in the Central Valley of California Using Landsat-Derived Evapotranspiration. *Remote Sensing*, 11(15):1782.
  | `https://doi.org/10.3390/rs11151782 <https://doi.org/10.3390/rs11151782>`__
 
-.. |build| image:: https://github.com/Open-ET/openet-ssebop-beta/workflows/python_app/badge.svg?branch=master
+.. |build| image:: https://github.com/Open-ET/openet-ssebop-beta/workflows/build/badge.svg
    :alt: Build status
+   :target: https://github.com/Open-ET/openet-ssebop-beta
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
