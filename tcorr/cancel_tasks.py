@@ -1,15 +1,14 @@
 import argparse
-import datetime
 import logging
-import os
-import sys
+import pprint
+import re
 
 import ee
 
 import utils
 
 
-def main(key=None, state='READY'):
+def main(key=None, state='READY', regex=None):
     """Cancel Earth Engine tasks
 
     Parameters
@@ -18,6 +17,7 @@ def main(key=None, state='READY'):
         File path to an Earth Engine json key file.
     state : str, {'ALL', 'READY', 'RUNNING'}
         Task state (the default is to only cancel 'READY' tasks).
+    regex : str, optional
 
     """
     logging.info('\nCancelling {} tasks'.format(state.lower()))
@@ -32,17 +32,28 @@ def main(key=None, state='READY'):
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
         ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
-                      use_cloud_api=False)
+                      use_cloud_api=True)
     else:
-        ee.Initialize(use_cloud_api=False)
+        ee.Initialize(use_cloud_api=True)
 
     # Get current task list
     tasks = utils.get_ee_tasks(states=states)
 
+    if regex:
+        logging.info('\nFiltering tasks:')
+        logging.info('{}'.format(regex))
+        tasks = {task_desc: task_info for task_desc, task_info in tasks.items()
+                 if re.match(regex, task_desc)}
+
     logging.info('\nCancelling tasks:')
-    for k, v in tasks.items():
-        logging.info(k)
-        ee.data.cancelTask(v)
+    for task_desc, task_info in tasks.items():
+        logging.info(task_desc)
+        logging.debug(task_info)
+        try:
+            ee.data.cancelTask(task_info['id'])
+            # ee.data.cancelOperation(tasks[export_id]['id'])
+        except Exception as e:
+            logging.info('  Exception: {}\n  Skipping'.format(e))
 
 
 def arg_parse():
@@ -57,6 +68,8 @@ def arg_parse():
         '--state', default='READY', choices=['ALL', 'READY', 'RUNNING'],
         help='Task state')
     parser.add_argument(
+        '--regex', help='Regular expression for filtering task IDs ')
+    parser.add_argument(
         '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
@@ -68,11 +81,6 @@ if __name__ == "__main__":
     args = arg_parse()
 
     logging.basicConfig(level=args.loglevel, format='%(message)s')
-    logging.info('\n{0}'.format('#' * 80))
-    logging.info('{0:<20s} {1}'.format(
-        'Run Time Stamp:', datetime.datetime.now().isoformat(' ')))
-    logging.info('{0:<20s} {1}'.format('Current Directory:', os.getcwd()))
-    logging.info('{0:<20s} {1}'.format(
-        'Script:', os.path.basename(sys.argv[0])))
+    logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
-    main(key=args.key, state=args.state)
+    main(key=args.key, state=args.state, regex=args.regex)
