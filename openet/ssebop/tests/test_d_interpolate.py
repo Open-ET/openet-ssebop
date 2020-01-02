@@ -40,6 +40,7 @@ def test_from_scene_et_fraction_values():
         variables=['et', 'et_reference', 'et_fraction', 'ndvi', 'count'],
         model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
                     'et_reference_band': 'etr',
+                    'et_reference_factor': 1.0,
                     'et_reference_resample': 'nearest'},
         t_interval='monthly', interp_method='linear', interp_days=32)
 
