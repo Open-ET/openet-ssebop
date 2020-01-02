@@ -14,7 +14,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1):
-    """Compute monthly Tcorr images from daily images
+    """Compute annual Tcorr images from scene images
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         implies no limit to the number of tasks that will be submitted.
 
     """
-    logging.info('\nCompute monthly Tcorr images from daily images')
+    logging.info('\nCompute annual Tcorr images from scene images')
 
     ini = utils.read_ini(ini_path)
 
@@ -41,10 +41,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     tmax_name = ini[model_name]['tmax_source']
 
-    export_id_fmt = 'tcorr_image_{product}_month{month:02d}_cycle{cycle:02d}'
-    asset_id_fmt = '{coll_id}/month{month:02d}_cycle{cycle:02d}'
+    export_id_fmt = 'tcorr_image_{product}_annual_cycle{cycle:02d}'
+    asset_id_fmt = '{coll_id}/annual_cycle{cycle:02d}'
+    # asset_id_fmt = '{coll_id}/cycle{cycle:02d}'
 
-    tcorr_monthly_coll_id = '{}/{}_monthly'.format(
+    tcorr_annual_coll_id = '{}/{}_annual_scene'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
 
     wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
@@ -90,9 +91,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # Get the Tcorr daily image collection properties
     logging.debug('\nTcorr Image properties')
-    tcorr_daily_coll_id = '{}/{}_daily'.format(
+    tcorr_scene_coll_id = '{}/{}_scene'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
-    tcorr_img = ee.Image(ee.ImageCollection(tcorr_daily_coll_id).first())
+    tcorr_img = ee.Image(ee.ImageCollection(tcorr_scene_coll_id).first())
     tcorr_info = utils.get_info(ee.Image(tcorr_img))
     tcorr_geo = tcorr_info['bands'][0]['crs_transform']
     tcorr_crs = tcorr_info['bands'][0]['crs']
@@ -107,15 +108,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Geo: {}'.format(tcorr_geo))
     logging.debug('  CRS: {}'.format(tcorr_crs))
 
-    if not ee.data.getInfo(tcorr_monthly_coll_id):
+    if not ee.data.getInfo(tcorr_annual_coll_id):
         logging.info('\nExport collection does not exist and will be built'
-                     '\n  {}'.format(tcorr_monthly_coll_id))
+                     '\n  {}'.format(tcorr_annual_coll_id))
         input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_monthly_coll_id)
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_annual_coll_id)
 
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(tcorr_monthly_coll_id)
+    asset_list = utils.get_ee_assets(tcorr_annual_coll_id)
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         pprint.pprint(asset_list[:10])
 
@@ -125,13 +126,14 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
 
-    # Limit by year and month
-    try:
-        month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
-    except:
-        logging.info('\nTCORR "months" parameter not set in the INI,'
-                     '\n  Defaulting to all months (1-12)\n')
-        month_list = list(range(1, 13))
+    # Limit by year
+    month_list = list(range(1, 13))
+    # try:
+    #     month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
+    # except:
+    #     logging.info('\nTCORR "months" parameter not set in the INI,'
+    #                  '\n  Defaulting to all months (1-12)\n')
+    #     month_list = list(range(1, 13))
     try:
         year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
     except:
@@ -208,193 +210,147 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         #     [ 8, 24, 40, 56, 72,  88,  97, 113, 129, 145, 161, 177, 193, 209, 225],
     }
 
-    # Iterate over date ranges
-    for month in month_list:
-        logging.info('\nMonth: {}'.format(month))
+    for cycle_day, ref_date in sorted(cycle_dates.items()):
+        logging.info('Cycle Day: {}'.format(cycle_day))
+        # # DEADBEEF
+        # if cycle_day not in [2]:
+        #     continue
 
-        for cycle_day, ref_date in sorted(cycle_dates.items()):
-            logging.info('Cycle Day: {}'.format(cycle_day))
-            # # DEADBEEF
-            # if cycle_day not in [2]:
-            #     continue
+        ref_dt = datetime.datetime.strptime(ref_date, '%Y-%m-%d')
+        logging.debug('  Reference Date: {}'.format(ref_date))
 
-            ref_dt = datetime.datetime.strptime(ref_date, '%Y-%m-%d')
-            logging.debug('  Reference Date: {}'.format(ref_date))
+        date_list = sorted(list(utils.date_range(
+            datetime.datetime(year_list[0], 1, 1),
+            datetime.datetime(year_list[-1], 12, 31))))
+        date_list = [
+            d.strftime('%Y-%m-%d') for d in date_list
+            if ((abs(d - ref_dt).days % 8 == 0) and
+                (int(d.month) in month_list) and
+                (int(d.year) in year_list))]
+        logging.debug('  Dates: {}'.format(', '.join(date_list)))
 
-            date_list = sorted(list(utils.date_range(
-                datetime.datetime(year_list[0], 1, 1),
-                datetime.datetime(year_list[-1], 12, 31))))
-            date_list = [
-                d.strftime('%Y-%m-%d') for d in date_list
-                if ((abs(d - ref_dt).days % 8 == 0) and
-                    (int(d.month) == month) and
-                    (int(d.year) in year_list))]
-            logging.debug('  Dates: {}'.format(', '.join(date_list)))
+        export_id = export_id_fmt.format(
+            product=tmax_name.lower(), cycle=cycle_day)
+        logging.info('  Export ID: {}'.format(export_id))
 
-            export_id = export_id_fmt.format(
-                product=tmax_name.lower(), month=month, cycle=cycle_day)
-            logging.info('  Export ID: {}'.format(export_id))
+        asset_id = asset_id_fmt.format(
+            coll_id=tcorr_annual_coll_id, cycle=cycle_day)
+        logging.info('  Asset ID: {}'.format(asset_id))
 
-            asset_id = asset_id_fmt.format(
-                coll_id=tcorr_monthly_coll_id, month=month, cycle=cycle_day)
-            logging.info('  Asset ID: {}'.format(asset_id))
+        if overwrite_flag:
+            if export_id in tasks.keys():
+                logging.debug('  Task already submitted, cancelling')
+                ee.data.cancelTask(tasks[export_id]['id'])
+            # This is intentionally not an "elif" so that a task can be
+            # cancelled and an existing image/file/asset can be removed
+            if asset_id in asset_list:
+                logging.debug('  Asset already exists, removing')
+                ee.data.deleteAsset(asset_id)
+        else:
+            if export_id in tasks.keys():
+                logging.debug('  Task already submitted, exiting')
+                continue
+            elif asset_id in asset_list:
+                logging.debug('  Asset already exists, skipping')
+                continue
 
-            if overwrite_flag:
-                if export_id in tasks.keys():
-                    logging.debug('  Task already submitted, cancelling')
-                    ee.data.cancelTask(tasks[export_id]['id'])
-                # This is intentionally not an "elif" so that a task can be
-                # cancelled and an existing image/file/asset can be removed
-                if asset_id in asset_list:
-                    logging.debug('  Asset already exists, removing')
-                    ee.data.deleteAsset(asset_id)
-            else:
-                if export_id in tasks.keys():
-                    logging.debug('  Task already submitted, exiting')
-                    continue
-                elif asset_id in asset_list:
-                    logging.debug('  Asset already exists, skipping')
-                    continue
+        wrs2_coll = ee.FeatureCollection(wrs2_coll_id) \
+            .filterBounds(tmax_mask.geometry()) \
+            .filter(ee.Filter.inList('PATH', cycle_paths[cycle_day]))
 
-            wrs2_coll = ee.FeatureCollection(wrs2_coll_id) \
-                .filterBounds(tmax_mask.geometry()) \
-                .filter(ee.Filter.inList('PATH', cycle_paths[cycle_day]))
+        tcorr_scene_coll = ee.ImageCollection(tcorr_scene_coll_id) \
+            .filterMetadata('count', 'not_less_than',
+                            int(ini['TCORR']['min_pixel_count'])) \
+            .filter(ee.Filter.inList('date', date_list))
+        #     .filterMetadata('cycle_day', 'equals', cycle_day)
 
-            tcorr_daily_coll = ee.ImageCollection(tcorr_daily_coll_id) \
-                .filter(ee.Filter.inList('date', date_list))
-            #     .filterMetadata('cycle_day', 'equals', cycle_day)
+        def wrs2_tcorr(ftr):
+            # Compute images/statistics separately for each path/row
+            path = ee.Number(ee.Feature(ftr).get('PATH'))
+            row = ee.Number(ee.Feature(ftr).get('ROW'))
 
-            def wrs2_tcorr(ftr):
-                # Build & merge the Landsat collections for the target path/row
-                # Time filters are to remove bad (L5) and pre-op (L8) images
-                path = ee.Number(ee.Feature(ftr).get('PATH'))
-                row = ee.Number(ee.Feature(ftr).get('ROW'))
+            # Use a common reducer for the images and property stats
+            reducer = ee.Reducer.median() \
+                .combine(ee.Reducer.count(), sharedInputs=True)
 
-                def tcorr_img_func(image):
-                    tcorr_daily_img = image \
-                        .addBands(image.multiply(0).add(
-                            int(ini['TCORR']['min_pixel_count']))) \
-                        .rename(['tcorr', 'count'])
-
-                    # Get Tcorr from the WRS2 centroid of the daily images
-                    t_stats = tcorr_daily_img.reduceRegion(
-                        reducer=ee.Reducer.first(),
-                        scale=30,
-                        geometry=ee.Feature(ftr).geometry().centroid(),
-                        bestEffort=False,
-                        tileScale=1)
-                    # Add a 0 tcorr value for any image that can be computed
-                    t_stats = ee.Dictionary(t_stats) \
-                        .combine({'tcorr': 0}, overwrite=False)
-
-                    tcorr = ee.Number(t_stats.get('tcorr'))
-                    # Use a dummy pixel count (0 or Tcorr * 2000)
-                    count = ee.Number(t_stats.get('tcorr')) \
-                        .multiply(2 * int(ini['TCORR']['min_pixel_count']))
-                    # count = ee.Number(t_stats.get('count'))
-
-                    return tmax_mask.add(ee.Image.constant(tcorr)) \
-                        .rename(['tcorr']) \
-                        .set({
-                            'system:time_start': image.get('system:time_start'),
-                            'tcorr': tcorr,
-                            'count': count,
-                        })
-
-                # temp = tcorr_img_func(ee.Image(tcorr_daily_coll.first()))
-                # pprint.pprint(temp.getInfo())
-                # input('ENTER')
-
-                # Use a common reducer for the images and property stats
-                reducer = ee.Reducer.median() \
-                    .combine(ee.Reducer.count(), sharedInputs=True)
-
-                # Compute median monthly value for all images in the WRS2 tile
-                wrs2_tcorr_coll = ee.ImageCollection(
-                        tcorr_daily_coll.map(tcorr_img_func)) \
-                    .filterMetadata('count', 'not_less_than',
-                                    int(ini['TCORR']['min_pixel_count']))
-
-                wrs2_tcorr_img = wrs2_tcorr_coll.reduce(reducer) \
-                    .rename(['tcorr', 'count'])
-
-                # Compute stats from the properties also
-                wrs2_tcorr_stats = ee.Dictionary(ee.List(
-                    wrs2_tcorr_coll.aggregate_array('tcorr')).reduce(reducer))
-                wrs2_tcorr_stats = wrs2_tcorr_stats \
-                    .combine({'median': 0, 'count': 0}, overwrite=False)
-
-                return wrs2_tcorr_img \
-                    .clip(ee.Feature(ftr).geometry()) \
+            # Map the Tcorr values to the Tmax mask
+            def tcorr_img_func(image):
+                return tmax_mask.add(ee.Number(image.get('tcorr'))) \
+                    .rename(['tcorr']) \
                     .set({
-                        'wrs2_tile': path.format('%03d').cat(row.format('%03d')),
-                        # 'wrs2_tile': ftr.get('WRS2_TILE'),
-                        'tcorr': ee.Number(wrs2_tcorr_stats.get('median')),
-                        'count': ee.Number(wrs2_tcorr_stats.get('count')),
-                        'index': 1,
-                    })
-
-            # # DEADBEEF
-            # for row in [35]:
-            #     print('\nPATH: 36  ROW: {}'.format(row))
-            #     wrs2_test_coll = wrs2_coll \
-            #         .filterMetadata('PATH', 'equals', 36) \
-            #         .filterMetadata('ROW', 'equals', row)
-            #     pprint.pprint(wrs2_test_coll.getInfo())
-            #     output_img = ee.Image(wrs2_tcorr(ee.Feature(wrs2_test_coll.first())))
-            #     pprint.pprint(output_img.getInfo())
-            #     input('ENTER')
-
-            # Combine WRS2 Tcorr monthly images to a single monthly image
-            output_img = ee.ImageCollection(wrs2_coll.map(wrs2_tcorr)) \
-                .filterMetadata('count', 'not_less_than',
-                                float(ini['TCORR']['min_scene_count'])) \
-                .mean() \
-                .rename(['tcorr', 'count'])
-            # pprint.pprint(output_img.getInfo())
-            # input('ENTER')
-
-            #     .updateMask(0) \
-            output_img = ee.Image([
-                    tmax_mask.add(output_img.select(['tcorr'])).double(),
-                    tmax_mask.add(output_img.select(['count'])).min(250).uint8()]) \
-                .rename(['tcorr', 'count']) \
-                .set({
-                    # 'system:time_start': utils.millis(iter_start_dt),
-                    'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-                    'month': int(month),
-                    'years': ','.join(map(str, year_list)),
-                    'cycle_day': int(cycle_day),
-                    'model_name': model_name,
-                    'model_version': ssebop.__version__,
-                    'tmax_source': tmax_source.upper(),
-                    'tmax_version': tmax_version.upper(),
+                    'system:time_start': image.get('system:time_start'),
+                    'tcorr': ee.Number(image.get('tcorr')),
+                    'count': ee.Number(image.get('count')),
                 })
-            # pprint.pprint(output_img.getInfo())
-            # input('ENTER')
 
-            logging.debug('  Building export task')
-            task = ee.batch.Export.image.toAsset(
-                image=ee.Image(output_img),
-                description=export_id,
-                assetId=asset_id,
-                crs=tcorr_crs,
-                crsTransform='[' + ','.join(list(map(str, tcorr_geo))) + ']',
-                dimensions='{0}x{1}'.format(*tcorr_shape),
-            )
+            wrs2_tcorr_coll = tcorr_scene_coll \
+                .filterMetadata('wrs2_path', 'equals', path) \
+                .filterMetadata('wrs2_row', 'equals', row) \
+                .map(tcorr_img_func)
 
-            logging.debug('  Starting export task')
-            utils.ee_task_start(task)
+            # Compute median monthly value for all images in the WRS2 tile
+            wrs2_tcorr_img = ee.ImageCollection(wrs2_tcorr_coll) \
+                .reduce(reducer) \
+                .rename(['tcorr', 'count'])
 
-            # Pause before starting the next export task
-            utils.delay_task(delay_time, max_ready)
-            logging.debug('')
+            # Compute stats from the properties also
+            wrs2_tcorr_stats = ee.Dictionary(ee.List(
+                wrs2_tcorr_coll.aggregate_array('tcorr')).reduce(reducer))
+            wrs2_tcorr_stats = wrs2_tcorr_stats \
+                .combine({'median': 0, 'count': 0}, overwrite=False)
+
+            return wrs2_tcorr_img \
+                .clip(ee.Feature(ftr).geometry()) \
+                .set({
+                'wrs2_tile': path.format('%03d').cat(row.format('%03d')),
+                # 'wrs2_tile': ftr.get('WRS2_TILE'),
+                'tcorr': ee.Number(wrs2_tcorr_stats.get('median')),
+                'count': ee.Number(wrs2_tcorr_stats.get('count')),
+                'index': 1,
+            })
+
+        # Combine WRS2 Tcorr annual images to a single annual image
+        output_img = ee.ImageCollection(wrs2_coll.map(wrs2_tcorr)) \
+            .mean() \
+            .rename(['tcorr', 'count'])
+
+        output_img = ee.Image([
+                tmax_mask.add(output_img.select(['tcorr'])).double(),
+                tmax_mask.add(output_img.select(['count'])).min(250).uint8()]) \
+            .rename(['tcorr', 'count']) \
+            .set({
+                # 'system:time_start': utils.millis(iter_start_dt),
+                'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+                'years': ','.join(map(str, year_list)),
+                'cycle_day': int(cycle_day),
+                'model_name': model_name,
+                'model_version': ssebop.__version__,
+                'tmax_source': tmax_source.upper(),
+                'tmax_version': tmax_version.upper(),
+            })
+
+        logging.debug('  Building export task')
+        task = ee.batch.Export.image.toAsset(
+            image=ee.Image(output_img),
+            description=export_id,
+            assetId=asset_id,
+            crs=tcorr_crs,
+            crsTransform='[' + ','.join(list(map(str, tcorr_geo))) + ']',
+            dimensions='{0}x{1}'.format(*tcorr_shape),
+        )
+
+        logging.debug('  Starting export task')
+        utils.ee_task_start(task)
+
+        # Pause before starting the next export task
+        utils.delay_task(delay_time, max_ready)
+        logging.debug('')
 
 
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export monthly Tcorr images from daily images',
+        description='Compute/export annual Tcorr images from scene images',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,

@@ -17,7 +17,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1, cron_flag=False, reverse_flag=False):
-    """Compute daily Tcorr images
+    """Compute scene Tcorr images
 
     Parameters
     ----------
@@ -142,10 +142,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # This is needed especially for non-median DAYMET Tmax since the default
     #   extent is huge but we are only processing a subset
     if 'daymet' in tmax_name.lower():
+        # CONUS extent
         export_geom = ee.Geometry.Rectangle(
-            [-125, 25, -65, 53], proj='EPSG:4326', geodesic=False)
+            [-125, 25, -65, 49], proj='EPSG:4326', geodesic=False)
+        # DAYMET extent
         # export_geom = ee.Geometry.Rectangle(
-        #     [-135, 15, -55, 60], proj='EPSG:4326', geodesic=False)
+        #     export_extent, proj=export_crs, geodesic=False)
+        # # Large CONUS extent
+        # export_geom = ee.Geometry.Rectangle(
+        #     [-125, 25, -65, 52], proj='EPSG:4326', geodesic=False)
     elif 'cimis' in tmax_name.lower():
         export_geom = ee.Geometry.Rectangle(
             [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
@@ -329,11 +334,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # Write an empty image if the pixel count is too low
             tcorr_img = ee.Algorithms.If(
                 count.gt(int(ini['TCORR']['min_pixel_count'])),
-                tmax_mask.add(tcorr).clip(image.geometry()),
-                tmax_mask.updateMask(0).clip(image.geometry()))
+                tmax_mask.add(tcorr),
+                tmax_mask.updateMask(0))
 
             # Clip to the Landsat image footprint
-            tcorr_img = ee.Image(tcorr_img)
+            tcorr_img = ee.Image(tcorr_img).clip(image.geometry())
 
             # Clear the transparency mask
             tcorr_img = tcorr_img.updateMask(tcorr_img.unmask(0)) \
@@ -386,7 +391,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export daily Tcorr images',
+        description='Compute/export scene Tcorr images',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,

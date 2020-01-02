@@ -14,7 +14,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1):
-    """Compute annual Tcorr images
+    """Compute annual Tcorr images from daily images
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         implies no limit to the number of tasks that will be submitted.
 
     """
-    logging.info('\nCompute annual Tcorr images')
+    logging.info('\nCompute annual Tcorr images from daily images')
 
     ini = utils.read_ini(ini_path)
 
@@ -371,7 +371,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export annual Tcorr images',
+        description='Compute/export annual Tcorr images from daily images',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,
