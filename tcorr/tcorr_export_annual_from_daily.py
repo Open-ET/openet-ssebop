@@ -325,7 +325,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     # 'wrs2_tile': ftr.get('WRS2_TILE'),
                     'tcorr': ee.Number(wrs2_tcorr_stats.get('median')),
                     'count': ee.Number(wrs2_tcorr_stats.get('count')),
-                    'index': 1,
+                    'index': 2,
                 })
 
         # Combine WRS2 Tcorr annual images to a single annual image

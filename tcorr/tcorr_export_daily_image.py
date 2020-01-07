@@ -143,7 +143,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #   extent is huge but we are only processing a subset
     if 'daymet' in tmax_name.lower():
         export_geom = ee.Geometry.Rectangle(
-            [-125, 25, -65, 53], proj='EPSG:4326', geodesic=False)
+            export_extent, proj=export_crs, geodesic=False)
+        # export_geom = ee.Geometry.Rectangle(
+        #     [-125, 25, -65, 53], proj='EPSG:4326', geodesic=False)
         # export_geom = ee.Geometry.Rectangle(
         #     [-135, 15, -55, 60], proj='EPSG:4326', geodesic=False)
     elif 'cimis' in tmax_name.lower():
@@ -513,7 +515,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 'date': export_dt.strftime('%Y-%m-%d'),
                 'year': int(export_dt.year),
                 'month': int(export_dt.month),
-                'day': int(export_dt.day),
+                # 'day': int(export_dt.day),
                 'doy': int(export_dt.strftime('%j')),
                 'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
                 'landsat': landsat_list,
