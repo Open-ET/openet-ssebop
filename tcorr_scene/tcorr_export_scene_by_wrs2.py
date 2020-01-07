@@ -1,8 +1,6 @@
 import argparse
 from builtins import input
-from collections import defaultdict
 import datetime
-import json
 import logging
 import math
 import pprint
@@ -17,7 +15,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1, cron_flag=False, reverse_flag=False):
-    """Compute scene Tcorr images
+    """Compute scene Tcorr images by WRS2 tile
 
     Parameters
     ----------
@@ -42,7 +40,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     reverse_flag : bool, optional
         If True, process dates in reverse order.
     """
-    logging.info('\nCompute scene Tcorr images')
+    logging.info('\nCompute scene Tcorr images by WRS2 tile')
 
     ini = utils.read_ini(ini_path)
 
@@ -51,11 +49,42 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     tmax_name = ini[model_name]['tmax_source']
 
-    export_id_fmt = 'tcorr_image_{product}_{scene_id}'
+    export_id_fmt = 'tcorr_scene_{product}_{scene_id}'
     asset_id_fmt = '{coll_id}/{scene_id}'
 
     tcorr_scene_coll_id = '{}/{}_scene'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
+
+    wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
+                   'projects/usgs-ssebop/wrs2_descending_custom'
+    wrs2_tile_field = 'WRS2_TILE'
+    wrs2_path_field = 'ROW'
+    wrs2_row_field = 'PATH'
+
+    try:
+        wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])
+        wrs2_tiles = sorted([x.strip() for x in wrs2_tiles.split(',')])
+    except KeyError:
+        wrs2_tiles = []
+        logging.debug('  wrs2_tiles: not set in INI, defaulting to []')
+    except Exception as e:
+        raise e
+
+    try:
+        study_area_extent = str(ini['INPUTS']['study_area_extent']) \
+            .replace('[', '').replace(']', '').split(',')
+        study_area_extent = [float(x.strip()) for x in study_area_extent]
+    except KeyError:
+        study_area_extent = None
+        logging.debug('  study_area_extent: not set in INI, defaulting to None')
+    except Exception as e:
+        raise e
+
+    # TODO: Add try/except blocks and default values?
+    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
+    cloud_cover = float(ini['INPUTS']['cloud_cover'])
+    min_pixel_count = float(ini['TCORR']['min_pixel_count'])
+    # min_scene_count = float(ini['TCORR']['min_scene_count'])
 
     if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
@@ -74,6 +103,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #         '\nDAYMET is not currently available past 2017-12-31, '
     #         'using median Tmax values\n')
     #     # sys.exit()
+
 
     # Extract the model keyword arguments from the INI
     # Set the property name to lower case and try to cast values to numbers
@@ -94,6 +124,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     else:
         ee.Initialize(use_cloud_api=True)
 
+
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
     tmax_source = tmax_name.split('_', 1)[0]
@@ -109,6 +140,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Collection: {}'.format(tmax_coll_id))
     logging.debug('  Source:  {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
+
 
     logging.debug('\nExport properties')
     export_info = utils.get_info(ee.Image(tmax_mask))
@@ -158,6 +190,14 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         export_geom = tmax_mask.geometry()
 
 
+    # For now define the study area from an extent
+    if study_area_extent:
+        study_area_geom = ee.Geometry.Rectangle(
+            study_area_extent, proj='EPSG:4326', geodesic=False)
+        export_geom = export_geom.intersection(study_area_geom, 1)
+        # logging.debug('  Extent: {}'.format(export_geom.bounds().getInfo()))
+
+
     # If cell_size parameter is set in the INI,
     # adjust the output cellsize and recompute the transform and shape
     try:
@@ -191,113 +231,121 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         input('ENTER')
 
 
-    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
-
-    # Limit by year and month
-    try:
-        month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
-    except:
-        logging.info('\nTCORR "months" parameter not set in the INI,'
-                     '\n  Defaulting to all months (1-12)\n')
-        month_list = list(range(1, 13))
-    try:
-        year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
-    except:
-        logging.info('\nTCORR "years" parameter not set in the INI,'
-                     '\n  Defaulting to all available years\n')
-        year_list = []
-
-    # Key is cycle day, value is a reference date on that cycle
-    # Data from: https://landsat.usgs.gov/landsat_acq
-    # I only need to use 8 cycle days because of 5/7 and 7/8 are offset
-    cycle_dates = {
-        7: '1970-01-01',
-        8: '1970-01-02',
-        1: '1970-01-03',
-        2: '1970-01-04',
-        3: '1970-01-05',
-        4: '1970-01-06',
-        5: '1970-01-07',
-        6: '1970-01-08',
-    }
-    # cycle_dates = {
-    #     1:  '2000-01-06',
-    #     2:  '2000-01-07',
-    #     3:  '2000-01-08',
-    #     4:  '2000-01-09',
-    #     5:  '2000-01-10',
-    #     6:  '2000-01-11',
-    #     7:  '2000-01-12',
-    #     8:  '2000-01-13',
-    #     # 9:  '2000-01-14',
-    #     # 10: '2000-01-15',
-    #     # 11: '2000-01-16',
-    #     # 12: '2000-01-01',
-    #     # 13: '2000-01-02',
-    #     # 14: '2000-01-03',
-    #     # 15: '2000-01-04',
-    #     # 16: '2000-01-05',
-    # }
-    cycle_base_dt = datetime.datetime.strptime(cycle_dates[1], '%Y-%m-%d')
-
-    if cron_flag:
-        # CGM - This seems like a silly way of getting the date as a datetime
-        #   Why am I doing this and not using the commented out line?
-        iter_end_dt = datetime.date.today().strftime('%Y-%m-%d')
-        iter_end_dt = datetime.datetime.strptime(iter_end_dt, '%Y-%m-%d')
-        iter_end_dt = iter_end_dt + datetime.timedelta(days=-4)
-        # iter_end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
-        iter_start_dt = iter_end_dt + datetime.timedelta(days=-64)
-    else:
-        iter_start_dt = datetime.datetime.strptime(
-            ini['INPUTS']['start_date'], '%Y-%m-%d')
-        iter_end_dt = datetime.datetime.strptime(
-            ini['INPUTS']['end_date'], '%Y-%m-%d')
-    logging.debug('Start Date: {}'.format(iter_start_dt.strftime('%Y-%m-%d')))
-    logging.debug('End Date:   {}\n'.format(iter_end_dt.strftime('%Y-%m-%d')))
+    # TODO: Decide if month and year lists should be applied to scene exports
+    # # Limit by year and month
+    # try:
+    #     month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
+    # except:
+    #     logging.info('\nTCORR "months" parameter not set in the INI,'
+    #                  '\n  Defaulting to all months (1-12)\n')
+    #     month_list = list(range(1, 13))
+    # try:
+    #     year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
+    # except:
+    #     logging.info('\nTCORR "years" parameter not set in the INI,'
+    #                  '\n  Defaulting to all available years\n')
+    #     year_list = []
 
 
-    for export_dt in sorted(utils.date_range(iter_start_dt, iter_end_dt),
-                            reverse=reverse_flag):
-        export_date = export_dt.strftime('%Y-%m-%d')
-        next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-        if month_list and export_dt.month not in month_list:
-            logging.debug(f'Date: {export_date} - month not in INI - skipping')
-            continue
-        elif year_list and export_dt.year not in year_list:
-            logging.debug(f'Date: {export_date} - year not in INI - skipping')
-            continue
-        elif export_date >= datetime.datetime.today().strftime('%Y-%m-%d'):
-            logging.debug(f'Date: {export_date} - unsupported date - skipping')
-            continue
-        elif export_date < '1984-03-23':
-            logging.debug(f'Date: {export_date} - no Landsat 5+ images before '
-                         '1984-03-16 - skipping')
-            continue
-        logging.info(f'Date: {export_date}')
+    # if cron_flag:
+    #     # CGM - This seems like a silly way of getting the date as a datetime
+    #     #   Why am I doing this and not using the commented out line?
+    #     end_dt = datetime.date.today().strftime('%Y-%m-%d')
+    #     end_dt = datetime.datetime.strptime(end_dt, '%Y-%m-%d')
+    #     end_dt = end_dt + datetime.timedelta(days=-4)
+    #     # end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
+    #     start_dt = end_dt + datetime.timedelta(days=-64)
+    # else:
+    #     start_dt = datetime.datetime.strptime(
+    #         ini['INPUTS']['start_date'], '%Y-%m-%d')
+    #     end_dt = datetime.datetime.strptime(
+    #         ini['INPUTS']['end_date'], '%Y-%m-%d')
+    start_dt = datetime.datetime.strptime(
+        ini['INPUTS']['start_date'], '%Y-%m-%d')
+    end_dt = datetime.datetime.strptime(
+        ini['INPUTS']['end_date'], '%Y-%m-%d')
+    if end_dt >= datetime.datetime.today():
+        logging.debug('End Date:   {} - setting end date to current '
+                      'date'.format(end_dt.strftime('%Y-%m-%d')))
+        end_dt = datetime.datetime.today()
+    if start_dt < datetime.datetime(1984, 3, 23):
+        logging.debug('Start Date: {} - no Landsat 5+ images before '
+                      '1984-03-23'.format(start_dt.strftime('%Y-%m-%d')))
+        start_dt = datetime.datetime(1984, 3, 23)
+    start_date = start_dt.strftime('%Y-%m-%d')
+    end_date = end_dt.strftime('%Y-%m-%d')
+    # next_date = (start_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    logging.debug('Start Date: {}'.format(start_date))
+    logging.debug('End Date:   {}\n'.format(end_date))
+    if start_dt > end_dt:
+        raise ValueError('start date must be before end date')
 
+
+    # Get the list of WRS2 tiles that intersect the data area and study area
+    wrs2_coll = ee.FeatureCollection(wrs2_coll_id).filterBounds(export_geom)
+    if study_area_extent:
+        study_area_geom = ee.Geometry.Rectangle(
+            study_area_extent, proj='EPSG:4326', geodesic=False)
+        wrs2_coll = wrs2_coll.filterBounds(study_area_geom)
+    if wrs2_tiles:
+        wrs2_coll = wrs2_coll.filter(ee.Filter.inList(wrs2_tile_field, wrs2_tiles))
+    wrs2_info = wrs2_coll.getInfo()['features']
+
+
+    # Iterate over WRS2 tiles
+    for wrs2_ftr in wrs2_info:
+        wrs2_tile = wrs2_ftr['properties'][wrs2_tile_field]
+        logging.info('{}'.format(wrs2_tile))
+
+        wrs2_path = int(wrs2_tile[1:4])
+        wrs2_row = int(wrs2_tile[5:8])
+        # wrs2_path = wrs2_ftr['properties']['PATH']
+        # wrs2_row = wrs2_ftr['properties']['ROW']
+
+        wrs2_geom = ee.Geometry(wrs2_ftr['geometry'])
+
+        wrs2_filter = [
+            {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': wrs2_path},
+            {'type': 'equals', 'leftField': 'WRS_ROW', 'rightValue': wrs2_row}]
+        filter_args = {c: wrs2_filter for c in collections}
 
         # Build and merge the Landsat collections
         model_obj = ssebop.Collection(
             collections=collections,
-            start_date=export_dt.strftime('%Y-%m-%d'),
-            end_date=(export_dt + datetime.timedelta(days=1)).strftime(
-                '%Y-%m-%d'),
-            cloud_cover_max=float(ini['INPUTS']['cloud_cover']),
-            geometry=export_geom,
+            start_date=start_date,
+            end_date=end_date,
+            cloud_cover_max=cloud_cover,
+            geometry=wrs2_geom,
             model_args=model_args,
-            # filter_args=filter_args,
+            filter_args=filter_args,
         )
         landsat_coll = model_obj.overpass(variables=['ndvi'])
-        wrs2_tiles_all = model_obj.get_image_ids()
         # pprint.pprint(landsat_coll.aggregate_array('system:id').getInfo())
         # input('ENTER')
 
-        image_id_list = landsat_coll.aggregate_array('system:id').getInfo()
+        try:
+            image_id_list = landsat_coll.aggregate_array('system:id').getInfo()
+        except Exception as e:
+            logging.warning('  Error getting image ID list, skipping tile')
+            continue
 
         for image_id in sorted(image_id_list, reverse=reverse_flag):
             scene_id = image_id.split('/')[-1]
             logging.info(f'{scene_id}')
+
+            export_dt = datetime.datetime.strptime(scene_id.split('_')[-2], '%Y%m%d')
+            export_date = export_dt.strftime('%Y-%m-%d')
+            next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+
+            # # Uncomment to apply month and year list filtering
+            # if month_list and export_dt.month not in month_list:
+            #     logging.debug(f'  Date: {export_date} - month not in INI - skipping')
+            #     continue
+            # elif year_list and export_dt.year not in year_list:
+            #     logging.debug(f'  Date: {export_date} - year not in INI - skipping')
+            #     continue
+
+            logging.debug(f'  Date: {export_date}')
 
             export_id = export_id_fmt.format(
                 product=tmax_name.lower(), scene_id=scene_id)
@@ -325,7 +373,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     continue
 
             image = ee.Image(image_id)
-            t_obj = ssebop.Image.from_landsat_c1_toa(image, **model_args)
+            # TODO: Will need to be changed for SR or use from_image_id()
+            t_obj = ssebop.Image.from_landsat_c1_toa(image_id, **model_args)
             t_stats = ee.Dictionary(t_obj.tcorr_stats) \
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
@@ -333,15 +382,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
             # Write an empty image if the pixel count is too low
             tcorr_img = ee.Algorithms.If(
-                count.gt(int(ini['TCORR']['min_pixel_count'])),
+                count.gt(min_pixel_count),
                 tmax_mask.add(tcorr),
                 tmax_mask.updateMask(0))
 
             # Clip to the Landsat image footprint
-            tcorr_img = ee.Image(tcorr_img).clip(image.geometry())
+            output_img = ee.Image(tcorr_img).clip(image.geometry())
 
             # Clear the transparency mask
-            tcorr_img = tcorr_img.updateMask(tcorr_img.unmask(0)) \
+            output_img = output_img.updateMask(output_img.unmask(0)) \
                 .rename(['tcorr']) \
                 .set({
                     'CLOUD_COVER': image.get('CLOUD_COVER'),
@@ -349,7 +398,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     # 'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
                     'coll_id': image_id.split('/')[0],
                     'count': count,
-                    'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
+                    # 'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
                     'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
                     'date': export_dt.strftime('%Y-%m-%d'),
                     'doy': int(export_dt.strftime('%j')),
@@ -361,18 +410,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'tcorr': tcorr,
                     'tmax_source': tmax_source.upper(),
                     'tmax_version': tmax_version.upper(),
-                    'wrs2_path': int(scene_id[5:8]),
-                    'wrs2_row': int(scene_id[8:11]),
-                    'wrs2_tile': scene_id[5:11],
-                    # 'wrs2_tile': f'p{scene_id[5:8]}r{scene_id[8:11]}',
+                    'wrs2_path': wrs2_path,
+                    'wrs2_row': wrs2_row,
+                    'wrs2_tile': wrs2_tile,
                     'year': int(export_dt.year),
                 })
-            # pprint.pprint(tcorr_img.getInfo()['properties'])
+            # pprint.pprint(output_img.getInfo()['properties'])
             # input('ENTER')
 
             logging.debug('  Building export task')
             task = ee.batch.Export.image.toAsset(
-                image=ee.Image(tcorr_img),
+                image=output_img,
                 description=export_id,
                 assetId=asset_id,
                 crs=export_crs,
@@ -381,7 +429,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             )
 
             logging.info('  Starting export task')
-            utils.ee_task_start(task)
+            # utils.ee_task_start(task)
 
         # Pause before starting the next date (not export task)
         utils.delay_task(delay_time, max_ready)
@@ -391,7 +439,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export scene Tcorr images',
+        description='Compute/export scene Tcorr images by WRS2 tile',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,

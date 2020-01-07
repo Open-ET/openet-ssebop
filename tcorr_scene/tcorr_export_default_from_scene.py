@@ -14,7 +14,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1):
-    """Compute annual Tcorr images from scene images
+    """Compute default Tcorr images from scene images
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         implies no limit to the number of tasks that will be submitted.
 
     """
-    logging.info('\nCompute annual Tcorr images from scene images')
+    logging.info('\nCompute default Tcorr images from scene images')
 
     ini = utils.read_ini(ini_path)
 
@@ -41,10 +41,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     tmax_name = ini[model_name]['tmax_source']
 
-    export_id_fmt = 'tcorr_scene_{product}_{wrs2}_annual'
-    asset_id_fmt = '{coll_id}/{wrs2}'
+    export_id_fmt = 'tcorr_image_{product}_{wrs2}_default'
+    asset_id_fmt = '{coll_id}/{wrs2}_default'
+    # asset_id_fmt = '{coll_id}/cycle{cycle:02d}'
 
-    tcorr_annual_coll_id = '{}/{}_scene_annual2'.format(
+    tcorr_default_coll_id = '{}/{}_scene_default'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
 
     wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
@@ -73,29 +74,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     except Exception as e:
         raise e
 
-    # TODO: Add try/except blocks and default values?
-    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
-    cloud_cover = float(ini['INPUTS']['cloud_cover'])
-    min_pixel_count = float(ini['TCORR']['min_pixel_count'])
-    min_scene_count = float(ini['TCORR']['min_scene_count'])
-
-    if (tmax_name.upper() == 'CIMIS' and
-            ini['INPUTS']['end_date'] < '2003-10-01'):
-        logging.error(
-            '\nCIMIS is not currently available before 2003-10-01, exiting\n')
-        sys.exit()
-    elif (tmax_name.upper() == 'DAYMET' and
-            ini['INPUTS']['end_date'] > '2018-12-31'):
-        logging.warning(
-            '\nDAYMET is not currently available past 2018-12-31, '
-            'using median Tmax values\n')
-        # sys.exit()
-    # elif (tmax_name.upper() == 'TOPOWX' and
-    #         ini['INPUTS']['end_date'] > '2017-12-31'):
-    #     logging.warning(
-    #         '\nDAYMET is not currently available past 2017-12-31, '
-    #         'using median Tmax values\n')
-    #     # sys.exit()
+    try:
+        tcorr_default = ini[model_name]['tcorr_default']
+    except:
+        tcorr_default = 0.978
 
 
     logging.info('\nInitializing Earth Engine')
@@ -120,10 +102,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Version: {}'.format(tmax_version))
 
 
-    # Get the Tcorr scene image collection properties
-    logging.debug('\nTcorr scene collection')
-    tcorr_scene_coll_id = '{}/{}_scene'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
+    # # Get the Tcorr scene image collection properties
+    # logging.debug('\nTcorr scene collection')
+    # tcorr_scene_coll_id = '{}/{}_scene'.format(
+    #     ini['EXPORT']['export_coll'], tmax_name.lower())
 
 
     logging.debug('\nExport properties')
@@ -171,15 +153,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         export_geom = tmax_mask.geometry()
 
 
-    if not ee.data.getInfo(tcorr_annual_coll_id):
+    if not ee.data.getInfo(tcorr_default_coll_id):
         logging.info('\nExport collection does not exist and will be built'
-                     '\n  {}'.format(tcorr_annual_coll_id))
+                     '\n  {}'.format(tcorr_default_coll_id))
         input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_annual_coll_id)
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_default_coll_id)
 
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(tcorr_annual_coll_id)
+    asset_list = utils.get_ee_assets(tcorr_default_coll_id)
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         pprint.pprint(asset_list[:10])
 
@@ -188,21 +170,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
-
-    # Limit by year
-    month_list = list(range(1, 13))
-    # try:
-    #     month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
-    # except:
-    #     logging.info('\nTCORR "months" parameter not set in the INI,'
-    #                  '\n  Defaulting to all months (1-12)\n')
-    #     month_list = list(range(1, 13))
-    try:
-        year_list = sorted(list(utils.parse_int_set(ini['TCORR']['years'])))
-    except:
-        logging.info('\nTCORR "years" parameter not set in the INI,'
-                     '\n  Defaulting to all available years\n')
-        year_list = []
 
 
     # Get the list of WRS2 tiles that intersect the data area and study area
@@ -231,7 +198,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         logging.info('  Export ID: {}'.format(export_id))
 
         asset_id = asset_id_fmt.format(
-            coll_id=tcorr_annual_coll_id, wrs2=wrs2_tile)
+            coll_id=tcorr_default_coll_id, wrs2=wrs2_tile)
         logging.debug('  Asset ID: {}'.format(asset_id))
 
         if overwrite_flag:
@@ -251,54 +218,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 logging.debug('  Asset already exists, skipping')
                 continue
 
-        tcorr_coll = ee.ImageCollection(tcorr_scene_coll_id) \
-            .filterMetadata('count', 'not_less_than', min_pixel_count) \
-            .filterMetadata('wrs2_tile', 'equals', wrs2_tile) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
-            .filter(ee.Filter.inList('year', year_list))
-        #     .filterDate(start_date, end_date)
-        #     .filterBounds(ee.Geometry(wrs2_ftr['geometry']))
-
-
-        # Use a common reducer for the images and property stats
-        reducer = ee.Reducer.median() \
-            .combine(ee.Reducer.count(), sharedInputs=True)
-
-        # Compute stats from the collection images
-        # This might be used when Tcorr is spatial
-        # tcorr_img = tcorr_coll.reduce(reducer).rename(['tcorr', 'count'])
-
-        # Compute stats from the image properties
-        tcorr_stats = ee.List(tcorr_coll.aggregate_array('tcorr')) \
-            .reduce(reducer)
-        tcorr_stats = ee.Dictionary(tcorr_stats) \
-            .combine({'median': 0, 'count': 0}, overwrite=False)
-        tcorr = ee.Number(tcorr_stats.get('median'))
-        count = ee.Number(tcorr_stats.get('count'))
-        # pprint.pprint(tcorr_stats.getInfo())
-        # input('ENTER')
-
-        # Write an empty image if the pixel count is too low
-        # CGM: Check/test if this can be combined into a single If()
-        tcorr_img = ee.Algorithms.If(
-            count.gt(min_scene_count),
-            tmax_mask.add(tcorr), tmax_mask.updateMask(0))
-        count_img = ee.Algorithms.If(
-            count.gt(min_scene_count),
-            tmax_mask.add(count), tmax_mask.updateMask(0))
-
         # Clip to the Landsat image footprint
-        output_img = ee.Image([tcorr_img, count_img]) \
-            .rename(['tcorr', 'count']) \
+        output_img = tmax_mask.add(tcorr_default) \
+            .rename(['tcorr']) \
             .clip(ee.Geometry(wrs2_ftr['geometry']))
 
         # Clear the transparency mask
         output_img = output_img.updateMask(output_img.unmask(0))
 
         output_img = output_img.set({
-            'tcorr': tcorr,
-            'count': count,
-            'index': 2,
+            'tcorr': tcorr_default,
+            # 'count': count,
+            'index': 3,
             # 'system:time_start': utils.millis(start_dt),
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
             'model_name': model_name,
@@ -308,9 +239,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             'wrs2_path': wrs2_path,
             'wrs2_row': wrs2_row,
             'wrs2_tile': wrs2_tile,
-            'years': ','.join(map(str, year_list)),
-            # 'year_start': year_list[0],
-            # 'year_end': year_list[-1],
         })
         # pprint.pprint(output_img.getInfo())
         # input('ENTER')
@@ -325,18 +253,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             dimensions='{0}x{1}'.format(*export_shape),
         )
 
-        # logging.debug('  Starting export task')
-        # utils.ee_task_start(task)
-        #
-        # # Pause before starting the next export task
-        # utils.delay_task(delay_time, max_ready)
-        # logging.debug('')
+        logging.debug('  Starting export task')
+        utils.ee_task_start(task)
+
+        # Pause before starting the next export task
+        utils.delay_task(delay_time, max_ready)
+        logging.debug('')
 
 
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export annual Tcorr images from scene images',
+        description='Compute/export default Tcorr images from scene images',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,

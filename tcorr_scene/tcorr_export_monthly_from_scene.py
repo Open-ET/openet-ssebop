@@ -41,14 +41,43 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     tmax_name = ini[model_name]['tmax_source']
 
-    export_id_fmt = 'tcorr_image_{product}_month{month:02d}_cycle{cycle:02d}'
-    asset_id_fmt = '{coll_id}/month{month:02d}_cycle{cycle:02d}'
+    export_id_fmt = 'tcorr_scene_{product}_{wrs2}_month{month:02d}'
+    asset_id_fmt = '{coll_id}/{wrs2}_month{month:02d}'
 
-    tcorr_monthly_coll_id = '{}/{}_monthly_scene'.format(
+    tcorr_monthly_coll_id = '{}/{}_scene_monthly2'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
 
     wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
                    'projects/usgs-ssebop/wrs2_descending_custom'
+    wrs2_tile_field = 'WRS2_TILE'
+    wrs2_path_field = 'ROW'
+    wrs2_row_field = 'PATH'
+
+    try:
+        wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])
+        wrs2_tiles = [x.strip() for x in wrs2_tiles.split(',')]
+        wrs2_tiles = sorted([x.lower() for x in wrs2_tiles if x])
+    except KeyError:
+        wrs2_tiles = []
+        logging.debug('  wrs2_tiles: not set in INI, defaulting to []')
+    except Exception as e:
+        raise e
+
+    try:
+        study_area_extent = str(ini['INPUTS']['study_area_extent']) \
+            .replace('[', '').replace(']', '').split(',')
+        study_area_extent = [float(x.strip()) for x in study_area_extent]
+    except KeyError:
+        study_area_extent = None
+        logging.debug('  study_area_extent: not set in INI, defaulting to None')
+    except Exception as e:
+        raise e
+
+    # TODO: Add try/except blocks and default values?
+    collections = [x.strip() for x in ini['INPUTS']['collections'].split(',')]
+    cloud_cover = float(ini['INPUTS']['cloud_cover'])
+    min_pixel_count = float(ini['TCORR']['min_pixel_count'])
+    min_scene_count = float(ini['TCORR']['min_scene_count'])
 
     if (tmax_name.upper() == 'CIMIS' and
             ini['INPUTS']['end_date'] < '2003-10-01'):
@@ -68,6 +97,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #         'using median Tmax values\n')
     #     # sys.exit()
 
+
     logging.info('\nInitializing Earth Engine')
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
@@ -76,6 +106,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                       use_cloud_api=True)
     else:
         ee.Initialize(use_cloud_api=True)
+
 
     logging.debug('\nTmax properties')
     tmax_source = tmax_name.split('_', 1)[0]
@@ -88,24 +119,57 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Source: {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
 
-    # Get the Tcorr daily image collection properties
-    logging.debug('\nTcorr Image properties')
+
+    # Get the Tcorr scene image collection properties
+    logging.debug('\nTcorr scene collection')
     tcorr_scene_coll_id = '{}/{}_scene'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
-    tcorr_img = ee.Image(ee.ImageCollection(tcorr_scene_coll_id).first())
-    tcorr_info = utils.get_info(ee.Image(tcorr_img))
-    tcorr_geo = tcorr_info['bands'][0]['crs_transform']
-    tcorr_crs = tcorr_info['bands'][0]['crs']
-    tcorr_shape = tcorr_info['bands'][0]['dimensions']
-    # tcorr_geo = ee.Image(tcorr_img).projection().getInfo()['transform']
-    # tcorr_crs = ee.Image(tcorr_img).projection().getInfo()['crs']
-    # tcorr_shape = ee.Image(tcorr_img).getInfo()['bands'][0]['dimensions']
-    tcorr_extent = [tcorr_geo[2], tcorr_geo[5] + tcorr_shape[1] * tcorr_geo[4],
-                    tcorr_geo[2] + tcorr_shape[0] * tcorr_geo[0], tcorr_geo[5]]
-    logging.debug('  Shape: {}'.format(tcorr_shape))
-    logging.debug('  Extent: {}'.format(tcorr_extent))
-    logging.debug('  Geo: {}'.format(tcorr_geo))
-    logging.debug('  CRS: {}'.format(tcorr_crs))
+
+
+    logging.debug('\nExport properties')
+    export_info = utils.get_info(ee.Image(tmax_mask))
+    if 'daymet' in tmax_name.lower():
+        # Custom smaller extent for DAYMET focused on CONUS
+        export_extent = [-1999750, -1890500, 2500250, 1109500]
+        export_shape = [4500, 3000]
+        export_geo = [1000, 0, -1999750, 0, -1000, 1109500]
+        # Custom medium extent for DAYMET of CONUS, Mexico, and southern Canada
+        # export_extent = [-2099750, -3090500, 2900250, 1909500]
+        # export_shape = [5000, 5000]
+        # export_geo = [1000, 0, -2099750, 0, -1000, 1909500]
+        export_crs = export_info['bands'][0]['crs']
+    else:
+        export_crs = export_info['bands'][0]['crs']
+        export_geo = export_info['bands'][0]['crs_transform']
+        export_shape = export_info['bands'][0]['dimensions']
+        # export_geo = ee.Image(tmax_mask).projection().getInfo()['transform']
+        # export_crs = ee.Image(tmax_mask).projection().getInfo()['crs']
+        # export_shape = ee.Image(tmax_mask).getInfo()['bands'][0]['dimensions']
+        export_extent = [
+            export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
+            export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    logging.debug('  CRS: {}'.format(export_crs))
+    logging.debug('  Extent: {}'.format(export_extent))
+    logging.debug('  Geo: {}'.format(export_geo))
+    logging.debug('  Shape: {}'.format(export_shape))
+
+
+    if 'daymet' in tmax_name.lower():
+        # CONUS extent
+        export_geom = ee.Geometry.Rectangle(
+            [-125, 25, -65, 49], proj='EPSG:4326', geodesic=False)
+        # DAYMET extent
+        # export_geom = ee.Geometry.Rectangle(
+        #     export_extent, proj=export_crs, geodesic=False)
+        # # Large CONUS extent
+        # export_geom = ee.Geometry.Rectangle(
+        #     [-125, 25, -65, 52], proj='EPSG:4326', geodesic=False)
+    elif 'cimis' in tmax_name.lower():
+        export_geom = ee.Geometry.Rectangle(
+            [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
+    else:
+        export_geom = tmax_mask.geometry()
+
 
     if not ee.data.getInfo(tcorr_monthly_coll_id):
         logging.info('\nExport collection does not exist and will be built'
@@ -139,105 +203,38 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                      '\n  Defaulting to all available years\n')
         year_list = []
 
-    # Key is cycle day, value is a reference date on that cycle
-    # Data from: https://landsat.usgs.gov/landsat_acq
-    # I only need to use 8 cycle days because of 5/7 and 7/8 are offset
-    cycle_dates = {
-        7: '1970-01-01',
-        8: '1970-01-02',
-        1: '1970-01-03',
-        2: '1970-01-04',
-        3: '1970-01-05',
-        4: '1970-01-06',
-        5: '1970-01-07',
-        6: '1970-01-08',
-    }
-    # cycle_dates = {
-    #     1:  '2000-01-06',
-    #     2:  '2000-01-07',
-    #     3:  '2000-01-08',
-    #     4:  '2000-01-09',
-    #     5:  '2000-01-10',
-    #     6:  '2000-01-11',
-    #     7:  '2000-01-12',
-    #     8:  '2000-01-13',
-    #     # 9:  '2000-01-14',
-    #     # 10: '2000-01-15',
-    #     # 11: '2000-01-16',
-    #     # 12: '2000-01-01',
-    #     # 13: '2000-01-02',
-    #     # 14: '2000-01-03',
-    #     # 15: '2000-01-04',
-    #     # 16: '2000-01-05',
-    # }
 
-    # Key is cycle day, values are list of paths
-    # First list is Landsat 8 paths, second list is Landsat 7 paths
-    cycle_paths = {
-        5:  [ 1, 17, 33, 49, 65,  81,  97, 106, 122, 138, 154, 170, 186, 202, 218] +
-            [ 9, 25, 41, 57, 73,  89,  98, 114, 130, 146, 162, 178, 194, 210, 226],
-        # 12: [ 2, 18, 34, 50, 66,  82, 107, 123, 139, 155, 171, 187, 203, 219] +
-        #     [10, 26, 42, 58, 74,  99, 115, 131, 147, 163, 179, 195, 211, 227],
-        3:  [ 3, 19, 35, 51, 67,  83, 108, 124, 140, 156, 172, 188, 204, 220] +
-            [11, 27, 43, 59, 75, 100, 116, 132, 148, 164, 180, 196, 212, 228],
-        # 10: [ 4, 20, 36, 52, 68,  84, 109, 125, 141, 157, 171, 189, 205, 221] +
-        #     [12, 28, 44, 60, 76, 101, 117, 133, 149, 165, 181, 197, 213, 229],
-        1:  [ 5, 21, 37, 53, 69,  85, 110, 126, 142, 158, 174, 190, 206, 222] +
-            [13, 29, 45, 61, 77, 102, 118, 134, 150, 166, 182, 198, 214, 230],
-        8:  [ 6, 22, 38, 54, 70,  86, 111, 127, 143, 159, 175, 191, 207, 223] +
-            [14, 30, 46, 62, 78, 103, 119, 135, 151, 167, 183, 199, 215, 231],
-        # 15: [ 7, 23, 39, 55, 71,  87, 112, 128, 144, 160, 176, 192, 208, 224] +
-        #     [15, 31, 47, 63, 79, 104, 120, 136, 152, 168, 184, 200, 216, 232],
-        6:  [ 8, 24, 40, 56, 72,  88, 113, 129, 145, 161, 177, 193, 209, 225] +
-            [16, 32, 48, 64, 80, 105, 121, 137, 153, 169, 185, 201, 217, 233],
-        # 13: [ 9, 25, 41, 57, 73,  89,  98, 114, 130, 146, 162, 178, 194, 210, 226] +
-        #     [ 1, 17, 33, 49, 65,  81,  90, 106, 122, 138, 154, 170, 186, 202, 218],
-        4:  [10, 26, 42, 58, 74,  90,  99, 115, 131, 147, 163, 179, 195, 211, 227] +
-            [ 2, 18, 34, 50, 66,  82,  91, 107, 123, 139, 155, 171, 187, 203, 219],
-        # 11: [11, 27, 43, 59, 75,  91, 100, 116, 132, 148, 164, 180, 196, 212, 228] +
-        #     [ 3, 19, 35, 51, 67,  83,  92, 108, 124, 140, 156, 172, 188, 204, 220],
-        2:  [12, 28, 44, 60, 76,  92, 101, 117, 133, 149, 165, 181, 197, 213, 229] +
-            [ 4, 20, 36, 52, 68,  84,  93, 109, 125, 141, 157, 173, 189, 205, 221],
-        # 9:  [13, 29, 45, 61, 77,  93, 102, 118, 134, 150, 166, 182, 198, 214, 230] +
-        #     [ 5, 21, 37, 53, 69,  85,  94, 110, 126, 142, 158, 174, 190, 206, 222],
-        # 16: [14, 30, 46, 62, 78,  94, 103, 119, 135, 151, 167, 183, 199, 215, 231] +
-        #     [ 6, 22, 38, 54, 70,  86,  95, 111, 127, 143, 159, 175, 191, 207, 223],
-        7:  [15, 31, 47, 63, 79,  95, 104, 120, 136, 152, 168, 184, 200, 216, 232] +
-            [ 7, 23, 39, 55, 71,  87,  96, 112, 128, 144, 160 ,176, 192, 208, 224],
-        # 14: [16, 32, 48, 64, 80,  96, 105, 121, 137, 153, 169, 185, 201, 217, 233] +
-        #     [ 8, 24, 40, 56, 72,  88,  97, 113, 129, 145, 161, 177, 193, 209, 225],
-    }
+    # Get the list of WRS2 tiles that intersect the data area and study area
+    wrs2_coll = ee.FeatureCollection(wrs2_coll_id).filterBounds(export_geom)
+    if study_area_extent:
+        study_area_geom = ee.Geometry.Rectangle(
+            study_area_extent, proj='EPSG:4326', geodesic=False)
+        wrs2_coll = wrs2_coll.filterBounds(study_area_geom)
+    if wrs2_tiles:
+        wrs2_coll = wrs2_coll.filter(ee.Filter.inList(wrs2_tile_field, wrs2_tiles))
+    wrs2_info = wrs2_coll.getInfo()['features']
+
 
     # Iterate over date ranges
     for month in month_list:
         logging.info('\nMonth: {}'.format(month))
 
-        for cycle_day, ref_date in sorted(cycle_dates.items()):
-            logging.info('Cycle Day: {}'.format(cycle_day))
-            # # DEADBEEF
-            # if cycle_day not in [2]:
-            #     continue
+        for wrs2_ftr in wrs2_info:
+            wrs2_tile = wrs2_ftr['properties'][wrs2_tile_field]
+            logging.info('{}'.format(wrs2_tile))
 
-            ref_dt = datetime.datetime.strptime(ref_date, '%Y-%m-%d')
-            logging.debug('  Reference Date: {}'.format(ref_date))
-
-            date_list = sorted(list(utils.date_range(
-                datetime.datetime(year_list[0], 1, 1),
-                datetime.datetime(year_list[-1], 12, 31))))
-            date_list = [
-                d.strftime('%Y-%m-%d') for d in date_list
-                if ((abs(d - ref_dt).days % 8 == 0) and
-                    (int(d.month) == month) and
-                    (int(d.year) in year_list))]
-            logging.debug('  Dates: {}'.format(', '.join(date_list)))
+            wrs2_path = int(wrs2_tile[1:4])
+            wrs2_row = int(wrs2_tile[5:8])
+            # wrs2_path = wrs2_ftr['properties'][wrs2_path_field]
+            # wrs2_row = wrs2_ftr['properties'][wrs2_row_field]
 
             export_id = export_id_fmt.format(
-                product=tmax_name.lower(), month=month, cycle=cycle_day)
+                product=tmax_name.lower(), wrs2=wrs2_tile, month=month)
             logging.info('  Export ID: {}'.format(export_id))
 
             asset_id = asset_id_fmt.format(
-                coll_id=tcorr_monthly_coll_id, month=month, cycle=cycle_day)
-            logging.info('  Asset ID: {}'.format(asset_id))
+                coll_id=tcorr_monthly_coll_id, wrs2=wrs2_tile, month=month)
+            logging.debug('  Asset ID: {}'.format(asset_id))
 
             if overwrite_flag:
                 if export_id in tasks.keys():
@@ -256,84 +253,68 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     logging.debug('  Asset already exists, skipping')
                     continue
 
-            wrs2_coll = ee.FeatureCollection(wrs2_coll_id) \
-                .filterBounds(tmax_mask.geometry()) \
-                .filter(ee.Filter.inList('PATH', cycle_paths[cycle_day]))
+            tcorr_coll = ee.ImageCollection(tcorr_scene_coll_id) \
+                .filterMetadata('count', 'not_less_than', min_pixel_count) \
+                .filterMetadata('wrs2_tile', 'equals', wrs2_tile) \
+                .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
+                .filter(ee.Filter.calendarRange(month, month, 'month')) \
+                .filter(ee.Filter.inList('year', year_list))
+            #     .filterDate(start_date, end_date)
+            #     .filterBounds(ee.Geometry(wrs2_ftr['geometry']))
 
-            tcorr_scene_coll = ee.ImageCollection(tcorr_scene_coll_id) \
-                .filterMetadata('count', 'not_less_than',
-                                int(ini['TCORR']['min_pixel_count'])) \
-                .filter(ee.Filter.inList('date', date_list))
-            #     .filterMetadata('cycle_day', 'equals', cycle_day)
+            # Use a common reducer for the image and property stats
+            reducer = ee.Reducer.median() \
+                .combine(ee.Reducer.count(), sharedInputs=True)
 
-            def wrs2_tcorr(ftr):
-                # Compute images/statistics separately for each path/row
-                path = ee.Number(ee.Feature(ftr).get('PATH'))
-                row = ee.Number(ee.Feature(ftr).get('ROW'))
+            # Compute stats from the collection images
+            # This might be used when Tcorr is spatial
+            # tcorr_img = tcorr_coll.reduce(reducer).rename(['tcorr', 'count'])
 
-                # Use a common reducer for the images and property stats
-                reducer = ee.Reducer.median() \
-                    .combine(ee.Reducer.count(), sharedInputs=True)
-
-                # Map the Tcorr values to the Tmax mask
-                def tcorr_img_func(image):
-                    return tmax_mask.add(ee.Number(image.get('tcorr')))\
-                        .rename(['tcorr']) \
-                        .set({
-                            'system:time_start': image.get('system:time_start'),
-                            'tcorr': ee.Number(image.get('tcorr')),
-                            'count': ee.Number(image.get('count')),
-                        })
-
-                wrs2_tcorr_coll = tcorr_scene_coll \
-                    .filterMetadata('wrs2_path', 'equals', path) \
-                    .filterMetadata('wrs2_row', 'equals', row) \
-                    .map(tcorr_img_func)
-
-                # Compute median monthly value for all images in the WRS2 tile
-                wrs2_tcorr_img = ee.ImageCollection(wrs2_tcorr_coll) \
-                    .reduce(reducer) \
-                    .rename(['tcorr', 'count'])
-
-                # Compute stats from the properties also
-                wrs2_tcorr_stats = ee.Dictionary(ee.List(
-                    wrs2_tcorr_coll.aggregate_array('tcorr')).reduce(reducer))
-                wrs2_tcorr_stats = wrs2_tcorr_stats \
-                    .combine({'median': 0, 'count': 0}, overwrite=False)
-
-                return wrs2_tcorr_img \
-                    .clip(ee.Feature(ftr).geometry()) \
-                    .set({
-                        'wrs2_tile': path.format('%03d').cat(row.format('%03d')),
-                        # 'wrs2_tile': ftr.get('WRS2_TILE'),
-                        'tcorr': ee.Number(wrs2_tcorr_stats.get('median')),
-                        'count': ee.Number(wrs2_tcorr_stats.get('count')),
-                        'index': 1,
-                    })
-
-            # Combine WRS2 Tcorr monthly images to a single monthly image
-            output_img = ee.ImageCollection(wrs2_coll.map(wrs2_tcorr)) \
-                .mean() \
-                .rename(['tcorr', 'count'])
-            # pprint.pprint(output_img.getInfo())
+            # Compute stats from the image properties
+            tcorr_stats = ee.List(tcorr_coll.aggregate_array('tcorr')) \
+                .reduce(reducer)
+            tcorr_stats = ee.Dictionary(tcorr_stats) \
+                .combine({'median': 0, 'count': 0}, overwrite=False)
+            tcorr = ee.Number(tcorr_stats.get('median'))
+            count = ee.Number(tcorr_stats.get('count'))
+            # pprint.pprint(tcorr_stats.getInfo())
             # input('ENTER')
 
-            #     .updateMask(0) \
-            output_img = ee.Image([
-                    tmax_mask.add(output_img.select(['tcorr'])).double(),
-                    tmax_mask.add(output_img.select(['count'])).min(250).uint8()]) \
+            # Write an empty image if the pixel count is too low
+            # CGM: Check/test if this can be combined into a single If()
+            tcorr_img = ee.Algorithms.If(
+                count.gt(min_scene_count),
+                tmax_mask.add(tcorr), tmax_mask.updateMask(0))
+            count_img = ee.Algorithms.If(
+                count.gt(min_scene_count),
+                tmax_mask.add(count), tmax_mask.updateMask(0))
+
+            # Clip to the Landsat image footprint
+            output_img = ee.Image([tcorr_img, count_img]) \
                 .rename(['tcorr', 'count']) \
-                .set({
-                    # 'system:time_start': utils.millis(iter_start_dt),
-                    'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-                    'month': int(month),
-                    'years': ','.join(map(str, year_list)),
-                    'cycle_day': int(cycle_day),
-                    'model_name': model_name,
-                    'model_version': ssebop.__version__,
-                    'tmax_source': tmax_source.upper(),
-                    'tmax_version': tmax_version.upper(),
-                })
+                .clip(ee.Geometry(wrs2_ftr['geometry']))
+
+            # Clear the transparency mask
+            output_img = output_img.updateMask(output_img.unmask(0))
+
+            output_img = output_img.set({
+                'tcorr': tcorr,
+                'count': count,
+                'index': 1,
+                # 'system:time_start': utils.millis(start_dt),
+                'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+                'model_name': model_name,
+                'model_version': ssebop.__version__,
+                'month': int(month),
+                'tmax_source': tmax_source.upper(),
+                'tmax_version': tmax_version.upper(),
+                'wrs2_path': wrs2_path,
+                'wrs2_row': wrs2_row,
+                'wrs2_tile': wrs2_tile,
+                'years': ','.join(map(str, year_list)),
+                # 'year_start': year_list[0],
+                # 'year_end': year_list[-1],
+            })
             # pprint.pprint(output_img.getInfo())
             # input('ENTER')
 
@@ -342,17 +323,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 image=ee.Image(output_img),
                 description=export_id,
                 assetId=asset_id,
-                crs=tcorr_crs,
-                crsTransform='[' + ','.join(list(map(str, tcorr_geo))) + ']',
-                dimensions='{0}x{1}'.format(*tcorr_shape),
+                crs=export_crs,
+                crsTransform='[' + ','.join(list(map(str, export_geo))) + ']',
+                dimensions='{0}x{1}'.format(*export_shape),
             )
 
-            logging.debug('  Starting export task')
-            utils.ee_task_start(task)
-
-            # Pause before starting the next export task
-            utils.delay_task(delay_time, max_ready)
-            logging.debug('')
+            # logging.debug('  Starting export task')
+            # utils.ee_task_start(task)
+            #
+            # # Pause before starting the next export task
+            # utils.delay_task(delay_time, max_ready)
+            # logging.debug('')
 
 
 def arg_parse():

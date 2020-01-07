@@ -14,7 +14,7 @@ import utils
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1):
-    """Compute annual Tcorr images from scene images
+    """Compute monthly Tcorr images by WRS2 tile
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         implies no limit to the number of tasks that will be submitted.
 
     """
-    logging.info('\nCompute annual Tcorr images from scene images')
+    logging.info('\nCompute annual Tcorr images by WRS2 tile')
 
     ini = utils.read_ini(ini_path)
 
@@ -44,7 +44,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     export_id_fmt = 'tcorr_scene_{product}_{wrs2}_annual'
     asset_id_fmt = '{coll_id}/{wrs2}'
 
-    tcorr_annual_coll_id = '{}/{}_scene_annual2'.format(
+    tcorr_annual_coll_id = '{}/{}_scene_annual'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
 
     wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
@@ -98,6 +98,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #     # sys.exit()
 
 
+    # Extract the model keyword arguments from the INI
+    # Set the property name to lower case and try to cast values to numbers
+    model_args = {
+        k.lower(): float(v) if utils.is_number(v) else v
+        for k, v in dict(ini[model_name]).items()}
+    # et_reference_args = {
+    #     k: model_args.pop(k)
+    #     for k in [k for k in model_args.keys() if k.startswith('et_reference_')]}
+
+
     logging.info('\nInitializing Earth Engine')
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
@@ -118,12 +128,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Collection: {}'.format(tmax_coll_id))
     logging.debug('  Source: {}'.format(tmax_source))
     logging.debug('  Version: {}'.format(tmax_version))
-
-
-    # Get the Tcorr scene image collection properties
-    logging.debug('\nTcorr scene collection')
-    tcorr_scene_coll_id = '{}/{}_scene'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
 
 
     logging.debug('\nExport properties')
@@ -154,6 +158,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     logging.debug('  Shape: {}'.format(export_shape))
 
 
+    # This extent will limit the WRS2 tiles that are included
+    # This is needed especially for non-median DAYMET Tmax since the default
+    #   extent is huge but we are only processing a subset
     if 'daymet' in tmax_name.lower():
         # CONUS extent
         export_geom = ee.Geometry.Rectangle(
@@ -187,10 +194,30 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tasks = utils.get_ee_tasks()
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
-        input('ENTER')
+    #     input('ENTER')
 
-    # Limit by year
-    month_list = list(range(1, 13))
+
+    # if cron_flag:
+    #     # CGM - This seems like a silly way of getting the date as a datetime
+    #     #   Why am I doing this and not using the commented out line?
+    #     end_dt = datetime.date.today().strftime('%Y-%m-%d')
+    #     end_dt = datetime.datetime.strptime(end_dt, '%Y-%m-%d')
+    #     end_dt = end_dt + datetime.timedelta(days=-4)
+    #     # end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
+    #     start_dt = end_dt + datetime.timedelta(days=-64)
+    # else:
+    start_dt = datetime.datetime.strptime(
+        ini['INPUTS']['start_date'], '%Y-%m-%d')
+    end_dt = datetime.datetime.strptime(
+        ini['INPUTS']['end_date'], '%Y-%m-%d')
+    start_date = start_dt.strftime('%Y-%m-%d')
+    end_date = end_dt.strftime('%Y-%m-%d')
+    next_date = (end_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    logging.debug('Start Date: {}'.format(start_date))
+    logging.debug('End Date:   {}\n'.format(end_date))
+
+
+    # Limit by year and month
     # try:
     #     month_list = sorted(list(utils.parse_int_set(ini['TCORR']['months'])))
     # except:
@@ -203,7 +230,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         logging.info('\nTCORR "years" parameter not set in the INI,'
                      '\n  Defaulting to all available years\n')
         year_list = []
-
 
     # Get the list of WRS2 tiles that intersect the data area and study area
     wrs2_coll = ee.FeatureCollection(wrs2_coll_id).filterBounds(export_geom)
@@ -223,8 +249,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         wrs2_path = int(wrs2_tile[1:4])
         wrs2_row = int(wrs2_tile[5:8])
-        # wrs2_path = wrs2_ftr['properties'][wrs2_path_field]
-        # wrs2_row = wrs2_ftr['properties'][wrs2_row_field]
+        # wrs2_path = wrs2_ftr['properites']['PATH']
+        # wrs2_row = wrs2_ftr['properites']['ROW']
 
         export_id = export_id_fmt.format(
             product=tmax_name.lower(), wrs2=wrs2_tile)
@@ -251,16 +277,68 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 logging.debug('  Asset already exists, skipping')
                 continue
 
-        tcorr_coll = ee.ImageCollection(tcorr_scene_coll_id) \
-            .filterMetadata('count', 'not_less_than', min_pixel_count) \
-            .filterMetadata('wrs2_tile', 'equals', wrs2_tile) \
-            .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
-            .filter(ee.Filter.inList('year', year_list))
-        #     .filterDate(start_date, end_date)
-        #     .filterBounds(ee.Geometry(wrs2_ftr['geometry']))
+        # CGM: I couldn't find a way to build this from the Collection class
+        # TODO: Will need to be changed/updated for SR collection
+        # TODO: Add code to handle real time collections
+        landsat_coll = ee.ImageCollection([])
+        if 'LANDSAT/LC08/C01/T1_TOA' in collections:
+            l8_coll = ee.ImageCollection('LANDSAT/LC08/C01/T1_TOA') \
+                .filterMetadata('WRS_PATH', 'equals', wrs2_path) \
+                .filterMetadata('WRS_ROW', 'equals', wrs2_row) \
+                .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
+                .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
+                .filter(ee.Filter.gt('system:time_start',
+                                     ee.Date('2013-03-24').millis()))
+                #     .filterDate(start_date, next_date)
+            landsat_coll = landsat_coll.merge(l8_coll)
+        if 'LANDSAT/LE07/C01/T1_TOA' in collections:
+            l7_coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_TOA') \
+                .filterMetadata('WRS_PATH', 'equals', wrs2_path) \
+                .filterMetadata('WRS_ROW', 'equals', wrs2_row) \
+                .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
+                .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
+                #     .filterDate(start_date, next_date)
+            landsat_coll = landsat_coll.merge(l7_coll)
+        if 'LANDSAT/LT05/C01/T1_TOA' in collections:
+            l5_coll = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA') \
+                .filterMetadata('WRS_PATH', 'equals', wrs2_path) \
+                .filterMetadata('WRS_ROW', 'equals', wrs2_row) \
+                .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
+                .filterMetadata('DATA_TYPE', 'equals', 'L1TP') \
+                .filter(ee.Filter.lt('system:time_start',
+                                     ee.Date('2011-12-31').millis()))
+                #     .filterDate(start_date, next_date)
+            landsat_coll = landsat_coll.merge(l5_coll)
+        # if 'LANDSAT/LT04/C01/T1_TOA' in collections:
+        #     l4_coll = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA') \
+        #         .filterMetadata('WRS_PATH', 'equals', wrs2_path) \
+        #         .filterMetadata('WRS_ROW', 'equals', wrs2_row) \
+        #         .filterMetadata('CLOUD_COVER_LAND', 'less_than', cloud_cover) \
+        #         .filterMetadata('DATA_TYPE', 'equals', 'L1TP')
+        #         #     .filterDate(start_date, next_date)
+        #     landsat_coll = landsat_coll.merge(l4_coll)
 
+        def tcorr_img_func(landsat_img):
+            # TODO: Will need to be changed for SR
+            t_obj = ssebop.Image.from_landsat_c1_toa(landsat_img, **model_args)
+            t_stats = ee.Dictionary(t_obj.tcorr_stats) \
+                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr = ee.Number(t_stats.get('tcorr_p5'))
+            count = ee.Number(t_stats.get('tcorr_count'))
 
-        # Use a common reducer for the images and property stats
+            return tmax_mask.add(tcorr) \
+                .rename(['tcorr']) \
+                .set({
+                    'system:time_start': ee.Image(landsat_img).get('system:time_start'),
+                    'tcorr': tcorr,
+                    'count': count,
+                })
+
+        # Filter the Tcorr image collection based on the pixel counts
+        tcorr_coll = ee.ImageCollection(landsat_coll.map(tcorr_img_func)) \
+            .filterMetadata('count', 'not_less_than', min_pixel_count)
+
+        # Use a common reducer for the image and property stats
         reducer = ee.Reducer.median() \
             .combine(ee.Reducer.count(), sharedInputs=True)
 
@@ -288,8 +366,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             tmax_mask.add(count), tmax_mask.updateMask(0))
 
         # Clip to the Landsat image footprint
-        output_img = ee.Image([tcorr_img, count_img]) \
-            .rename(['tcorr', 'count']) \
+        output_img = ee.Image([tcorr_img, count_img])\
+            .rename(['tcorr', 'count'])\
             .clip(ee.Geometry(wrs2_ftr['geometry']))
 
         # Clear the transparency mask
@@ -317,7 +395,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         logging.debug('  Building export task')
         task = ee.batch.Export.image.toAsset(
-            image=ee.Image(output_img),
+            image=output_img,
             description=export_id,
             assetId=asset_id,
             crs=export_crs,
@@ -333,10 +411,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         # logging.debug('')
 
 
+
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export annual Tcorr images from scene images',
+        description='Compute/export annual Tcorr images by WRS2 tile',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,
