@@ -635,7 +635,7 @@ def test_Image_tcorr_scene_annual(expected=[0.9762536456651, 2], tol=0.000001):
     m = ssebop.Image(input_image, tcorr_source='SCENE',
                      tmax_source='DAYMET_MEDIAN_V2')
     m._month = ee.Number(9999)
-    m._wrs2_tile = ee.String('p000r000')
+    # m._wrs2_tile = ee.String('p000r000')
     tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
