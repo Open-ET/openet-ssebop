@@ -13,8 +13,8 @@ import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=-1):
-    """Compute default Tcorr images from scene images
+         max_ready=-1, reverse_flag=False):
+    """Compute default Tcorr images by WRS2 tile
 
     Parameters
     ----------
@@ -30,9 +30,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     max_ready: int, optional
         Maximum number of queued "READY" tasks.  The default is -1 which is
         implies no limit to the number of tasks that will be submitted.
+    reverse_flag : bool, optional
+        If True, process WRS2 tiles in reverse order.
 
     """
-    logging.info('\nCompute default Tcorr images from scene images')
+    logging.info('\nCompute default Tcorr images by WRS2 tile')
 
     ini = utils.read_ini(ini_path)
 
@@ -41,18 +43,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     tmax_name = ini[model_name]['tmax_source']
 
-    export_id_fmt = 'tcorr_image_{product}_{wrs2}_default'
-    asset_id_fmt = '{coll_id}/{wrs2}_default'
-    # asset_id_fmt = '{coll_id}/cycle{cycle:02d}'
+    export_id_fmt = 'tcorr_scene_{product}_{wrs2}_default'
+    asset_id_fmt = '{coll_id}/{wrs2}'
 
-    tcorr_default_coll_id = '{}/{}_scene_default'.format(
+    tcorr_default_coll_id = '{}/{}_default'.format(
         ini['EXPORT']['export_coll'], tmax_name.lower())
 
     wrs2_coll_id = 'projects/earthengine-legacy/assets/' \
                    'projects/usgs-ssebop/wrs2_descending_custom'
     wrs2_tile_field = 'WRS2_TILE'
-    wrs2_path_field = 'ROW'
-    wrs2_row_field = 'PATH'
+    # wrs2_path_field = 'ROW'
+    # wrs2_row_field = 'PATH'
 
     try:
         wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])
@@ -70,7 +71,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         study_area_extent = [float(x.strip()) for x in study_area_extent]
     except KeyError:
         study_area_extent = None
-        logging.debug('  study_area_extent: not set in INI, defaulting to None')
+        logging.debug('  study_area_extent: not set in INI')
     except Exception as e:
         raise e
 
@@ -130,27 +131,29 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         export_extent = [
             export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
             export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    export_geom = ee.Geometry.Rectangle(
+        export_extent, proj=export_crs, geodesic=False)
     logging.debug('  CRS: {}'.format(export_crs))
     logging.debug('  Extent: {}'.format(export_extent))
     logging.debug('  Geo: {}'.format(export_geo))
     logging.debug('  Shape: {}'.format(export_shape))
 
 
-    if 'daymet' in tmax_name.lower():
-        # CONUS extent
-        export_geom = ee.Geometry.Rectangle(
-            [-125, 25, -65, 49], proj='EPSG:4326', geodesic=False)
-        # DAYMET extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     export_extent, proj=export_crs, geodesic=False)
-        # # Large CONUS extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     [-125, 25, -65, 52], proj='EPSG:4326', geodesic=False)
-    elif 'cimis' in tmax_name.lower():
-        export_geom = ee.Geometry.Rectangle(
-            [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
-    else:
-        export_geom = tmax_mask.geometry()
+    if study_area_extent is None:
+        if 'daymet' in tmax_name.lower():
+            # CGM - For now force DAYMET to a slightly smaller "CONUS" extent
+            study_area_extent = [-125, 25, -65, 50]
+            # study_area_extent = [-125, 25, -65, 49]
+            # study_area_extent =  [-125, 25, -65, 52]
+        elif 'cimis' in tmax_name.lower():
+            study_area_extent = [-124, 35, -119, 42]
+        else:
+            # TODO: Make sure output from bounds is in WGS84
+            study_area_extent = tmax_mask.geometry().bounds().getInfo()
+        logging.debug(f'\nStudy area extent not set in INI, '
+                      f'default to {study_area_extent}')
+    study_area_geom = ee.Geometry.Rectangle(
+        study_area_extent, proj='EPSG:4326', geodesic=False)
 
 
     if not ee.data.getInfo(tcorr_default_coll_id):
@@ -162,8 +165,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
     asset_list = utils.get_ee_assets(tcorr_default_coll_id)
-    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        pprint.pprint(asset_list[:10])
+    # if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+    #     pprint.pprint(asset_list[:10])
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -173,18 +176,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
     # Get the list of WRS2 tiles that intersect the data area and study area
-    wrs2_coll = ee.FeatureCollection(wrs2_coll_id).filterBounds(export_geom)
-    if study_area_extent:
-        study_area_geom = ee.Geometry.Rectangle(
-            study_area_extent, proj='EPSG:4326', geodesic=False)
-        wrs2_coll = wrs2_coll.filterBounds(study_area_geom)
+    wrs2_coll = ee.FeatureCollection(wrs2_coll_id)\
+        .filterBounds(export_geom)\
+        .filterBounds(study_area_geom)
     if wrs2_tiles:
         wrs2_coll = wrs2_coll.filter(ee.Filter.inList(wrs2_tile_field, wrs2_tiles))
     wrs2_info = wrs2_coll.getInfo()['features']
 
 
-    # Iterate over date ranges
-    for wrs2_ftr in wrs2_info:
+    for wrs2_ftr in sorted(wrs2_info,
+                           key=lambda k: k['properties']['WRS2_TILE'],
+                           reverse=reverse_flag):
         wrs2_tile = wrs2_ftr['properties'][wrs2_tile_field]
         logging.info('{}'.format(wrs2_tile))
 
@@ -195,7 +197,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         export_id = export_id_fmt.format(
             product=tmax_name.lower(), wrs2=wrs2_tile)
-        logging.info('  Export ID: {}'.format(export_id))
+        logging.debug('  Export ID: {}'.format(export_id))
 
         asset_id = asset_id_fmt.format(
             coll_id=tcorr_default_coll_id, wrs2=wrs2_tile)
@@ -245,7 +247,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         logging.debug('  Building export task')
         task = ee.batch.Export.image.toAsset(
-            image=ee.Image(output_img),
+            image=output_img,
             description=export_id,
             assetId=asset_id,
             crs=export_crs,
@@ -253,7 +255,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             dimensions='{0}x{1}'.format(*export_shape),
         )
 
-        logging.debug('  Starting export task')
+        logging.info('  Starting export task')
         utils.ee_task_start(task)
 
         # Pause before starting the next export task
@@ -264,7 +266,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export default Tcorr images from scene images',
+        description='Compute/export default Tcorr images by WRS2 tile',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,
@@ -279,16 +281,15 @@ def arg_parse():
         '--ready', default=-1, type=int,
         help='Maximum number of queued READY tasks')
     parser.add_argument(
+        '--reverse', default=False, action='store_true',
+        help='Process dates in reverse order')
+    parser.add_argument(
         '-o', '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
         '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
-
-    # Prompt user to select an INI file if not set at command line
-    # if not args.ini:
-    #     args.ini = utils.get_ini_path(os.getcwd())
 
     return args
 
@@ -300,4 +301,5 @@ if __name__ == "__main__":
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite,
-         delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready)
+         delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready,
+         reverse_flag=args.reverse)

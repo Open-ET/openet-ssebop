@@ -34,11 +34,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         Maximum number of queued "READY" tasks.  The default is -1 which is
         implies no limit to the number of tasks that will be submitted.
     cron_flag : bool, optional
-        If True, only compute Tcorr daily image if existing image does not have
-        all available image (using the 'wrs2_tiles' property) and limit the
-        date range to the last 64 days (~2 months).
+        If True, attempt to export Tcorr scenes for the last 64 days (~2 months).
     reverse_flag : bool, optional
         If True, process dates in reverse order.
+
     """
     logging.info('\nCompute scene Tcorr images by date')
 
@@ -70,7 +69,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         study_area_extent = [float(x.strip()) for x in study_area_extent]
     except KeyError:
         study_area_extent = None
-        logging.debug('  study_area_extent: not set in INI, defaulting to None')
+        logging.debug('  study_area_extent: not set in INI')
     except Exception as e:
         raise e
 
@@ -158,38 +157,32 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         export_extent = [
             export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
             export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    export_geom = ee.Geometry.Rectangle(
+        export_extent, proj=export_crs, geodesic=False)
     logging.debug('  CRS: {}'.format(export_crs))
     logging.debug('  Extent: {}'.format(export_extent))
     logging.debug('  Geo: {}'.format(export_geo))
     logging.debug('  Shape: {}'.format(export_shape))
 
 
-    # This extent will limit the WRS2 tiles that are included
-    # This is needed especially for non-median DAYMET Tmax since the default
-    #   extent is huge but we are only processing a subset
-    if 'daymet' in tmax_name.lower():
-        # CONUS extent
-        export_geom = ee.Geometry.Rectangle(
-            [-125, 25, -65, 49], proj='EPSG:4326', geodesic=False)
-        # DAYMET extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     export_extent, proj=export_crs, geodesic=False)
-        # # Large CONUS extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     [-125, 25, -65, 52], proj='EPSG:4326', geodesic=False)
-    elif 'cimis' in tmax_name.lower():
-        export_geom = ee.Geometry.Rectangle(
-            [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
-    else:
-        export_geom = tmax_mask.geometry()
+    if study_area_extent is None:
+        if 'daymet' in tmax_name.lower():
+            # CGM - For now force DAYMET to a slightly smaller "CONUS" extent
+            study_area_extent = [-125, 25, -65, 49]
+            # study_area_extent =  [-125, 25, -65, 52]
+        elif 'cimis' in tmax_name.lower():
+            study_area_extent = [-124, 35, -119, 42]
+        else:
+            # TODO: Make sure output from bounds is in WGS84
+            study_area_extent = tmax_mask.geometry().bounds().getInfo()
+        logging.debug(f'\nStudy area extent not set in INI, '
+                      f'default to {study_area_extent}')
+    study_area_geom = ee.Geometry.Rectangle(
+        study_area_extent, proj='EPSG:4326', geodesic=False)
 
-
-    # For now define the study area from an extent
-    if study_area_extent:
-        study_area_geom = ee.Geometry.Rectangle(
-            study_area_extent, proj='EPSG:4326', geodesic=False)
-        export_geom = export_geom.intersection(study_area_geom, 1)
-        # logging.debug('  Extent: {}'.format(export_geom.bounds().getInfo()))
+    # Intersect study area with export extent
+    export_geom = export_geom.intersection(study_area_geom, 1)
+    # logging.debug('Extent: {}'.format(export_geom.bounds().getInfo()))
 
 
     # If cell_size parameter is set in the INI,
@@ -289,8 +282,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
         logging.info(f'Date: {export_date}')
 
-
-        # Build and merge the Landsat collections
         model_obj = ssebop.Collection(
             collections=collections,
             start_date=export_date,
@@ -308,9 +299,13 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             image_id_list = landsat_coll.aggregate_array('system:id').getInfo()
         except Exception as e:
             logging.warning('  Error getting image ID list, skipping date')
+            logging.debug(f'  {e}')
             continue
 
-        for image_id in sorted(image_id_list, reverse=reverse_flag):
+        # Sort by path/row
+        for image_id in sorted(image_id_list,
+                               key=lambda k: k.split('/')[-1].split('_')[-2],
+                               reverse=reverse_flag):
             scene_id = image_id.split('/')[-1]
 
             wrs2_path = int(scene_id[5:8])
@@ -441,10 +436,6 @@ def arg_parse():
         '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
-
-    # Prompt user to select an INI file if not set at command line
-    # if not args.ini:
-    #     args.ini = utils.get_ini_path(os.getcwd())
 
     return args
 

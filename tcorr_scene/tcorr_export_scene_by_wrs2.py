@@ -14,7 +14,7 @@ import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=-1, cron_flag=False, reverse_flag=False):
+         max_ready=-1, reverse_flag=False):
     """Compute scene Tcorr images by WRS2 tile
 
     Parameters
@@ -33,12 +33,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     max_ready: int, optional
         Maximum number of queued "READY" tasks.  The default is -1 which is
         implies no limit to the number of tasks that will be submitted.
-    cron_flag : bool, optional
-        If True, only compute Tcorr daily image if existing image does not have
-        all available image (using the 'wrs2_tiles' property) and limit the
-        date range to the last 64 days (~2 months).
     reverse_flag : bool, optional
-        If True, process dates in reverse order.
+        If True, process WRS2 tiles and dates in reverse order.
+
     """
     logging.info('\nCompute scene Tcorr images by WRS2 tile')
 
@@ -76,7 +73,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         study_area_extent = [float(x.strip()) for x in study_area_extent]
     except KeyError:
         study_area_extent = None
-        logging.debug('  study_area_extent: not set in INI, defaulting to None')
+        logging.debug('  study_area_extent: not set in INI')
     except Exception as e:
         raise e
 
@@ -164,30 +161,28 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         export_extent = [
             export_geo[2], export_geo[5] + export_shape[1] * export_geo[4],
             export_geo[2] + export_shape[0] * export_geo[0], export_geo[5]]
+    export_geom = ee.Geometry.Rectangle(
+        export_extent, proj=export_crs,  geodesic=False)
     logging.debug('  CRS: {}'.format(export_crs))
     logging.debug('  Extent: {}'.format(export_extent))
     logging.debug('  Geo: {}'.format(export_geo))
     logging.debug('  Shape: {}'.format(export_shape))
 
 
-    # This extent will limit the WRS2 tiles that are included
-    # This is needed especially for non-median DAYMET Tmax since the default
-    #   extent is huge but we are only processing a subset
-    if 'daymet' in tmax_name.lower():
-        # CONUS extent
-        export_geom = ee.Geometry.Rectangle(
-            [-125, 25, -65, 49], proj='EPSG:4326', geodesic=False)
-        # DAYMET extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     export_extent, proj=export_crs, geodesic=False)
-        # # Large CONUS extent
-        # export_geom = ee.Geometry.Rectangle(
-        #     [-125, 25, -65, 52], proj='EPSG:4326', geodesic=False)
-    elif 'cimis' in tmax_name.lower():
-        export_geom = ee.Geometry.Rectangle(
-            [-124, 35, -119, 42], proj='EPSG:4326', geodesic=False)
-    else:
-        export_geom = tmax_mask.geometry()
+    if study_area_extent is None:
+        if 'daymet' in tmax_name.lower():
+            # CGM - For now force DAYMET to a slightly smaller "CONUS" extent
+            study_area_extent = [-125, 25, -65, 49]
+            # study_area_extent =  [-125, 25, -65, 52]
+        elif 'cimis' in tmax_name.lower():
+            study_area_extent = [-124, 35, -119, 42]
+        else:
+            # TODO: Make sure output from bounds is in WGS84
+            study_area_extent = tmax_mask.geometry().bounds().getInfo()
+        logging.debug(f'\nStudy area extent not set in INI, '
+                      f'default to {study_area_extent}')
+    study_area_geom = ee.Geometry.Rectangle(
+        study_area_extent, proj='EPSG:4326', geodesic=False)
 
 
     # For now define the study area from an extent
@@ -282,18 +277,20 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
     # Get the list of WRS2 tiles that intersect the data area and study area
-    wrs2_coll = ee.FeatureCollection(wrs2_coll_id).filterBounds(export_geom)
-    if study_area_extent:
-        study_area_geom = ee.Geometry.Rectangle(
-            study_area_extent, proj='EPSG:4326', geodesic=False)
-        wrs2_coll = wrs2_coll.filterBounds(study_area_geom)
+    wrs2_coll = ee.FeatureCollection(wrs2_coll_id) \
+        .filterBounds(export_geom) \
+        .filterBounds(study_area_geom)
     if wrs2_tiles:
         wrs2_coll = wrs2_coll.filter(ee.Filter.inList(wrs2_tile_field, wrs2_tiles))
     wrs2_info = wrs2_coll.getInfo()['features']
+    # pprint.pprint(wrs2_info)
+    # input('ENTER')
 
 
     # Iterate over WRS2 tiles
-    for wrs2_ftr in wrs2_info:
+    # for wrs2_ftr in wrs2_info:
+    for wrs2_ftr in sorted(wrs2_info, key=lambda k: k['properties']['WRS2_TILE'],
+                           reverse=reverse_flag):
         wrs2_tile = wrs2_ftr['properties'][wrs2_tile_field]
         logging.info('{}'.format(wrs2_tile))
 
@@ -301,8 +298,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         wrs2_row = int(wrs2_tile[5:8])
         # wrs2_path = wrs2_ftr['properties']['PATH']
         # wrs2_row = wrs2_ftr['properties']['ROW']
-
-        wrs2_geom = ee.Geometry(wrs2_ftr['geometry'])
 
         wrs2_filter = [
             {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': wrs2_path},
@@ -315,7 +310,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             start_date=start_date,
             end_date=end_date,
             cloud_cover_max=cloud_cover,
-            geometry=wrs2_geom,
+            geometry=ee.Geometry(wrs2_ftr['geometry']),
             model_args=model_args,
             filter_args=filter_args,
         )
@@ -327,13 +322,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             image_id_list = landsat_coll.aggregate_array('system:id').getInfo()
         except Exception as e:
             logging.warning('  Error getting image ID list, skipping tile')
+            logging.debug(f'  {e}')
             continue
 
-        for image_id in sorted(image_id_list, reverse=reverse_flag):
+        # Sort by date
+        for image_id in sorted(image_id_list,
+                               key=lambda k: k.split('/')[-1].split('_')[-1],
+                               reverse=reverse_flag):
             scene_id = image_id.split('/')[-1]
             logging.info(f'{scene_id}')
 
-            export_dt = datetime.datetime.strptime(scene_id.split('_')[-2], '%Y%m%d')
+            export_dt = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d')
             export_date = export_dt.strftime('%Y-%m-%d')
             next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -429,7 +428,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             )
 
             logging.info('  Starting export task')
-            # utils.ee_task_start(task)
+            utils.ee_task_start(task)
 
         # Pause before starting the next date (not export task)
         utils.delay_task(delay_time, max_ready)
@@ -466,10 +465,6 @@ def arg_parse():
         '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
-
-    # Prompt user to select an INI file if not set at command line
-    # if not args.ini:
-    #     args.ini = utils.get_ini_path(os.getcwd())
 
     return args
 
