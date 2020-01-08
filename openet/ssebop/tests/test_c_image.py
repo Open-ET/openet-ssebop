@@ -446,8 +446,6 @@ def test_Image_tmax_properties(tmax_source, expected):
         # Test a user defined Tcorr value
         ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
         [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
-        # Check that deprecated 'SCENE' source works
-        ['SCENE', 'CIMIS', SCENE_ID, 7, [0.9789, 0]],
     ]
 )
 def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
@@ -580,11 +578,108 @@ def test_Image_tcorr_image_daily_last_date_ingested():
 
 
 @pytest.mark.parametrize(
+    'tcorr_source, tmax_source, scene_id, expected',
+    [
+        # DAYMET_MEDIAN_V2
+        ['SCENE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
+         [0.9743747113938074, 0]],
+        ['SCENE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
+         [0.9743747113938074, 0]],
+        ['SCENE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
+         [0.9700613452078773, 1]],
+        ['SCENE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
+         [0.9762536456651005, 2]],
+        ['SCENE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
+         [0.978, 3]],
+    ]
+)
+def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
+                                  expected, tol=0.000001):
+    """Test getting Tcorr value and index for a single date at a real point"""
+    scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
+        .strftime('%Y-%m-%d')
+    input_image = ee.Image.constant(1).set({
+        'system:index': scene_id,
+        'system:time_start': ee.Date(scene_date).millis()
+    })
+    tcorr_img, index_img = ssebop.Image(
+        input_image, tcorr_source=tcorr_source, tmax_source=tmax_source).tcorr
+
+    # Tcorr images are constant images and need to be queried at a point
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_scene_month(expected=[0.97006134520787, 1], tol=0.000001):
+    """Test getting monthly Tcorr from composite when daily is missing"""
+    # Setting start date to well before beginning of daily Tcorr images
+    input_image = ee.Image.constant(1).set({
+        'system:index': 'LC08_042035_20150713',
+        'system:time_start': ee.Date('1980-07-13').millis()})
+    m = ssebop.Image(input_image, tcorr_source='SCENE',
+                     tmax_source='DAYMET_MEDIAN_V2')
+    tcorr_img, index_img = m.tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_scene_annual(expected=[0.9762536456651, 2], tol=0.000001):
+    """Test getting annual Tcorr from composite when monthly/daily are missing"""
+    input_image = ee.Image.constant(1).set({
+        'system:index': 'LC08_042035_20150713',
+        'system:time_start': ee.Date('1980-07-13').millis()})
+    m = ssebop.Image(input_image, tcorr_source='SCENE',
+                     tmax_source='DAYMET_MEDIAN_V2')
+    m._month = ee.Number(9999)
+    m._wrs2_tile = ee.String('p000r000')
+    tcorr_img, index_img = m.tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index['index'] == expected[1]
+
+
+# CGM - I'm not quite sure how to test this condition
+# def test_Image_tcorr_scene_default(expected=[0.978, 3], tol=0.0001):
+#     """Test getting default Tcorr from composite"""
+#     input_image = ee.Image.constant(1).set({
+#         'system:index': 'LC08_042035_20150713',
+#         'system:time_start': ee.Date('1980-07-13').millis()})
+#     m = ssebop.Image(input_image, tcorr_source='SCENE',
+#                      tmax_source='DAYMET_MEDIAN_V2')
+#     m._month = ee.Number(9999)
+#     tcorr_img, index_img = m.tcorr
+#     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+#     index = utils.point_image_value(index_img, SCENE_POINT)
+#     assert abs(tcorr['tcorr'] - expected[0]) <= tol
+#     assert index['index'] == expected[1]
+
+
+def test_Image_tcorr_scene_daily():
+    """Tcorr should be masked for date outside range with SCENE_DAILY"""
+    input_image = ee.Image.constant(1).set({
+        'system:index': 'LC08_042035_20150713',
+        'system:time_start': ee.Date('1980-07-04').millis()})
+    m = ssebop.Image(input_image, tcorr_source='SCENE_DAILY',
+                     tmax_source='DAYMET_MEDIAN_V2')
+    tcorr_img, index_img = m.tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.point_image_value(index_img, SCENE_POINT)
+    assert tcorr['tcorr'] is None
+    assert index['index'] is None
+
+
+@pytest.mark.parametrize(
     'tcorr_src',
     [
         '',
         'FEATURE_DEADBEEF',
         'IMAGE_DEADBEEF',
+        'SCENE_DEADBEEF',
     ]
 )
 def test_Image_tcorr_sources_exception(tcorr_src):
@@ -597,6 +692,7 @@ def test_Image_tcorr_sources_exception(tcorr_src):
     [
         ['FEATURE', 'DEADBEEF'],
         ['IMAGE', 'DEADBEEF'],
+        ['SCENE', 'DEADBEEF'],
     ]
 )
 def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):

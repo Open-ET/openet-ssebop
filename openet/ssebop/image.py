@@ -74,6 +74,8 @@ class Image():
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
         tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
+                        'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
+                        'SCENE_ANNUAL', 'SCENE_DEFAULT'
                         'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
                         'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'IMAGE').
@@ -462,9 +464,7 @@ class Image():
             tcorr_index = ee.Number(4)
             return tcorr, tcorr_index
 
-        # DEADBEEF - Leaving 'SCENE' checking to be backwards compatible (for now)
-        elif ('FEATURE' in self._tcorr_source.upper() or
-                self._tcorr_source.upper() == 'SCENE'):
+        elif 'FEATURE' in self._tcorr_source.upper():
             # Lookup Tcorr collections by keyword value
             
             scene_coll_dict = {
@@ -628,6 +628,86 @@ class Image():
 
             return tcorr_img, index_img.rename(['index'])
 
+        elif 'SCENE' in self._tcorr_source.upper():
+            # Lookup Tcorr collections by keyword value
+            scene_dict = {
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_scene/daymet_median_v2_scene',
+            }
+            month_dict = {
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_scene/daymet_median_v2_monthly',
+            }
+            annual_dict = {
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_scene/daymet_median_v2_annual',
+            }
+            default_dict = {
+                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_scene/daymet_median_v2_default',
+            }
+
+            # Check Tmax source value
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in default_dict.keys()):
+                raise ValueError(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                        self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
+
+            #
+            default_coll = ee.ImageCollection(default_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+            scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
+                .filterDate(self._start_date, self._end_date)\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            #     .filterMetadata('scene_id', 'equals', scene_id)
+            #     .filterMetadata('date', 'equals', self._date)
+            month_coll = ee.ImageCollection(month_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .filterMetadata('month', 'equals', self._month)\
+                .select(['tcorr'])
+            annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+
+            default_img = default_coll.first()
+            mask_coll = ee.ImageCollection(default_img.updateMask(0))
+            # TODO: The merge is probably not needed if the Tcorr collections are complete
+            scene_img = scene_coll.merge(mask_coll).mosaic()
+            month_img = month_coll.merge(mask_coll).mosaic()
+            annual_img = annual_coll.merge(mask_coll).mosaic()
+            # scene_img = scene_coll.first()
+            # month_img = month_coll.first()
+            # annual_img = annual_coll.first()
+
+            if self._tcorr_source.upper() == 'SCENE':
+                tcorr_img = scene_img.addBands(month_img)\
+                    .addBands(annual_img).addBands(default_img)\
+                    .reduce(ee.Reducer.firstNonNull())
+                index_img = scene_img.multiply(0).add(0)\
+                    .addBands(month_img.multiply(0).add(1))\
+                    .addBands(annual_img.multiply(0).add(2))\
+                    .addBands(default_img.multiply(0).add(3))\
+                    .reduce(ee.Reducer.firstNonNull())\
+                    .uint8().rename(['index'])
+            # TODO: Calling this DAILY is confusing and should be changed
+            elif 'DAILY' in self._tcorr_source.upper():
+                tcorr_img = scene_img
+                index_img = scene_img.multiply(0).uint8()
+            elif 'MONTH' in self._tcorr_source.upper():
+                tcorr_img = month_img
+                index_img = month_img.multiply(0).add(1).uint8()
+            elif 'ANNUAL' in self._tcorr_source.upper():
+                tcorr_img = annual_img
+                index_img = annual_img.multiply(0).add(2).uint8()
+            elif 'DEFAULT' in self._tcorr_source.upper():
+                tcorr_img = default_img
+                index_img = default_img.multiply(0).add(3).uint8()
+            else:
+                raise ValueError(
+                    'Invalid tcorr_source: {} / {}\n'.format(
+                        self._tcorr_source, self._tmax_source))
+
+            return tcorr_img.rename(['tcorr']), index_img.rename(['index'])
+
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
                 self._tcorr_source))
@@ -757,6 +837,8 @@ class Image():
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
+        # TODO: Add Tmax resampling here!  (copy function from ptjpl code)
+
         return tmax_image.set('tmax_source', self._tmax_source)
 
     @classmethod
@@ -784,11 +866,11 @@ class Image():
             'LANDSAT/LC08/C01/T1_TOA': 'from_landsat_c1_toa',
             'LANDSAT/LE07/C01/T1_TOA': 'from_landsat_c1_toa',
             'LANDSAT/LT05/C01/T1_TOA': 'from_landsat_c1_toa',
-            # 'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
+            'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
             'LANDSAT/LC08/C01/T1_SR': 'from_landsat_c1_sr',
             'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
             'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
-            # 'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
+            'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
         }
 
         try:
@@ -828,7 +910,7 @@ class Image():
         # Rename bands to generic names
         # Rename thermal band "k" coefficients to generic names
         input_bands = ee.Dictionary({
-            # 'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
+            'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1',
                           'BQA'],
@@ -836,12 +918,12 @@ class Image():
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
                         'BQA']
         k1 = ee.Dictionary({
-            # 'LANDSAT_4': 'K1_CONSTANT_BAND_6',
+            'LANDSAT_4': 'K1_CONSTANT_BAND_6',
             'LANDSAT_5': 'K1_CONSTANT_BAND_6',
             'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
         k2 = ee.Dictionary({
-            # 'LANDSAT_4': 'K2_CONSTANT_BAND_6',
+            'LANDSAT_4': 'K2_CONSTANT_BAND_6',
             'LANDSAT_5': 'K2_CONSTANT_BAND_6',
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
@@ -891,6 +973,7 @@ class Image():
         # Rename bands to generic names
         # Rename thermal band "k" coefficients to generic names
         input_bands = ee.Dictionary({
+            'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10',

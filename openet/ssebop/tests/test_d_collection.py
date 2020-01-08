@@ -28,7 +28,8 @@ default_coll_args = {
     'et_reference_band': 'etr',
     'et_reference_factor': 0.85,
     'et_reference_resample': 'nearest',
-    'model_args': {}, 'filter_args': {},
+    'model_args': {},
+    'filter_args': {},
 }
 
 def default_coll_obj(**kwargs):
