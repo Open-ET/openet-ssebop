@@ -80,9 +80,9 @@ def delay_task(delay_time=0, max_ready=-1):
         # Don't continue to the next export until the number of READY tasks
         # is greater than or equal to "max_ready"
 
-        # Force delay_time to be at least 30 seconds if max_ready is set
+        # Force delay_time to be at least 10 seconds if max_ready is set
         #   to avoid excessive EE calls
-        delay_time = max(delay_time, 30)
+        delay_time = max(delay_time, 10)
 
         # Make an initial pause before checking tasks lists to allow
         #   for previous export to start up.

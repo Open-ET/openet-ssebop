@@ -14,7 +14,7 @@ import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=-1, reverse_flag=False):
+         max_ready=-1, cron_flag=False, reverse_flag=False, update_flag=False):
     """Compute scene Tcorr images by WRS2 tile
 
     Parameters
@@ -33,8 +33,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     max_ready: int, optional
         Maximum number of queued "READY" tasks.  The default is -1 which is
         implies no limit to the number of tasks that will be submitted.
+    cron_flag: bool, optional
+        Not currently implemented.
     reverse_flag : bool, optional
         If True, process WRS2 tiles and dates in reverse order.
+    update_flag : bool, optional
+        If True, only overwrite scenes with an older model version.
 
     """
     logging.info('\nCompute scene Tcorr images by WRS2 tile')
@@ -287,10 +291,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # input('ENTER')
 
 
-    # Iterate over WRS2 tiles
-    # for wrs2_ftr in wrs2_info:
+    # Iterate over WRS2 tiles (default is from west to east)
     for wrs2_ftr in sorted(wrs2_info, key=lambda k: k['properties']['WRS2_TILE'],
-                           reverse=reverse_flag):
+                           reverse=not(reverse_flag)):
         wrs2_tile = wrs2_ftr['properties'][wrs2_tile_field]
         logging.info('{}'.format(wrs2_tile))
 
@@ -325,6 +328,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             logging.debug(f'  {e}')
             continue
 
+        if update_flag:
+            assets_info = utils.get_info(
+                ee.ImageCollection(tcorr_scene_coll_id)
+                    .filterMetadata('wrs2_tile', 'equals', wrs2_tile)
+                    .filterDate(start_date, end_date))
+            asset_props = {
+                f'{tcorr_scene_coll_id}/{x["properties"]["system:index"]}':
+                    x['properties']
+                for x in assets_info['features']}
+        else:
+            asset_props = {}
+
         # Sort by date
         for image_id in sorted(image_id_list,
                                key=lambda k: k.split('/')[-1].split('_')[-1],
@@ -334,7 +349,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
             export_dt = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d')
             export_date = export_dt.strftime('%Y-%m-%d')
-            next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+            # next_date = (export_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
 
             # # Uncomment to apply month and year list filtering
             # if month_list and export_dt.month not in month_list:
@@ -354,7 +369,30 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 coll_id=tcorr_scene_coll_id, scene_id=scene_id)
             logging.debug(f'  Asset ID: {asset_id}')
 
-            if overwrite_flag:
+            if update_flag:
+                def version_number(version_str):
+                    return list(map(int, version_str.split('.')))
+
+                if export_id in tasks.keys():
+                    logging.info('  Task already submitted, skipping')
+                    continue
+                # In update mode only overwrite if the version is old
+                if asset_props and asset_id in asset_props.keys():
+                    model_ver = version_number(ssebop.__version__)
+                    asset_ver = version_number(
+                        asset_props[asset_id]['model_version'])
+
+                    if asset_ver < model_ver:
+                        logging.info('  Asset model version is old, removing')
+                        try:
+                            ee.data.deleteAsset(asset_id)
+                        except:
+                            logging.info('  Error removing asset, skipping')
+                            continue
+                    else:
+                        logging.info('  Asset is up to date, skipping')
+                        continue
+            elif overwrite_flag:
                 if export_id in tasks.keys():
                     logging.debug('  Task already submitted, cancelling')
                     ee.data.cancelTask(tasks[export_id]['id'])
@@ -457,7 +495,10 @@ def arg_parse():
         help='Cron mode')
     parser.add_argument(
         '--reverse', default=False, action='store_true',
-        help='Process dates in reverse order')
+        help='Process scenes/dates in reverse order')
+    parser.add_argument(
+        '--update', default=False, action='store_true',
+        help='Update images with older model version numbers')
     parser.add_argument(
         '-o', '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
@@ -477,4 +518,5 @@ if __name__ == "__main__":
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite,
          delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready,
-         cron_flag=args.cron, reverse_flag=args.reverse)
+         cron_flag=args.cron, reverse_flag=args.reverse,
+         update_flag=args.update)
