@@ -206,11 +206,11 @@ def test_Collection_build_cloud_cover():
 
 
 def test_Collection_build_filter_dates_lt05():
-    """Test that bad Landsat 5 images are filtered"""
+    """Test that bad Landsat 5 in 2012 images are filtered"""
     output = utils.getinfo(default_coll_obj(
         collections=['LANDSAT/LT05/C01/T1_TOA'],
         start_date='2012-01-01', end_date='2013-01-01',
-        geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['et']))
+        geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['ndvi']))
     assert parse_scene_id(output) == []
 
 
@@ -222,7 +222,8 @@ def test_Collection_build_filter_dates_lc08():
     output = utils.getinfo(default_coll_obj(
         collections=['LANDSAT/LC08/C01/T1_TOA'],
         start_date='2013-01-01', end_date='2013-05-01',
-        geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['et']))
+        geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['ndvi']))
+    print(output)
     assert not [x for x in parse_scene_id(output) if x.split('_')[-1] < '20130324']
     # assert parse_scene_id(output) == []
 

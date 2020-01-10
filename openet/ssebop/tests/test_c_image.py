@@ -126,7 +126,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V0'
     assert m._elev_source == 'SRTM'
-    assert m._tcorr_source == 'IMAGE'
+    assert m._tcorr_source == 'SCENE'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     assert m._dt_min == 6
@@ -635,7 +635,6 @@ def test_Image_tcorr_scene_annual(expected=[0.9762536456651, 2], tol=0.000001):
     m = ssebop.Image(input_image, tcorr_source='SCENE',
                      tmax_source='DAYMET_MEDIAN_V2')
     m._month = ee.Number(9999)
-    # m._wrs2_tile = ee.String('p000r000')
     tcorr_img, index_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.point_image_value(index_img, SCENE_POINT)
