@@ -107,7 +107,7 @@ Maximum Daily Air Temperature (Tmax)
 ------------------------------------
 The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay2017_.
 
-Default Asset ID: projects/usgs-ssebop/tmax/topowx_median_v0
+Default Asset ID: projects/usgs-ssebop/tmax/daymet_median_v2
 
 Land Surface Temperature
 ------------------------
@@ -118,7 +118,7 @@ dT
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
 In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2013_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
 
-Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v1
+Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v0
 
 Elevation
 ---------
@@ -138,13 +138,13 @@ The Tcorr value is read from precomputed Earth Engine feature/image collections 
 
 The Tcorr is a function of the maximum air temperature dataset, so separate Tcorr collections have been generated for each of the following air temperature datasets: CIMIS, DAYMET, GRIDMET, TopoWX.  The data source of the Tcorr collection needs to match the data source of the air temperature.
 
-The Tcorr collections were last updated through 2017 but will eventually be updated daily.
+The Tcorr collections were last updated through 2018 but will eventually be updated daily.
 
 Default Asset IDs
 
-Scene ID: projects/usgs-ssebop/tcorr/topowx_median_v0_scene
+Scene ID: projects/usgs-ssebop/tcorr_scene/daymet_median_v2_scene
 
-Monthly ID: projects/usgs-ssebop/tcorr/topowx_median_v0_monthly
+Monthly ID: projects/usgs-ssebop/tcorr_scene/daymet_median_v2_monthly
 
 Installation
 ============
