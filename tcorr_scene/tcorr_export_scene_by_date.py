@@ -395,12 +395,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
             count = ee.Number(t_stats.get('tcorr_count'))
+            index = ee.Algorithms.If(count.gte(min_pixel_count), 0, 9)
 
             # Write an empty image if the pixel count is too low
             tcorr_img = ee.Algorithms.If(
                 count.gt(min_pixel_count),
-                tmax_mask.add(tcorr),
-                tmax_mask.updateMask(0))
+                tmax_mask.add(tcorr), tmax_mask.updateMask(0))
 
             # Clip to the Landsat image footprint
             output_img = ee.Image(tcorr_img).clip(image.geometry())
@@ -413,7 +413,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'CLOUD_COVER_LAND': image.get('CLOUD_COVER_LAND'),
                     # 'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
                     'coll_id': image_id.split('/')[0],
-                    'count': count,
                     # 'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
                     'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
                     'date': export_dt.strftime('%Y-%m-%d'),
@@ -423,7 +422,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'month': int(export_dt.month),
                     'scene_id': image_id.split('/')[-1],
                     'system:time_start': image.get('system:time_start'),
-                    'tcorr': tcorr,
+                    'tcorr_value': tcorr,
+                    'tcorr_index': index,
+                    'tcorr_pixel_count': count,
                     'tmax_source': tmax_source.upper(),
                     'tmax_version': tmax_version.upper(),
                     'wrs2_path': wrs2_path,

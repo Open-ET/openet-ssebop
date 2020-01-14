@@ -229,13 +229,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         output_img = output_img.updateMask(output_img.unmask(0))
 
         output_img = output_img.set({
-            'tcorr': tcorr_default,
-            # 'count': count,
-            'index': 3,
-            # 'system:time_start': utils.millis(start_dt),
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
             'model_name': model_name,
             'model_version': ssebop.__version__,
+            # 'system:time_start': utils.millis(start_dt),
+            'tcorr_value': tcorr_default,
+            'tcorr_index': 3,
             'tmax_source': tmax_source.upper(),
             'tmax_version': tmax_version.upper(),
             'wrs2_path': wrs2_path,
