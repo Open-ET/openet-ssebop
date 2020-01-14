@@ -170,8 +170,7 @@ class Image():
         # Image projection and geotransform
         self.crs = image.projection().crs()
         self.transform = ee.List(ee.Dictionary(
-            ee.Algorithms.Describe(image.projection())).get(
-            'transform'))
+            ee.Algorithms.Describe(image.projection())).get('transform'))
         # self.crs = image.select([0]).projection().getInfo()['crs']
         # self.transform = image.select([0]).projection().getInfo()['transform']
 
@@ -245,7 +244,8 @@ class Image():
                 .select([self.et_reference_band])
             et_reference_img = ee.Image(et_reference_coll.first())
             if self.et_reference_resample in ['bilinear', 'bicubic']:
-                et_reference_img = et_reference_img.resample(self.et_reference_resample)
+                et_reference_img = et_reference_img\
+                    .resample(self.et_reference_resample)
         # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
@@ -337,7 +337,6 @@ class Image():
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
-
         # Compute dT for the target date
         elif self._dt_source.upper() == 'CIMIS':
             input_img = ee.Image(
@@ -398,6 +397,12 @@ class Image():
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
+        # TODO: Test if bilinear is sufficient
+        dt_img = dt_img.resample('bilinear')
+        # dt_img = dt_img.resample('bicubic')
+        # TODO: A reproject call may be needed here also
+        # dt_img = dt_img.reproject(self.crs, self.transform)
+
         return dt_img.clamp(self._dt_min, self._dt_max).rename('dt')
 
     @lazy_property
@@ -430,6 +435,10 @@ class Image():
         else:
             raise ValueError('Unsupported elev_source: {}\n'.format(
                 self._elev_source))
+
+        # CGM - The default nearest neighbor is probably fine for elevation
+        # elev_image = elev_image.resample('bilinear')
+        # elev_image = elev_image.resample('bicubic')
 
         return elev_image.select([0], ['elev'])
 
@@ -505,7 +514,7 @@ class Image():
 
             default_img = default_coll.first()
             mask_coll = ee.ImageCollection(default_img.updateMask(0))
-            # TODO: The merge is probably not needed if the Tcorr collections are complete
+            # TODO: The merge may not be needed if Tcorr collections are complete
             scene_img = scene_coll.merge(mask_coll).mosaic()
             month_img = month_coll.merge(mask_coll).mosaic()
             annual_img = annual_coll.merge(mask_coll).mosaic()
@@ -755,8 +764,7 @@ class Image():
                 .select(['tmax']).map(utils.c_to_k)
             daily_image = ee.Image(daily_coll.first())\
                 .set('tmax_version', date_today)
-            # TODO: change to 'median_v2' once new median is built
-            median_version = 'median_v0'
+            median_version = 'median_v2'
             median_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
             median_image = ee.Image(median_coll.filter(doy_filter).first())\
@@ -836,7 +844,11 @@ class Image():
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
-        # TODO: Add Tmax resampling here!  (copy function from ptjpl code)
+        # TODO: Test if bilinear is sufficient
+        tmax_image = tmax_image.resample('bilinear')
+        # tmax_image = tmax_image.resample('bicubic')
+        # TODO: A reproject call may be needed here also
+        # tmax_image = tmax_image.reproject(self.crs, self.transform)
 
         return tmax_image.set('tmax_source', self._tmax_source)
 
