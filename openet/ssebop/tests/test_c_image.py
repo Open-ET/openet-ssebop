@@ -77,6 +77,8 @@ def default_image_args(lst=305, ndvi=0.8,
                        elr_flag=False,
                        tcorr_source=0.9744,
                        tmax_source=310.15,
+                       dt_resample='nearest',
+                       tmax_resample='nearest',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -89,6 +91,8 @@ def default_image_args(lst=305, ndvi=0.8,
         'elr_flag': elr_flag,
         'tcorr_source': tcorr_source,
         'tmax_source': tmax_source,
+        'dt_resample': dt_resample,
+        'tmax_resample': tmax_resample,
     }
 
 
@@ -103,6 +107,8 @@ def default_image_obj(lst=305, ndvi=0.8,
                       elr_flag=False,
                       tcorr_source=0.9744,
                       tmax_source=310.15,
+                      dt_resample='nearest',
+                      tmax_resample='nearest',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -115,6 +121,8 @@ def default_image_obj(lst=305, ndvi=0.8,
         elr_flag=elr_flag,
         tcorr_source=tcorr_source,
         tmax_source=tmax_source,
+        dt_resample=dt_resample,
+        tmax_resample=tmax_resample,
     ))
 
 
@@ -131,6 +139,8 @@ def test_Image_init_default_parameters():
     assert m._elr_flag == False
     assert m._dt_min == 6
     assert m._dt_max == 25
+    assert m._dt_resample == 'bilinear'
+    assert m._tmax_resample == 'bilinear'
 
 
 # Todo: Break these up into separate functions?
@@ -348,8 +358,8 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 )
 def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
-    output_img = default_image_obj(tmax_source=tmax_source).tmax
-    output = utils.point_image_value(ee.Image(output_img), xy)
+    m = default_image_obj(tmax_source=tmax_source)
+    output = utils.point_image_value(ee.Image(m.tmax), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
@@ -371,12 +381,12 @@ def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax median value when daily doesn't exist
 
     To test this, move the test date into the future
+    Tmax collections are filtered based on start_date and end_date
     """
-    input_img = default_image() \
-        .set({'system:index': SCENE_ID,
-              'system:time_start': ee.Date(SCENE_DATE).update(2099).millis()})
-    output_img = ssebop.Image(input_img, tmax_source=tmax_source).tmax
-    output = utils.point_image_value(ee.Image(output_img), xy)
+    m = default_image_obj(tmax_source=tmax_source)
+    m._start_date = ee.Date.fromYMD(2099, 7, 1)
+    m._end_date = ee.Date.fromYMD(2099, 7, 2)
+    output = utils.point_image_value(ee.Image(m.tmax), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
@@ -1110,6 +1120,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
                                    tol=0.00000001):
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id), tmax_source=tmax_source).tcorr_stats)
+        ee.Image(image_id), tmax_source=tmax_source,
+        tmax_resample='nearest').tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']

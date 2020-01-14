@@ -47,6 +47,7 @@ class Image():
             elr_flag=False,
             dt_min=6,
             dt_max=25,
+            **kwargs,
         ):
         """Construct a generic SSEBop Image
 
@@ -173,6 +174,16 @@ class Image():
             ee.Algorithms.Describe(image.projection())).get('transform'))
         # self.crs = image.select([0]).projection().getInfo()['crs']
         # self.transform = image.select([0]).projection().getInfo()['transform']
+
+        # Set the resample method as properties so they can be modified
+        if 'dt_resample' in kwargs.keys():
+            self._dt_resample = kwargs['dt_resample'].lower()
+        else:
+            self._dt_resample = 'bilinear'
+        if 'tmax_resample' in kwargs.keys():
+            self._tmax_resample = kwargs['tmax_resample'].lower()
+        else:
+            self._tmax_resample = 'bilinear'
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -397,9 +408,9 @@ class Image():
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
-        # TODO: Test if bilinear is sufficient
-        dt_img = dt_img.resample('bilinear')
-        # dt_img = dt_img.resample('bicubic')
+        if (self._dt_resample and
+                self._dt_resample.lower() in ['bilinear', 'bicubic']):
+            dt_img = dt_img.resample(self._dt_resample)
         # TODO: A reproject call may be needed here also
         # dt_img = dt_img.reproject(self.crs, self.transform)
 
@@ -435,10 +446,6 @@ class Image():
         else:
             raise ValueError('Unsupported elev_source: {}\n'.format(
                 self._elev_source))
-
-        # CGM - The default nearest neighbor is probably fine for elevation
-        # elev_image = elev_image.resample('bilinear')
-        # elev_image = elev_image.resample('bicubic')
 
         return elev_image.select([0], ['elev'])
 
@@ -844,9 +851,9 @@ class Image():
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
 
-        # TODO: Test if bilinear is sufficient
-        tmax_image = tmax_image.resample('bilinear')
-        # tmax_image = tmax_image.resample('bicubic')
+        if (self._tmax_resample and
+                self._tmax_resample.lower() in ['bilinear', 'bicubic']):
+            tmax_image = tmax_image.resample(self._tmax_resample)
         # TODO: A reproject call may be needed here also
         # tmax_image = tmax_image.reproject(self.crs, self.transform)
 
