@@ -225,20 +225,13 @@ class Image():
     @lazy_property
     def et_fraction(self):
         """Fraction of reference ET"""
-        tcorr, tcorr_index = self.tcorr
-
         et_fraction = model.et_fraction(
-            lst=self.lst, tmax=self.tmax, tcorr=tcorr, dt=self.dt,
+            lst=self.lst, tmax=self.tmax, tcorr=self.tcorr, dt=self.dt,
             elr_flag=self._elr_flag, elev=self.elev,
         )
 
-        # Set TCORR and INDEX properties for FEATURE Tcorr sources
-        if (type(self._tcorr_source) is str and
-                'FEATURE' in self._tcorr_source.upper()):
-            et_fraction = et_fraction.set({
-                'tcorr': tcorr, 'tcorr_index': tcorr_index})
-
-        return et_fraction.set(self._properties)
+        return et_fraction.set(self._properties) \
+            .set({'tcorr_index': self.tcorr.get('tcorr_index')})
 
     @lazy_property
     def et_reference(self):
@@ -468,17 +461,16 @@ class Image():
           0 - Scene specific Tcorr
           1 - Mean monthly Tcorr per WRS2 tile
           2 - Mean annual Tcorr per WRS2 tile
-            Annuals don't exist for feature Tcorr assets (yet)
           3 - Default Tcorr
           4 - User defined Tcorr
+          9 - No data
 
         """
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
         if utils.is_number(self._tcorr_source):
-            tcorr = ee.Number(float(self._tcorr_source))
-            tcorr_index = ee.Number(4)
-            return tcorr, tcorr_index
+            return ee.Image.constant(float(self._tcorr_source))\
+                .rename(['tcorr']).set({'tcorr_index': 4})
 
         elif 'SCENE' in self._tcorr_source.upper():
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
@@ -520,208 +512,193 @@ class Image():
                 .select(['tcorr'])
 
             default_img = default_coll.first()
-            mask_coll = ee.ImageCollection(default_img.updateMask(0))
-            # TODO: The merge may not be needed if Tcorr collections are complete
-            scene_img = scene_coll.merge(mask_coll).mosaic()
-            month_img = month_coll.merge(mask_coll).mosaic()
-            annual_img = annual_coll.merge(mask_coll).mosaic()
-            # scene_img = scene_coll.first()
-            # month_img = month_coll.first()
-            # annual_img = annual_coll.first()
+            mask_coll = ee.ImageCollection(
+                default_img.updateMask(0).set({'tcorr_index': 9}))
 
             if self._tcorr_source.upper() == 'SCENE':
-                tcorr_img = scene_img.addBands(month_img)\
-                    .addBands(annual_img).addBands(default_img)\
-                    .reduce(ee.Reducer.firstNonNull())
-                index_img = scene_img.multiply(0).add(0)\
-                    .addBands(month_img.multiply(0).add(1))\
-                    .addBands(annual_img.multiply(0).add(2))\
-                    .addBands(default_img.multiply(0).add(3))\
-                    .reduce(ee.Reducer.firstNonNull())\
-                    .uint8().rename(['index'])
+                tcorr_img = scene_coll\
+                    .merge(month_coll).merge(annual_coll)\
+                    .merge(default_coll).merge(mask_coll)\
+                    .sort('tcorr_index').first()
             # TODO: Calling this DAILY is confusing and should be changed
             elif 'DAILY' in self._tcorr_source.upper():
-                tcorr_img = scene_img
-                index_img = scene_img.multiply(0).uint8()
+                tcorr_img = scene_coll.merge(mask_coll).sort('tcorr_index').first()
             elif 'MONTH' in self._tcorr_source.upper():
-                tcorr_img = month_img
-                index_img = month_img.multiply(0).add(1).uint8()
+                tcorr_img = month_coll.merge(mask_coll).sort('tcorr_index').first()
             elif 'ANNUAL' in self._tcorr_source.upper():
-                tcorr_img = annual_img
-                index_img = annual_img.multiply(0).add(2).uint8()
+                tcorr_img = annual_coll.merge(mask_coll).sort('tcorr_index').first()
             elif 'DEFAULT' in self._tcorr_source.upper():
-                tcorr_img = default_img
-                index_img = default_img.multiply(0).add(3).uint8()
+                tcorr_img = default_coll.merge(mask_coll).sort('tcorr_index').first()
             else:
                 raise ValueError(
                     'Invalid tcorr_source: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
-            return tcorr_img.rename(['tcorr']), index_img.rename(['index'])
+            return tcorr_img.rename(['tcorr'])
 
-        elif 'FEATURE' in self._tcorr_source.upper():
-            # Lookup Tcorr collections by keyword value
-            
-            scene_coll_dict = {
-                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
-                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
-                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
-                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
-                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
-                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
-                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
-                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
-                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
-            }
-            month_coll_dict = {
-                'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
-                'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
-                'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
-                # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
-                'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
-                'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
-                'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
-                'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
-                'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
-            }
-            # annual_coll_dict = {}
-            default_value_dict = {
-                'CIMIS': 0.978,
-                'DAYMET': 0.978,
-                'GRIDMET': 0.978,
-                'TOPOWX': 0.978,
-                'CIMIS_MEDIAN_V1': 0.978,
-                'DAYMET_MEDIAN_V0': 0.978,
-                'DAYMET_MEDIAN_V1': 0.978,
-                'GRIDMET_MEDIAN_V1': 0.978,
-                'TOPOWX_MEDIAN_V0': 0.978,
-                'TOPOWX_MEDIAN_V0B': 0.978,
-            }
-
-            # Check Tmax source value
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_value_dict.keys()):
-                raise ValueError(
-                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
-
-            default_coll = ee.FeatureCollection([
-                ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
-            month_coll = ee.FeatureCollection(month_coll_dict[tmax_key])\
-                .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile)\
-                .filterMetadata('MONTH', 'equals', self._month)
-            if self._tcorr_source.upper() in ['FEATURE', 'SCENE']:
-                scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key])\
-                    .filterMetadata('SCENE_ID', 'equals', self._scene_id)
-                tcorr_coll = ee.FeatureCollection(
-                    default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
-            elif 'MONTH' in self._tcorr_source.upper():
-                tcorr_coll = ee.FeatureCollection(
-                    default_coll.merge(month_coll)).sort('INDEX')
-            else:
-                raise ValueError(
-                    'Invalid tcorr_source: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-
-            tcorr_ftr = ee.Feature(tcorr_coll.first())
-            tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-            tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-
-            return tcorr, tcorr_index
-
-        elif 'IMAGE' in self._tcorr_source.upper():
-            # Lookup Tcorr collections by keyword value
-            daily_dict = {
-                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
-            }
-            month_dict = {
-                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
-            }
-            annual_dict = {
-                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
-            }
-            default_dict = {
-                'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
-                'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
-            }
-
-            # Check Tmax source value
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_dict.keys()):
-                raise ValueError(
-                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
-
-            # The mask image will be merged into all the Tcorr image collections
-            #   to ensure that all collections (daily, monthly, annual) have data
-            #   even if the collection is empty
-            default_img = ee.Image(default_dict[tmax_key])
-            mask_img = default_img.updateMask(0)
-
-            if (self._tcorr_source.upper() == 'IMAGE' or
-                    'DAILY' in self._tcorr_source.upper()):
-                daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select(['tcorr'])
-                # Assume there may be multiple daily images for the same date
-                # Use the one with the latest EXPORT_DATE property
-                daily_coll = daily_coll\
-                    .limit(1, 'date_ingested', False)\
-                    .merge(ee.ImageCollection(mask_img))
-                daily_img = ee.Image(daily_coll.mosaic())
-                # .filterMetadata('DATE', 'equals', self._date)
-            if (self._tcorr_source.upper() == 'IMAGE' or
-                    'MONTH' in self._tcorr_source.upper()):
-                month_coll = ee.ImageCollection(month_dict[tmax_key])\
-                    .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-                    .filterMetadata('month', 'equals', self._month)\
-                    .select(['tcorr'])
-                month_coll = month_coll.merge(ee.ImageCollection(mask_img))
-                month_img = ee.Image(month_coll.mosaic())
-            if (self._tcorr_source.upper() == 'IMAGE' or
-                    'ANNUAL' in self._tcorr_source.upper()):
-                annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-                    .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-                    .select(['tcorr'])
-                annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
-                annual_img = ee.Image(annual_coll.mosaic())
-
-            if self._tcorr_source.upper() == 'IMAGE':
-                # Composite Tcorr images to ensure that a value is returned
-                #   (even if the daily image doesn't exist)
-                composite_coll = ee.ImageCollection([
-                    default_img.addBands(default_img.multiply(0).add(3).uint8()),
-                    annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-                    month_img.addBands(month_img.multiply(0).add(1).uint8()),
-                    daily_img.addBands(daily_img.multiply(0).uint8())])
-                composite_img = composite_coll.mosaic()
-                tcorr_img = composite_img.select([0], ['tcorr'])
-                index_img = composite_img.select([1], ['index'])
-            elif 'DAILY' in self._tcorr_source.upper():
-                tcorr_img = daily_img
-                index_img = daily_img.multiply(0).uint8()
-            elif 'MONTH' in self._tcorr_source.upper():
-                tcorr_img = month_img
-                index_img = month_img.multiply(0).add(1).uint8()
-            elif 'ANNUAL' in self._tcorr_source.upper():
-                tcorr_img = annual_img
-                index_img = annual_img.multiply(0).add(2).uint8()
-            elif 'DEFAULT' in self._tcorr_source.upper():
-                tcorr_img = default_img
-                index_img = default_img.multiply(0).add(3).uint8()
-            else:
-                raise ValueError(
-                    'Invalid tcorr_source: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-
-            return tcorr_img, index_img.rename(['index'])
+        # elif 'FEATURE' in self._tcorr_source.upper():
+        #     # Lookup Tcorr collections by keyword value
+        #
+        #     scene_coll_dict = {
+        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
+        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
+        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
+        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
+        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
+        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
+        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
+        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
+        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
+        #     }
+        #     month_coll_dict = {
+        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
+        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
+        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
+        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
+        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
+        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
+        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
+        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
+        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
+        #     }
+        #     # annual_coll_dict = {}
+        #     default_value_dict = {
+        #         'CIMIS': 0.978,
+        #         'DAYMET': 0.978,
+        #         'GRIDMET': 0.978,
+        #         'TOPOWX': 0.978,
+        #         'CIMIS_MEDIAN_V1': 0.978,
+        #         'DAYMET_MEDIAN_V0': 0.978,
+        #         'DAYMET_MEDIAN_V1': 0.978,
+        #         'GRIDMET_MEDIAN_V1': 0.978,
+        #         'TOPOWX_MEDIAN_V0': 0.978,
+        #         'TOPOWX_MEDIAN_V0B': 0.978,
+        #     }
+        #
+        #     # Check Tmax source value
+        #     if (utils.is_number(self._tmax_source) or
+        #             self._tmax_source.upper() not in default_value_dict.keys()):
+        #         raise ValueError(
+        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+        #                 self._tcorr_source, self._tmax_source))
+        #     tmax_key = self._tmax_source.upper()
+        #
+        #     default_coll = ee.FeatureCollection([
+        #         ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
+        #     month_coll = ee.FeatureCollection(month_coll_dict[tmax_key])\
+        #         .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile)\
+        #         .filterMetadata('MONTH', 'equals', self._month)
+        #     if self._tcorr_source.upper() in ['FEATURE', 'SCENE']:
+        #         scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key])\
+        #             .filterMetadata('SCENE_ID', 'equals', self._scene_id)
+        #         tcorr_coll = ee.FeatureCollection(
+        #             default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
+        #     elif 'MONTH' in self._tcorr_source.upper():
+        #         tcorr_coll = ee.FeatureCollection(
+        #             default_coll.merge(month_coll)).sort('INDEX')
+        #     else:
+        #         raise ValueError(
+        #             'Invalid tcorr_source: {} / {}\n'.format(
+        #                 self._tcorr_source, self._tmax_source))
+        #
+        #     tcorr_ftr = ee.Feature(tcorr_coll.first())
+        #     tcorr = ee.Number(tcorr_ftr.get('TCORR'))
+        #     tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
+        #
+        #     return tcorr, tcorr_index
+        #
+        # elif 'IMAGE' in self._tcorr_source.upper():
+        #     # Lookup Tcorr collections by keyword value
+        #     daily_dict = {
+        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
+        #     }
+        #     month_dict = {
+        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
+        #     }
+        #     annual_dict = {
+        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
+        #     }
+        #     default_dict = {
+        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
+        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
+        #     }
+        #
+        #     # Check Tmax source value
+        #     if (utils.is_number(self._tmax_source) or
+        #             self._tmax_source.upper() not in default_dict.keys()):
+        #         raise ValueError(
+        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+        #                 self._tcorr_source, self._tmax_source))
+        #     tmax_key = self._tmax_source.upper()
+        #
+        #     # The mask image will be merged into all the Tcorr image collections
+        #     #   to ensure that all collections (daily, monthly, annual) have data
+        #     #   even if the collection is empty
+        #     default_img = ee.Image(default_dict[tmax_key])
+        #     mask_img = default_img.updateMask(0)
+        #
+        #     if (self._tcorr_source.upper() == 'IMAGE' or
+        #             'DAILY' in self._tcorr_source.upper()):
+        #         daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
+        #             .filterDate(self._start_date, self._end_date)\
+        #             .select(['tcorr'])
+        #         # Assume there may be multiple daily images for the same date
+        #         # Use the one with the latest EXPORT_DATE property
+        #         daily_coll = daily_coll\
+        #             .limit(1, 'date_ingested', False)\
+        #             .merge(ee.ImageCollection(mask_img))
+        #         daily_img = ee.Image(daily_coll.mosaic())
+        #         # .filterMetadata('DATE', 'equals', self._date)
+        #     if (self._tcorr_source.upper() == 'IMAGE' or
+        #             'MONTH' in self._tcorr_source.upper()):
+        #         month_coll = ee.ImageCollection(month_dict[tmax_key])\
+        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
+        #             .filterMetadata('month', 'equals', self._month)\
+        #             .select(['tcorr'])
+        #         month_coll = month_coll.merge(ee.ImageCollection(mask_img))
+        #         month_img = ee.Image(month_coll.mosaic())
+        #     if (self._tcorr_source.upper() == 'IMAGE' or
+        #             'ANNUAL' in self._tcorr_source.upper()):
+        #         annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
+        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
+        #             .select(['tcorr'])
+        #         annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
+        #         annual_img = ee.Image(annual_coll.mosaic())
+        #
+        #     if self._tcorr_source.upper() == 'IMAGE':
+        #         # Composite Tcorr images to ensure that a value is returned
+        #         #   (even if the daily image doesn't exist)
+        #         composite_coll = ee.ImageCollection([
+        #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
+        #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
+        #             month_img.addBands(month_img.multiply(0).add(1).uint8()),
+        #             daily_img.addBands(daily_img.multiply(0).uint8())])
+        #         composite_img = composite_coll.mosaic()
+        #         tcorr_img = composite_img.select([0], ['tcorr'])
+        #         index_img = composite_img.select([1], ['index'])
+        #     elif 'DAILY' in self._tcorr_source.upper():
+        #         tcorr_img = daily_img
+        #         index_img = daily_img.multiply(0).uint8()
+        #     elif 'MONTH' in self._tcorr_source.upper():
+        #         tcorr_img = month_img
+        #         index_img = month_img.multiply(0).add(1).uint8()
+        #     elif 'ANNUAL' in self._tcorr_source.upper():
+        #         tcorr_img = annual_img
+        #         index_img = annual_img.multiply(0).add(2).uint8()
+        #     elif 'DEFAULT' in self._tcorr_source.upper():
+        #         tcorr_img = default_img
+        #         index_img = default_img.multiply(0).add(3).uint8()
+        #     else:
+        #         raise ValueError(
+        #             'Invalid tcorr_source: {} / {}\n'.format(
+        #                 self._tcorr_source, self._tmax_source))
+        #
+        #     return tcorr_img, index_img.rename(['index'])
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
