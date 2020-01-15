@@ -679,7 +679,7 @@ def test_Image_tcorr_scene_daily():
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert tcorr['tcorr'] is None
-    assert index is 9
+    assert index == 9
 
 
 @pytest.mark.parametrize(
