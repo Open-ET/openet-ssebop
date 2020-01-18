@@ -342,8 +342,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     .rename(['tcorr']) \
                     .set({
                         'system:time_start': ee.Image(landsat_img).get('system:time_start'),
-                        'tcorr': tcorr,
-                        'count': count,
+                        'tcorr_value': tcorr,
+                        'tcorr_pixel_count': count,
                         'scene_id': t_obj._scene_id,
                     })
 
@@ -360,7 +360,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # tcorr_img = tcorr_coll.reduce(reducer).rename(['tcorr', 'count'])
 
             # Compute stats from the image properties
-            tcorr_stats = ee.List(tcorr_coll.aggregate_array('tcorr')) \
+            tcorr_stats = ee.List(tcorr_coll.aggregate_array('tcorr_value')) \
                 .reduce(reducer)
             tcorr_stats = ee.Dictionary(tcorr_stats) \
                 .combine({'median': 0, 'count': 0}, overwrite=False)
