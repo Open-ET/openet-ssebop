@@ -246,23 +246,19 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #     year_list = []
 
 
-    # if cron_flag:
-    #     # CGM - This seems like a silly way of getting the date as a datetime
-    #     #   Why am I doing this and not using the commented out line?
-    #     end_dt = datetime.date.today().strftime('%Y-%m-%d')
-    #     end_dt = datetime.datetime.strptime(end_dt, '%Y-%m-%d')
-    #     end_dt = end_dt + datetime.timedelta(days=-4)
-    #     # end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
-    #     start_dt = end_dt + datetime.timedelta(days=-64)
-    # else:
-    #     start_dt = datetime.datetime.strptime(
-    #         ini['INPUTS']['start_date'], '%Y-%m-%d')
-    #     end_dt = datetime.datetime.strptime(
-    #         ini['INPUTS']['end_date'], '%Y-%m-%d')
-    start_dt = datetime.datetime.strptime(
-        ini['INPUTS']['start_date'], '%Y-%m-%d')
-    end_dt = datetime.datetime.strptime(
-        ini['INPUTS']['end_date'], '%Y-%m-%d')
+    if cron_flag:
+        # CGM - This seems like a silly way of getting the date as a datetime
+        #   Why am I doing this and not using the commented out line?
+        end_dt = datetime.date.today().strftime('%Y-%m-%d')
+        end_dt = datetime.datetime.strptime(end_dt, '%Y-%m-%d')
+        end_dt = end_dt + datetime.timedelta(days=-4)
+        # end_dt = datetime.datetime.today() + datetime.timedelta(days=-1)
+        start_dt = end_dt + datetime.timedelta(days=-64)
+    else:
+        start_dt = datetime.datetime.strptime(
+            ini['INPUTS']['start_date'], '%Y-%m-%d')
+        end_dt = datetime.datetime.strptime(
+            ini['INPUTS']['end_date'], '%Y-%m-%d')
     if end_dt >= datetime.datetime.today():
         logging.debug('End Date:   {} - setting end date to current '
                       'date'.format(end_dt.strftime('%Y-%m-%d')))
@@ -344,7 +340,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         for image_id in sorted(image_id_list,
                                key=lambda k: k.split('/')[-1].split('_')[-1],
                                reverse=reverse_flag):
-            scene_id = image_id.split('/')[-1]
+            coll_id, scene_id = image_id.rsplit('/', 1)
             logging.info(f'{scene_id}')
 
             export_dt = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d')
@@ -420,7 +416,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
             # Write an empty image if the pixel count is too low
             tcorr_img = ee.Algorithms.If(
-                count.gt(min_pixel_count),
+                count.gte(min_pixel_count),
                 tmax_mask.add(tcorr), tmax_mask.updateMask(0))
 
             # Clip to the Landsat image footprint
@@ -433,15 +429,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'CLOUD_COVER': image.get('CLOUD_COVER'),
                     'CLOUD_COVER_LAND': image.get('CLOUD_COVER_LAND'),
                     # 'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
-                    'coll_id': image_id.split('/')[0],
-                    # 'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
+                    'coll_id': coll_id,
                     'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
                     'date': export_dt.strftime('%Y-%m-%d'),
                     'doy': int(export_dt.strftime('%j')),
+                    'image_id': image_id,
                     'model_name': model_name,
                     'model_version': ssebop.__version__,
                     'month': int(export_dt.month),
-                    'scene_id': image_id.split('/')[-1],
+                    'scene_id': scene_id,
                     'system:time_start': image.get('system:time_start'),
                     'tcorr_value': tcorr,
                     'tcorr_index': index,
