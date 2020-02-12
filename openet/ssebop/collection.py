@@ -682,13 +682,11 @@ class Collection():
         -------
         list
 
+        Notes
+        -----
+        This image list is based on the collection start and end dates and may
+        not include all of the images used for interpolation.
+
         """
-        # DEADBEEF - This doesn't return the extra images used for interpolation
-        #   and may not be that useful of a method
-        # CGM - Could the build function and Image class support returning
-        #   the system:index?
-        output = list(self._build(variables=['ndvi'])\
-            .aggregate_histogram('image_id').getInfo().keys())
-        return sorted(output)
-        # Strip merge indices (this works for Landsat image IDs
-        # return sorted(['_'.join(x.split('_')[-3:]) for x in output])
+        return sorted(list(self._build(variables=['ndvi'])\
+            .aggregate_array('image_id').getInfo()))
