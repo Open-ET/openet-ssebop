@@ -43,7 +43,7 @@ setup(
     url='https://github.com/Open-ET/openet-{}-beta'.format(model_name.lower()),
     download_url='https://github.com/Open-ET/openet-{}-beta/archive/v{}.tar.gz'.format(
 		model_name.lower(), version),
-    install_requires=['earthengine-api', 'openet-core'],
+    install_requires=['earthengine-api', 'openet-core', 'python-dateutil'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'pytest-cov'],
     packages=['openet.{}'.format(model_name.lower())],
