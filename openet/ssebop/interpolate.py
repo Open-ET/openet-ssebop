@@ -52,6 +52,11 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     ------
     ValueError
 
+    Notes
+    -----
+    This function currently assumes that "mask" and "time" bands exist in the
+    scene collection.
+
     """
 
     # Check that the input parameters are valid
@@ -141,26 +146,25 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         raise ValueError('unsupported et_reference_source: {}'.format(
             et_reference_source))
 
-    # TODO: Need to add time and mask to the scene collection
-    # The time band is always needed for interpolation
-    interp_vars = _interp_vars + ['time']
 
-    # DEADBEEF - I don't think this is needed since interp_vars is hardcoded
-    # # Initialize variable list to only variables that can be interpolated
-    # interp_vars = list(set(interp_vars) & set(variables))
-    #
-    # # To return ET, the ETf must be interpolated
-    # if 'et' in variables and 'et_fraction' not in interp_vars:
-    #     interp_vars.append('et_fraction')
-    #
-    # # With the current interpolate.daily() function,
-    # #   something has to be interpolated in order to return et_reference
-    # if 'et_reference' in variables and 'et_fraction' not in interp_vars:
-    #     interp_vars.append('et_fraction')
+    # Initialize variable list to only variables that can be interpolated
+    interp_vars = list(set(_interp_vars) & set(variables))
+
+    # To return ET, the ETf must be interpolated
+    if 'et' in variables and 'et_fraction' not in interp_vars:
+        interp_vars.append('et_fraction')
+
+    # With the current interpolate.daily() function,
+    #   something has to be interpolated in order to return et_reference
+    if 'et_reference' in variables and 'et_fraction' not in interp_vars:
+        interp_vars.append('et_fraction')
+
+    # The time band is always needed for interpolation
+    interp_vars.append('time')
 
     # Filter scene collection to the interpolation range
     # This probably isn't needed since scene_coll was built to this range
-    # scene_coll = scene_coll.filterDate(interp_start_date, interp_end_date)
+    scene_coll = scene_coll.filterDate(interp_start_date, interp_end_date)
 
     # For count, compute the composite/mosaic image for the mask band only
     if 'count' in variables:

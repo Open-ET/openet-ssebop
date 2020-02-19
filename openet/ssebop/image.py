@@ -90,6 +90,9 @@ class Image():
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
             Maximum allowable dT [K] (the default is 25).
+        kwargs : dict, optional
+            tmax_resample : {'nearest', 'bilinear'}
+            dt_resample : {'nearest', 'bilinear'}
 
         Notes
         -----
@@ -471,6 +474,65 @@ class Image():
         if utils.is_number(self._tcorr_source):
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': 4})
+
+        elif 'DYNAMIC' == self._tcorr_source.upper():
+            # Compute Tcorr dynamically for the scene
+            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
+            month_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
+            }
+            annual_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
+            }
+            default_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+            }
+
+            # Check Tmax source value
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in default_dict.keys()):
+                raise ValueError(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                        self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
+
+            default_coll = ee.ImageCollection(default_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+            mask_img = ee.Image(default_coll.first()).multiply(0)
+
+            mask_coll = ee.ImageCollection(
+                mask_img.updateMask(0).set({'tcorr_index': 9}))
+            annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            month_coll = ee.ImageCollection(month_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .filterMetadata('month', 'equals', self._month)\
+                .select(['tcorr'])
+
+            # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
+            MIN_PIXEL_COUNT = 1000
+            t_stats = ee.Dictionary(self.tcorr_stats)\
+                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+            tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+            tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
+            # tcorr_index = ee.Number(
+            #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
+
+            mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
+            scene_img = mask_img.multiply(tcorr_value)\
+                .updateMask(mask_img.unmask(0))\
+                .rename(['tcorr'])\
+                .set({'tcorr_index': tcorr_index})
+
+            # tcorr_coll = ee.ImageCollection([scene_img])
+            tcorr_coll = ee.ImageCollection([scene_img])\
+                .merge(month_coll).merge(annual_coll)\
+                .merge(default_coll).merge(mask_coll)\
+                .sort('tcorr_index')
+
+            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
         elif 'SCENE' in self._tcorr_source.upper():
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
@@ -1067,7 +1129,7 @@ class Image():
                 .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
-            geometry=ee.Image(self.image).geometry().buffer(1000),
+            geometry=self.image.geometry().buffer(1000),
             bestEffort=False,
             maxPixels=2*10000*10000,
             tileScale=1,

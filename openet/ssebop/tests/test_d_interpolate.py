@@ -17,22 +17,22 @@ def test_from_scene_et_fraction_values():
     time3 = ee.Number(ee.Date.fromYMD(2017, 7, 24).millis())
 
     # Mask and time bands currently get added on to the scene collection
-    #   and images are unscaled just before interpolating
+    #   and images are unscaled just before interpolating in the export tool
+    band_names = ['et_fraction', 'ndvi', 'time', 'mask']
     scene_coll = ee.ImageCollection([
         ee.Image([img.add(0.4), img.add(0.5), img.add(time1), mask]) \
-            .rename(['et_fraction', 'ndvi', 'time', 'mask']) \
+            .rename(band_names) \
             .set({'system:index': 'LE07_044033_20170708',
                   'system:time_start': time1}),
         ee.Image([img.add(0.4), img.add(0.5), img.add(time2), mask]) \
-            .rename(['et_fraction', 'ndvi', 'time', 'mask']) \
+            .rename(band_names) \
             .set({'system:index': 'LC08_044033_20170716',
                   'system:time_start': time2}),
         ee.Image([img.add(0.4), img.add(0.5), img.add(time3), mask]) \
-            .rename(['et_fraction', 'ndvi', 'time', 'mask']) \
+            .rename(band_names) \
             .set({'system:index': 'LE07_044033_20170724',
                   'system:time_start': time3}),
         ])
-    # pprint.pprint(utils.getinfo(scene_coll))
 
     etf_coll = interpolate.from_scene_et_fraction(
         scene_coll,
@@ -46,10 +46,8 @@ def test_from_scene_et_fraction_values():
 
     TEST_POINT = (-121.5265, 38.7399)
     output = utils.point_coll_value(etf_coll, TEST_POINT, scale=10)
-    # pprint.pprint(output)
 
     tol = 0.0001
-    # print(output)
     assert abs(output['ndvi']['2017-07-01'] - 0.5) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol

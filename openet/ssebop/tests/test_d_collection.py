@@ -223,7 +223,6 @@ def test_Collection_build_filter_dates_lc08():
         collections=['LANDSAT/LC08/C01/T1_TOA'],
         start_date='2013-01-01', end_date='2013-05-01',
         geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['ndvi']))
-    print(output)
     assert not [x for x in parse_scene_id(output) if x.split('_')[-1] < '20130324']
     # assert parse_scene_id(output) == []
 

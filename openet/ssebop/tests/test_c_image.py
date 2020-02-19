@@ -590,15 +590,17 @@ def test_Image_tmax_properties(tmax_source, expected):
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
     [
-        # DAYMET_MEDIAN_V2
+        # DAYMET_MEDIAN_V2 "static" assets
         ['SCENE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
          [0.9743747113938074, 0]],
         ['SCENE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
          [0.9743747113938074, 0]],
         ['SCENE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
-         [0.9700613452078773, 1]],
+         [0.9700734316155846, 1]],
+        ['SCENE_MONTHLY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20161206',
+         [0.9798917542625591, 1]],
         ['SCENE_ANNUAL', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
-         [0.9762536456651005, 2]],
+         [0.9762643456613403, 2]],
         ['SCENE_DEFAULT', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713',
          [0.978, 3]],
     ]
@@ -612,8 +614,9 @@ def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
         'system:index': scene_id,
         'system:time_start': ee.Date(scene_date).millis()
     })
-    tcorr_img = ssebop.Image(input_image, tcorr_source=tcorr_source,
-                             tmax_source=tmax_source).tcorr
+    tcorr_img = ssebop.Image(
+        input_image, tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
 
     # Tcorr images are constant images and need to be queried at a point
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -622,14 +625,42 @@ def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
     assert index == expected[1]
 
 
-def test_Image_tcorr_scene_month(expected=[0.97006134520787, 1], tol=0.000001):
+# Note, this is calling .tcorr_stats(), which isn't tested till the end.
+# I'm not sure if it would make more sense to move this to the end or maybe
+#   move the .tcorr_stats test further up, since they are independent of most
+#   of the other functions.
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, expected',
+    [
+        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+         [0.9743747113938074, 0]],
+        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         [0.9798917542625591, 1]],
+    ]
+)
+def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
+                                    expected, tol=0.000001):
+    """Test getting Tcorr value and index for a single date at a real point"""
+    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id), tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index == expected[1]
+
+
+def test_Image_tcorr_scene_month(expected=[0.9700734316155846, 1], tol=0.000001):
     """Test getting monthly Tcorr from composite when daily is missing"""
     # Setting start date to well before beginning of daily Tcorr images
     input_image = ee.Image.constant(1).set({
         'system:index': 'LC08_042035_20150713',
         'system:time_start': ee.Date('1980-07-13').millis()})
-    m = ssebop.Image(input_image, tcorr_source='SCENE',
-                     tmax_source='DAYMET_MEDIAN_V2')
+    m = ssebop.Image(
+        input_image, tcorr_source='SCENE', tmax_source='DAYMET_MEDIAN_V2',
+        tmax_resample='nearest')
     tcorr_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
@@ -637,13 +668,14 @@ def test_Image_tcorr_scene_month(expected=[0.97006134520787, 1], tol=0.000001):
     assert index == expected[1]
 
 
-def test_Image_tcorr_scene_annual(expected=[0.9762536456651, 2], tol=0.000001):
+def test_Image_tcorr_scene_annual(expected=[0.9762643456613403, 2], tol=0.000001):
     """Test getting annual Tcorr from composite when monthly/daily are missing"""
     input_image = ee.Image.constant(1).set({
         'system:index': 'LC08_042035_20150713',
         'system:time_start': ee.Date('1980-07-13').millis()})
-    m = ssebop.Image(input_image, tcorr_source='SCENE',
-                     tmax_source='DAYMET_MEDIAN_V2')
+    m = ssebop.Image(
+        input_image, tcorr_source='SCENE', tmax_source='DAYMET_MEDIAN_V2',
+        tmax_resample='nearest')
     m._month = ee.Number(9999)
     tcorr_img = m.tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
@@ -1101,7 +1133,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463005}],  # 0.99255676, 971875
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463129}],  # 0.99255676, 971875
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
          {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
@@ -1110,15 +1142,17 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463005}],
+         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463129}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
-                                   tol=0.00000001):
+                                   tol=0.0000001):
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id), tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
