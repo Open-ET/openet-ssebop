@@ -352,24 +352,34 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             .combine({'median': 0, 'count': 0}, overwrite=False)
         tcorr = ee.Number(tcorr_stats.get('median'))
         count = ee.Number(tcorr_stats.get('count'))
-        index = ee.Algorithms.If(count.gte(min_scene_count), 2, 9)
+        index = count.lt(min_scene_count).multiply(7).add(2)
+        # index = ee.Algorithms.If(count.gte(min_scene_count), 2, 9)
 
-        # Write an empty image if the pixel count is too low
-        # CGM: Check/test if this can be combined into a single If()
-        tcorr_img = ee.Algorithms.If(
-            count.gte(min_scene_count),
-            tmax_mask.add(tcorr), tmax_mask.updateMask(0))
-        count_img = ee.Algorithms.If(
-            count.gte(min_scene_count),
-            tmax_mask.add(count), tmax_mask.updateMask(0))
-
-        # Clip to the Landsat image footprint
-        output_img = ee.Image([tcorr_img, count_img]) \
-            .rename(['tcorr', 'count']) \
+        # Clip the mask image to the Landsat footprint
+        # Change mask values to 1 if count >= threshold
+        # Mask values of 0 will be set to nodata
+        mask_img = tmax_mask.add(count.gte(min_scene_count)) \
             .clip(ee.Geometry(wrs2_ftr['geometry']))
+        output_img = ee.Image(
+                [mask_img.multiply(tcorr), mask_img.multiply(count)]) \
+            .rename(['tcorr', 'count']) \
+            .updateMask(mask_img.unmask(0))
 
-        # Clear the transparency mask
-        output_img = output_img.updateMask(output_img.unmask(0))
+        # # Write an empty image if the pixel count is too low
+        # # CGM: Check/test if this can be combined into a single If()
+        # tcorr_img = ee.Algorithms.If(
+        #     count.gte(min_scene_count),
+        #     tmax_mask.add(tcorr), tmax_mask.updateMask(0))
+        # count_img = ee.Algorithms.If(
+        #     count.gte(min_scene_count),
+        #     tmax_mask.add(count), tmax_mask.updateMask(0))
+        #
+        # # Clip to the Landsat image footprint
+        # output_img = ee.Image([tcorr_img, count_img]) \
+        #     .rename(['tcorr', 'count']) \
+        #     .clip(ee.Geometry(wrs2_ftr['geometry']))
+        # # Clear the transparency mask
+        # output_img = output_img.updateMask(output_img.unmask(0))
 
         output_img = output_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),

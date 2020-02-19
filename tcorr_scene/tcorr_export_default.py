@@ -220,13 +220,19 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 logging.debug('  Asset already exists, skipping')
                 continue
 
-        # Clip to the Landsat image footprint
-        output_img = tmax_mask.add(tcorr_default) \
-            .rename(['tcorr']) \
-            .clip(ee.Geometry(wrs2_ftr['geometry']))
+        # Clip the mask image to the Landsat footprint
+        mask_img = tmax_mask.add(1).clip(ee.Geometry(wrs2_ftr['geometry']))
 
-        # Clear the transparency mask
-        output_img = output_img.updateMask(output_img.unmask(0))
+        # Apply the default Tcorr value and then clear the transparency mask
+        output_img = mask_img.multiply(0.978).rename(['tcorr'])\
+            .updateMask(mask_img.unmask(0))
+
+        # # Clip to the Landsat image footprint
+        # output_img = tmax_mask.add(tcorr_default) \
+        #     .rename(['tcorr']) \
+        #     .clip(ee.Geometry(wrs2_ftr['geometry']))
+        # # Clear the transparency mask
+        # output_img = output_img.updateMask(output_img.unmask(0))
 
         output_img = output_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
