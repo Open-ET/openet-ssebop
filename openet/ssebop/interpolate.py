@@ -168,7 +168,7 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
 
     # For count, compute the composite/mosaic image for the mask band only
     if 'count' in variables:
-        aggregate_coll = openet.core.interpolate.aggregate_daily(
+        aggregate_coll = openet.core.interpolate.aggregate_to_daily(
             image_coll = scene_coll.select(['mask']),
             start_date=start_date, end_date=end_date)
 
@@ -234,13 +234,13 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
 
         if et_reference_factor:
             et_img = et_img.multiply(et_reference_factor)
-            et_reference_img = et_reference_img.multiply(
-                et_reference_factor)
+            et_reference_img = et_reference_img \
+                .multiply(et_reference_factor)
 
         # DEADBEEF - This doesn't seem to be doing anything
         if et_reference_resample in ['bilinear', 'bicubic']:
-            et_reference_img = et_reference_img.resample(
-                et_reference_resample)
+            et_reference_img = et_reference_img \
+                .resample(et_reference_resample)
 
         image_list = []
         if 'et' in variables:

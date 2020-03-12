@@ -141,6 +141,12 @@ class Collection():
         # CGM - Should this be specified in the interpolation method instead?
         self._interp_vars = ['ndvi', 'et_fraction']
 
+        self._landsat_c1_sr_collections = [
+            'LANDSAT/LC08/C01/T1_SR',
+            'LANDSAT/LE07/C01/T1_SR',
+            'LANDSAT/LT05/C01/T1_SR',
+            'LANDSAT/LT04/C01/T1_SR',
+        ]
         self._landsat_c1_toa_collections = [
             'LANDSAT/LC08/C01/T1_RT_TOA',
             'LANDSAT/LE07/C01/T1_RT_TOA',
@@ -149,12 +155,6 @@ class Collection():
             'LANDSAT/LT05/C01/T1_TOA',
             'LANDSAT/LT04/C01/T1_TOA',
         ]
-        self._landsat_c1_sr_collections = [
-            'LANDSAT/LC08/C01/T1_SR',
-            'LANDSAT/LE07/C01/T1_SR',
-            'LANDSAT/LT05/C01/T1_SR',
-            'LANDSAT/LT04/C01/T1_SR',
-        ]
 
         # If collections is a string, place in a list
         if type(self.collections) is str:
@@ -162,8 +162,8 @@ class Collection():
 
         # Check that collection IDs are supported
         for coll_id in self.collections:
-            if (coll_id not in self._landsat_c1_toa_collections and
-                    coll_id not in self._landsat_c1_sr_collections):
+            if (coll_id not in self._landsat_c1_sr_collections and
+                    coll_id not in self._landsat_c1_toa_collections):
                 raise ValueError('unsupported collection: {}'.format(coll_id))
 
         # Check that collections don't have "duplicates"
@@ -506,7 +506,7 @@ class Collection():
 
         # For count, compute the composite/mosaic image for the mask band only
         if 'count' in variables:
-            aggregate_coll = openet.core.interpolate.aggregate_daily(
+            aggregate_coll = openet.core.interpolate.aggregate_to_daily(
                 image_coll=scene_coll.select(['mask']),
                 start_date=start_date, end_date=end_date)
 

@@ -971,23 +971,29 @@ class Image():
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1',
                           'BQA'],
-            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'BQA']})
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
+            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'BQA'],
+        })
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir',
                         'BQA']
         k1 = ee.Dictionary({
             'LANDSAT_4': 'K1_CONSTANT_BAND_6',
             'LANDSAT_5': 'K1_CONSTANT_BAND_6',
             'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
-            'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
+            'LANDSAT_8': 'K1_CONSTANT_BAND_10',
+        })
         k2 = ee.Dictionary({
             'LANDSAT_4': 'K2_CONSTANT_BAND_6',
             'LANDSAT_5': 'K2_CONSTANT_BAND_6',
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
-            'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
+            'LANDSAT_8': 'K2_CONSTANT_BAND_10',
+        })
         prep_image = toa_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
-            .set({'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
-                  'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id)))})
+            .set({
+                'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
+                'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id))),
+                'SATELLITE': spacecraft_id,
+            })
 
         # Build the input image
         input_image = ee.Image([
@@ -1033,9 +1039,9 @@ class Image():
             'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
-            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10',
-                          'pixel_qa']})
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'lst',
+            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'],
+        })
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir',
                         'pixel_qa']
         # TODO: Follow up with Simon about adding K1/K2 to SR collection
         # Hardcode values for now
@@ -1077,7 +1083,8 @@ class Image():
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
             .set({'system:index': sr_image.get('system:index'),
                   'system:time_start': sr_image.get('system:time_start'),
-                  'system:id': sr_image.get('system:id')})
+                  'system:id': sr_image.get('system:id'),
+            })
 
         # Instantiate the class
         return cls(input_image, **kwargs)

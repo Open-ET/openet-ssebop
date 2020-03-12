@@ -63,7 +63,7 @@ def test_Collection_init_default_parameters():
     assert m.cloud_cover_max == 70
     assert m.model_args == {}
     assert m.filter_args == {}
-    assert m._interp_vars == ['ndvi', 'et_fraction']
+    assert set(m._interp_vars) == {'ndvi', 'et_fraction'}
 
 
 def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C01/T1_TOA'):
