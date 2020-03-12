@@ -15,7 +15,7 @@ import openet.ssebop.utils as utils
 def toa_image(red=0.1, nir=0.9, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
     return ee.Image.constant([red, nir, bt])\
-        .rename(['red', 'nir', 'lst']) \
+        .rename(['red', 'nir', 'tir']) \
         .set({
             # 'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
@@ -26,7 +26,7 @@ def toa_image(red=0.1, nir=0.9, bt=305):
 def sr_image(red=1000, nir=9000, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
     return ee.Image.constant([red, nir, bt])\
-        .rename(['red', 'nir', 'lst']) \
+        .rename(['red', 'nir', 'tir']) \
         .set({
             # 'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),

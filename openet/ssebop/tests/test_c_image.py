@@ -31,7 +31,7 @@ def toa_image(red=0.1, nir=0.9, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['B3']).multiply(0)
     return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
-        .rename(['red', 'nir', 'lst'])\
+        .rename(['red', 'nir', 'tir'])\
         .set({
             'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),

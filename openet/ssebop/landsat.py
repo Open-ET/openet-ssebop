@@ -85,7 +85,7 @@ def lst(landsat_image):
     k1 = ee.Number(ee.Image(landsat_image).get('k1_constant'))
     k2 = ee.Number(ee.Image(landsat_image).get('k2_constant'))
 
-    ts_brightness = ee.Image(landsat_image).select(['lst'])
+    ts_brightness = ee.Image(landsat_image).select(['tir'])
     emissivity_img = emissivity(landsat_image)
 
     # First back out radiance from brightness temperature
