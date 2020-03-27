@@ -13,33 +13,41 @@ import openet.core.interpolate
 
 
 def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
-                           model_args, t_interval='custom',
-                           interp_method='linear', interp_days=32,
+                           interp_args, model_args, t_interval='custom',
                            _interp_vars=['et_fraction', 'ndvi'],
                            use_joins=False):
-    """
+    """Interpolate from a precomputed collection of Landast ET fraction scenes
 
     Parameters
     ----------
     scene_coll : ee.ImageCollection
-
+        Non-daily 'et_fraction' images that will be interpolated.
     start_date : str
-
+        ISO format start date.
     end_date : str
-
+        ISO format end date (exclusive, passed directly to .filterDate()).
     variables : list
         List of variables that will be returned in the Image Collection.
+    interp_args : dict
+        Parameters from the INTERPOLATE section of the INI file.
+        # TODO: Look into a better format for showing the options
+        interp_method : {'linear}, optional
+            Interpolation method.  The default is 'linear'.
+        interp_days : int, str, optional
+            Number of extra days before the start date and after the end date
+            to include in the interpolation calculation. The default is 32.
     model_args : dict
-
+        Parameters from the MODEL section of the INI file.  The reference
+        source and parameters will need to be set here if computing
+        reference ET or actual ET.
     t_interval : {'daily', 'monthly', 'annual', 'custom'}, optional
         Time interval over which to interpolate and aggregate values
         The default is 'custom' which means the aggregation time period
         will be controlled by the start and end date parameters.
-    interp_method : {'linear}, optional
-        Interpolation method.  The default is 'linear'.
-    interp_days : int, str, optional
-        Number of extra days before the start date and after the end date
-        to include in the interpolation calculation. The default is 32.
+    use_joins : bool, optional
+        If True, use joins to link the target and source collections.
+        If False, the source collection will be filtered for each target image.
+        This parameter is passed through to interpolate.daily().
     _interp_vars : list, optional
         The variables that can be interpolated to daily timesteps.
         The default is to interpolate the 'et_fraction' and 'ndvi' bands.
@@ -58,6 +66,19 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     scene collection.
 
     """
+    # Get interp_method
+    if 'interp_method' in interp_args.keys():
+        interp_method = interp_args['interp_method']
+    else:
+        interp_method = 'linear'
+        logging.debug('interp_method was not set, default to "linear"')
+
+    # Get interp_days
+    if 'interp_days' in interp_args.keys():
+        interp_days = interp_args['interp_days']
+    else:
+        interp_days = 32
+        logging.debug('interp_days was not set, default to 32')
 
     # Check that the input parameters are valid
     if t_interval.lower() not in ['daily', 'monthly', 'annual', 'custom']:
@@ -122,30 +143,38 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         logging.debug('et_reference_factor was not set, default to 1.0')
         # raise ValueError('et_reference_factor was not set')
 
-    # Get reference ET resample
-    if 'et_reference_resample' in model_args.keys():
-        et_reference_resample = model_args['et_reference_resample']
-    else:
-        et_reference_resample = 'nearest'
-        logging.debug(
-            'et_reference_resample was not set, default to nearest')
-        # raise ValueError('et_reference_resample was not set')
+    # CGM - Resampling is not working correctly so commenting out for now
+    # # Get reference ET resample
+    # if 'et_reference_resample' in model_args.keys():
+    #     et_reference_resample = model_args['et_reference_resample']
+    # else:
+    #     et_reference_resample = 'nearest'
+    #     logging.debug('et_reference_resample was not set, default to nearest')
+    #     # raise ValueError('et_reference_resample was not set')
 
     if type(et_reference_source) is str:
         # Assume a string source is an single image collection ID
         #   not an list of collection IDs or ee.ImageCollection
-        daily_et_reference_coll = ee.ImageCollection(et_reference_source) \
+        daily_et_ref_coll = ee.ImageCollection(et_reference_source) \
             .filterDate(start_date, end_date) \
             .select([et_reference_band], ['et_reference'])
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
-    #     daily_et_reference_coll = ee.ImageCollection(et_reference_source)\
-    #         .select([et_reference_band])\
-    #         .filterDate(self.start_date, self.end_date)
+    #     daily_et_reference_coll = ee.ImageCollection(et_reference_source) \
+    #         .filterDate(self.start_date, self.end_date) \
+    #         .select([et_reference_band])
     else:
         raise ValueError('unsupported et_reference_source: {}'.format(
             et_reference_source))
 
+    # Scale reference ET images (if necessary)
+    # CGM - Resampling is not working correctly so not including for now
+    if (et_reference_factor and et_reference_factor != 1):
+        def et_reference_adjust(input_img):
+            return input_img.multiply(et_reference_factor) \
+                .copyProperties(input_img) \
+                .set({'system:time_start': input_img.get('system:time_start')})
+        daily_et_ref_coll = daily_et_ref_coll.map(et_reference_adjust)
 
     # Initialize variable list to only variables that can be interpolated
     interp_vars = list(set(_interp_vars) & set(variables))
@@ -185,7 +214,7 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     # NOTE: the daily function is not computing ET (ETf x ETr)
     #   but is returning the target (ETr) band
     daily_coll = openet.core.interpolate.daily(
-        target_coll=daily_et_reference_coll,
+        target_coll=daily_et_ref_coll,
         source_coll=scene_coll.select(interp_vars),
         interp_method=interp_method, interp_days=interp_days,
         use_joins=use_joins,
@@ -196,8 +225,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     # if 'et' in variables or 'et_fraction' in variables:
     def compute_et(img):
         """This function assumes ETr and ETf are present"""
-        et_img = img.select(['et_fraction']).multiply(
-            img.select(['et_reference']))
+        et_img = img.select(['et_fraction']) \
+            .multiply(img.select(['et_reference']))
         return img.addBands(et_img.double().rename('et'))
 
     daily_coll = daily_coll.map(compute_et)
@@ -224,23 +253,14 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         for each time interval by separate mappable functions
 
         """
-        # if 'et' in variables or 'et_fraction' in variables:
-        et_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
-            .select(['et']).sum()
-        # if 'et_reference' in variables or 'et_fraction' in variables:
-        et_reference_img = daily_coll.filterDate(agg_start_date,
-                                                 agg_end_date) \
-            .select(['et_reference']).sum()
-
-        if et_reference_factor:
-            et_img = et_img.multiply(et_reference_factor)
-            et_reference_img = et_reference_img \
-                .multiply(et_reference_factor)
-
-        # DEADBEEF - This doesn't seem to be doing anything
-        if et_reference_resample in ['bilinear', 'bicubic']:
-            et_reference_img = et_reference_img \
-                .resample(et_reference_resample)
+        if 'et' in variables or 'et_fraction' in variables:
+            et_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
+                .select(['et']).sum()
+        if 'et_reference' in variables or 'et_fraction' in variables:
+            # et_reference_img = daily_coll \
+            et_reference_img = daily_et_ref_coll \
+                .filterDate(agg_start_date, agg_end_date) \
+                .select(['et_reference']).sum()
 
         image_list = []
         if 'et' in variables:

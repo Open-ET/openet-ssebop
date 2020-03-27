@@ -279,6 +279,7 @@ class Image():
         # Map ETr values directly to the input (i.e. Landsat) image pixels
         # The benefit of this is the ETr image is now in the same crs as the
         #   input image.  Not all models may want this though.
+        # Note, doing this will cause the reference ET to be cloud masked.
         # CGM - Should the output band name match the input ETr band name?
         return self.ndvi.multiply(0).add(et_reference_img)\
             .rename(['et_reference']).set(self._properties)
