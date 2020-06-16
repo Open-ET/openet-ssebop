@@ -79,6 +79,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        tmax_source=310.15,
                        dt_resample='nearest',
                        tmax_resample='nearest',
+                       et_fraction_type='alfalfa',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -93,6 +94,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'tmax_source': tmax_source,
         'dt_resample': dt_resample,
         'tmax_resample': tmax_resample,
+        'et_fraction_type': et_fraction_type,
     }
 
 
@@ -109,6 +111,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       tmax_source=310.15,
                       dt_resample='nearest',
                       tmax_resample='nearest',
+                      et_fraction_type='alfalfa',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -123,6 +126,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         tmax_source=tmax_source,
         dt_resample=dt_resample,
         tmax_resample=tmax_resample,
+        et_fraction_type=et_fraction_type,
     ))
 
 
@@ -1158,3 +1162,48 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
         tmax_resample='nearest').tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']
+
+
+
+
+# def test_Image_et_fraction_properties():
+#     """Test if properties are set on the ETf image"""
+#     output = utils.getinfo(default_image_obj().et_fraction)
+#     assert output['bands'][0]['id'] == 'et_fraction'
+#     assert output['properties']['system:index'] == SCENE_ID
+#     assert output['properties']['system:time_start'] == SCENE_TIME
+#
+#
+# @pytest.mark.parametrize(
+#     'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
+# )
+# def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
+#     output_img = default_image_obj(
+#         dt_source=dt, elev_source=elev,
+#         tcorr_source=tcorr, tmax_source=tmax).et_fraction
+#     output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
+#     assert abs(output['et_fraction'] - expected) <= tol
+#     # assert output['et_fraction'] > 0
+
+
+@pytest.mark.parametrize(
+    'et_fraction_type, expected',
+    [
+        # ['alfalfa', 0.88],
+        ['grass', 0.88 * 1.2],
+        # ['Grass', 0.88 * 0.5],
+    ]
+)
+def test_Image_et_fraction_type(et_fraction_type, expected, tol=0.0001):
+    output_img = default_image_obj(
+        dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310,
+        et_fraction_type=et_fraction_type).et_fraction
+    output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
+    assert abs(output['et_fraction'] - expected) <= tol
+    # assert output['bands'][0]['id'] == 'et_fraction'
+
+
+def test_Image_et_fraction_type_exception():
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(et_fraction_type='deadbeef').et_fraction)

@@ -47,6 +47,7 @@ class Image():
             elr_flag=False,
             dt_min=6,
             dt_max=25,
+            et_fraction_type='alfalfa',
             **kwargs,
         ):
         """Construct a generic SSEBop Image
@@ -90,6 +91,8 @@ class Image():
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
             Maximum allowable dT [K] (the default is 25).
+        et_fraction_type : {'alfalfa', 'grass'}, optional
+            ET fraction  (the default is 'alfalfa').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -188,6 +191,15 @@ class Image():
         else:
             self._tmax_resample = 'bilinear'
 
+        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
+            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
+        self.et_fraction_type = et_fraction_type.lower()
+        # CGM - Should et_fraction_type be set as a kwarg instead?
+        # if 'et_fraction_type' in kwargs.keys():
+        #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
+        # else:
+        #     self.et_fraction_type = 'alfalfa'
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -232,6 +244,29 @@ class Image():
             lst=self.lst, tmax=self.tmax, tcorr=self.tcorr, dt=self.dt,
             elr_flag=self._elr_flag, elev=self.elev,
         )
+
+        # TODO: Add support for setting the conversion source dataset
+        # TODO: Interpolate "instantaneous" ETo and ETr
+        # TODO: Add geerefet to environement/requirements
+        # TODO: Move geerefet import to top
+        # TODO: Fork geerefet to openet as "openet-refet-gee"
+        # TODO: Check if it should be etr/eto or eto/etr
+        # TODO: Change geerefet to .etr() is a lazy property instead of a method
+        if self.et_fraction_type.lower() == 'grass':
+            import geerefet
+            nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
+                .select(['temperature', 'specific_humidity', 'shortwave_radiation',
+                    'wind_u', 'wind_v'])\
+                .filterDate(ee.Date(self._time_start).advance(-1, 'hour'),
+                            ee.Date(self._time_start))
+            nldas_img = ee.Image(nldas_coll.first())
+            # pprint.pprint(nldas_img.getInfo())
+            etr = geerefet.Hourly.nldas(nldas_img).etr()
+            pprint.pprint(etr.getInfo())
+            eto = geerefet.Hourly.nldas(nldas_img).eto()
+            pprint.pprint(eto.getInfo())
+
+            et_fraction = et_fraction.multiply(etr).divide(eto)
 
         return et_fraction.set(self._properties) \
             .set({'tcorr_index': self.tcorr.get('tcorr_index')})
