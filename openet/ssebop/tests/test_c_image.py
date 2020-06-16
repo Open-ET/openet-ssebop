@@ -291,7 +291,8 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
     [
         ['CIMIS', 18, '2017-07-16', [-122.1622, 39.1968], 17.1013],
         ['DAYMET', 18, '2017-07-16', [-122.1622, 39.1968], 13.5525],
-        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1711],
+        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1700],
+        # ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1711],
         # ['CIMIS', 67, SCENE_DATE, TEST_POINT, 17.10647],
         # ['DAYMET', 67, SCENE_DATE, TEST_POINT, 12.99047],
         # ['GRIDMET', 67, SCENE_DATE, TEST_POINT, 17.79065],

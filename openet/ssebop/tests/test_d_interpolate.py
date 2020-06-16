@@ -65,8 +65,10 @@ def test_from_scene_et_fraction_daily_values(tol=0.0001):
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['ndvi']['2017-07-10'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-10'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-10'] - 10.508799553) <= tol
-    assert abs(output['et']['2017-07-10'] - (10.508799553 * 0.4)) <= tol
+    assert abs(output['et_reference']['2017-07-10'] - 10.5) <= tol
+    assert abs(output['et']['2017-07-10'] - (10.5 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-10'] - 10.508799553) <= tol
+    # assert abs(output['et']['2017-07-10'] - (10.508799553 * 0.4)) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_fraction']['2017-07-31'] - 0.4) <= tol
     assert '2017-08-01' not in output['et_fraction'].keys()
@@ -89,8 +91,10 @@ def test_from_scene_et_fraction_monthly_values(tol=0.0001):
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
+    assert abs(output['et_reference']['2017-07-01'] - 303.399994) <= tol
+    assert abs(output['et']['2017-07-01'] - (303.399994 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
+    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -110,8 +114,10 @@ def test_from_scene_et_fraction_custom_values(tol=0.0001):
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
+    assert abs(output['et_reference']['2017-07-01'] - 303.399994) <= tol
+    assert abs(output['et']['2017-07-01'] - (303.399994 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
+    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -131,8 +137,10 @@ def test_from_scene_et_fraction_monthly_et_reference_factor(tol=0.0001):
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-01'] - 303.622559 * 0.5) <= tol
-    assert abs(output['et']['2017-07-01'] - (303.622559 * 0.5 * 0.4)) <= tol
+    assert abs(output['et_reference']['2017-07-01'] - 303.399994 * 0.5) <= tol
+    assert abs(output['et']['2017-07-01'] - (303.399994 * 0.5 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-01'] - 303.622559 * 0.5) <= tol
+    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.5 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -153,6 +161,8 @@ def test_from_scene_et_fraction_monthly_et_reference_resample(tol=0.0001):
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
+    assert abs(output['et_reference']['2017-07-01'] - 303.399994) <= tol
+    assert abs(output['et']['2017-07-01'] - (303.399994 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
+    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
