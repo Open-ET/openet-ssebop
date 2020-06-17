@@ -15,7 +15,8 @@ SCENE_ID = 'LC08_042035_20150713'
 SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
 SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
 SCENE_DOY = int(SCENE_DT.strftime('%j'))
-SCENE_TIME = utils.millis(SCENE_DT)
+# SCENE_TIME = utils.millis(SCENE_DT)
+SCENE_TIME = 1436812419150
 SCENE_POINT = (-119.5, 36.0)
 TEST_POINT = (-119.44252382373145, 36.04047742246546)
 
@@ -33,7 +34,7 @@ def toa_image(red=0.1, nir=0.9, bt=305):
     return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
         .rename(['red', 'nir', 'tir'])\
         .set({
-            'system:time_start': ee.Date(SCENE_DATE).millis(),
+            'system:time_start': SCENE_TIME,
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
@@ -53,7 +54,7 @@ def default_image(lst=305, ndvi=0.8):
         .rename(['lst', 'ndvi']) \
         .set({
             'system:index': SCENE_ID,
-            'system:time_start': ee.Date(SCENE_DATE).millis(),
+            'system:time_start': SCENE_TIME,
             'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
     # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
@@ -161,9 +162,11 @@ def test_Image_init_date_properties():
     assert utils.getinfo(m._date)['value'] == SCENE_TIME
     assert utils.getinfo(m._year) == int(SCENE_DATE.split('-')[0])
     assert utils.getinfo(m._month) == int(SCENE_DATE.split('-')[1])
-    assert utils.getinfo(m._start_date)['value'] == SCENE_TIME
-    assert utils.getinfo(m._end_date)['value'] == utils.millis(
-        SCENE_DT + datetime.timedelta(days=1))
+    assert utils.getinfo(m._start_date)['value'] == utils.millis(SCENE_DT)
+    assert utils.getinfo(m._end_date)['value'] == (
+        utils.millis(SCENE_DT) + 24 * 3600 * 1000)
+    # assert utils.getinfo(m._end_date)['value'] == utils.millis(
+    #     SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
     assert utils.getinfo(m._cycle_day) == int(
         (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
@@ -885,13 +888,14 @@ def test_Image_time_properties():
 
 
 def test_Image_time_values():
+    # The time band should be the 0 UTC datetime, not the system:time_start
     # The time image is currently being built from the et_fraction image, so all
     #   the ancillary values must be set.
     output_img = default_image_obj(
         ndvi=0.5, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).time
     output = utils.point_image_value(output_img, TEST_POINT)
-    assert output['time'] == SCENE_TIME
+    assert output['time'] == utils.millis(SCENE_DT)
 
 
 def test_Image_calculate_properties():
@@ -1191,7 +1195,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     'et_fraction_type, expected',
     [
         # ['alfalfa', 0.88],
-        ['grass', 0.88 * 1.2],
+        ['grass', 0.88 * 1.2496],
         # ['Grass', 0.88 * 0.5],
     ]
 )
