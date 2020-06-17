@@ -247,25 +247,21 @@ class Image():
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr
-        # TODO: Add geerefet to environement/requirements
+        # TODO: Update geerefet version on pypi
+        # TODO: Add geerefet to environement/requirements (geerefet>=0.1.13)
         # TODO: Move geerefet import to top
         # TODO: Fork geerefet to openet as "openet-refet-gee"
-        # TODO: Check if it should be etr/eto or eto/etr
-        # TODO: Change geerefet to .etr() is a lazy property instead of a method
+        # TODO: Check if etr/eto is right (I think it is)
+        # TODO: Change .etr() in geerefet to a lazy property instead of a method
         if self.et_fraction_type.lower() == 'grass':
             import geerefet
             nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
                 .select(['temperature', 'specific_humidity', 'shortwave_radiation',
-                    'wind_u', 'wind_v'])\
-                .filterDate(ee.Date(self._time_start).advance(-1, 'hour'),
-                            ee.Date(self._time_start))
+                         'wind_u', 'wind_v'])\
+                .filterDate(self._date.advance(-1, 'hour'), self._date)
             nldas_img = ee.Image(nldas_coll.first())
-            # pprint.pprint(nldas_img.getInfo())
             etr = geerefet.Hourly.nldas(nldas_img).etr()
-            pprint.pprint(etr.getInfo())
             eto = geerefet.Hourly.nldas(nldas_img).eto()
-            pprint.pprint(eto.getInfo())
-
             et_fraction = et_fraction.multiply(etr).divide(eto)
 
         return et_fraction.set(self._properties) \
