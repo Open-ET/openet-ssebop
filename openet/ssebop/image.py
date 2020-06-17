@@ -246,7 +246,7 @@ class Image():
         )
 
         # TODO: Add support for setting the conversion source dataset
-        # TODO: Interpolate "instantaneous" ETo and ETr
+        # TODO: Interpolate "instantaneous" ETo and ETr?
         # TODO: Update geerefet version on pypi
         # TODO: Add geerefet to environement/requirements (geerefet>=0.1.13)
         # TODO: Move geerefet import to top
@@ -263,6 +263,31 @@ class Image():
             etr = geerefet.Hourly.nldas(nldas_img).etr()
             eto = geerefet.Hourly.nldas(nldas_img).eto()
             et_fraction = et_fraction.multiply(etr).divide(eto)
+
+            # # CGM - Sample code for interpolating NLDAS to the Landsat scene time
+            # # Need to check if the NLDAS images are instantaneous
+            # #   or some sort of average of the previous or next hour
+            # # The 2 hour window is useful in case an image is missing
+            # nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
+            #     .select(['temperature', 'specific_humidity', 'shortwave_radiation',
+            #              'wind_u', 'wind_v'])
+            # nldas_prev_image = ee.Image(nldas_coll
+            #     .filterDate(self._time_start.subtract(2 * 60 * 60 * 1000),
+            #                 self._time_start)
+            #     .limit(1, 'system:time_start', False).first())
+            # nldas_next_image = ee.Image(nldas_coll
+            #     .filterDate(self._time_start,
+            #                 self._time_start.add(2 * 60 * 60 * 1000))
+            #     .first())
+            # nldas_prev_time = ee.Number(nldas_prev_image.get('system:time_start'))
+            # nldas_next_time = ee.Number(nldas_next_image.get('system:time_start'))
+            # # Calculate time ratio of Landsat image between NLDAS images
+            # time_ratio_image = ee.Image.constant(self._time_start.subtract(nldas_prev_time)\
+            #     .divide(nldas_next_time.subtract(nldas_prev_time)))
+            # # Interpolate NLDAS values at Landsat image time
+            # nldas_image = nldas_next_image.subtract(nldas_prev_image)\
+            #     .multiply(time_ratio_image).add(nldas_prev_image)\
+            #     .set({'system:time_start': self._time_start})
 
         return et_fraction.set(self._properties) \
             .set({'tcorr_index': self.tcorr.get('tcorr_index')})
