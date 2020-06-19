@@ -72,7 +72,7 @@ Example
 
     landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
     et_fraction = ssebop.Image.from_landsat_c1_toa(landsat_img).et_fraction
-    et_reference = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('eto')
+    et_reference = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('etr')
     et_actual = et_fraction.multiply(et_reference)
 
 Custom Input Image
