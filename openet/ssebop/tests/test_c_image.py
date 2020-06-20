@@ -1169,8 +1169,6 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     assert output['tcorr_count'] == expected['tcorr_count']
 
 
-
-
 # def test_Image_et_fraction_properties():
 #     """Test if properties are set on the ETf image"""
 #     output = utils.getinfo(default_image_obj().et_fraction)
@@ -1195,7 +1193,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     'et_fraction_type, expected',
     [
         # ['alfalfa', 0.88],
-        ['grass', 0.88 * 1.2496],
+        ['grass', 0.88 * 1.24],
         # ['Grass', 0.88 * 0.5],
     ]
 )

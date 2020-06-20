@@ -257,40 +257,39 @@ class Image():
             import geerefet
             nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
                 .select(['temperature', 'specific_humidity', 'shortwave_radiation',
-                         'wind_u', 'wind_v'])\
-                .filterDate(self._date.advance(-1, 'hour'), self._date)
-            nldas_img = ee.Image(nldas_coll.first())
-            etr = geerefet.Hourly.nldas(nldas_img).etr()
-            eto = geerefet.Hourly.nldas(nldas_img).eto()
-            et_fraction = et_fraction.multiply(etr).divide(eto)
-
-            # # CGM - Sample code for interpolating NLDAS to the Landsat scene time
-            # # Need to check if the NLDAS images are instantaneous
-            # #   or some sort of average of the previous or next hour
-            # # The 2 hour window is useful in case an image is missing
-            # nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
-            #     .select(['temperature', 'specific_humidity', 'shortwave_radiation',
-            #              'wind_u', 'wind_v'])
-            # nldas_prev_image = ee.Image(nldas_coll
-            #     .filterDate(self._time_start.subtract(2 * 60 * 60 * 1000),
-            #                 self._time_start)
-            #     .limit(1, 'system:time_start', False).first())
-            # nldas_next_image = ee.Image(nldas_coll
-            #     .filterDate(self._time_start,
-            #                 self._time_start.add(2 * 60 * 60 * 1000))
+                         'wind_u', 'wind_v'])
+            # # DEADBEEF - Select NLDAS image before the Landsat scene time
+            # nldas_img = ee.Image(nldas_coll
+            #     .filterDate(self._date.advance(-1, 'hour'), self._date)
             #     .first())
-            # nldas_prev_time = ee.Number(nldas_prev_image.get('system:time_start'))
-            # nldas_next_time = ee.Number(nldas_next_image.get('system:time_start'))
-            # # Calculate time ratio of Landsat image between NLDAS images
-            # time_ratio_image = ee.Image.constant(self._time_start.subtract(nldas_prev_time)\
-            #     .divide(nldas_next_time.subtract(nldas_prev_time)))
-            # # Interpolate NLDAS values at Landsat image time
-            # nldas_image = nldas_next_image.subtract(nldas_prev_image)\
-            #     .multiply(time_ratio_image).add(nldas_prev_image)\
-            #     .set({'system:time_start': self._time_start})
+
+            # Interpolating hourly NLDAS to the Landsat scene time
+            # CGM - The 2 hour window is useful in case an image is missing
+            #   I think EEMETRIC is using a 4 hour window
+            # CGM - Need to check if the NLDAS images are instantaneous
+            #   or some sort of average of the previous or next hour
+            time_start = ee.Number(self._time_start)
+            nldas_prev_img = ee.Image(nldas_coll
+                .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
+                .limit(1, 'system:time_start', False).first())
+            nldas_next_img = ee.Image(nldas_coll
+                .filterDate(time_start, time_start.add(2 * 60 * 60 * 1000))
+                .first())
+            nldas_prev_time = ee.Number(nldas_prev_img.get('system:time_start'))
+            nldas_next_time = ee.Number(nldas_next_img.get('system:time_start'))
+            time_ratio = time_start.subtract(nldas_prev_time)\
+                .divide(nldas_next_time.subtract(nldas_prev_time))
+            nldas_img = nldas_next_img.subtract(nldas_prev_img)\
+                .multiply(time_ratio).add(nldas_prev_img)\
+                .set({'system:time_start': self._time_start})
+
+            et_fraction = et_fraction\
+                .multiply(geerefet.Hourly.nldas(nldas_img).etr())\
+                .divide(geerefet.Hourly.nldas(nldas_img).eto())
 
         return et_fraction.set(self._properties) \
-            .set({'tcorr_index': self.tcorr.get('tcorr_index')})
+            .set({'tcorr_index': self.tcorr.get('tcorr_index'),
+                  'et_fraction_type': self.et_fraction_type.lower()})
 
     @lazy_property
     def et_reference(self):
