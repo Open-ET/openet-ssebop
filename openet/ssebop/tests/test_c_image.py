@@ -139,7 +139,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V0'
     assert m._elev_source == 'SRTM'
-    assert m._tcorr_source == 'SCENE'
+    assert m._tcorr_source == 'DYNAMIC'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     assert m._dt_min == 6

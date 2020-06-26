@@ -42,7 +42,7 @@ class Image():
             et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V0',
             elev_source='SRTM',
-            tcorr_source='SCENE',
+            tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=6,
@@ -75,12 +75,10 @@ class Image():
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
-        tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
+        tcorr_source : {'DYNAMIC',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
-                        'SCENE_ANNUAL', 'SCENE_DEFAULT'
-                        'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
-                        'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
-            Tcorr source keyword (the default is 'IMAGE').
+                        'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
+            Tcorr source keyword (the default is 'DYNAMIC').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'DAYMET_MEDIAN_V2',
                        'TOPOWX_MEDIAN_V0', or float}, optional
             Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
