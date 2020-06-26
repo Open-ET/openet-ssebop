@@ -15,7 +15,8 @@ SCENE_ID = 'LC08_042035_20150713'
 SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
 SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
 SCENE_DOY = int(SCENE_DT.strftime('%j'))
-SCENE_TIME = utils.millis(SCENE_DT)
+# SCENE_TIME = utils.millis(SCENE_DT)
+SCENE_TIME = 1436812419150
 SCENE_POINT = (-119.5, 36.0)
 TEST_POINT = (-119.44252382373145, 36.04047742246546)
 
@@ -33,7 +34,7 @@ def toa_image(red=0.1, nir=0.9, bt=305):
     return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
         .rename(['red', 'nir', 'tir'])\
         .set({
-            'system:time_start': ee.Date(SCENE_DATE).millis(),
+            'system:time_start': SCENE_TIME,
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
@@ -53,7 +54,7 @@ def default_image(lst=305, ndvi=0.8):
         .rename(['lst', 'ndvi']) \
         .set({
             'system:index': SCENE_ID,
-            'system:time_start': ee.Date(SCENE_DATE).millis(),
+            'system:time_start': SCENE_TIME,
             'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
     # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
@@ -79,6 +80,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        tmax_source=310.15,
                        dt_resample='nearest',
                        tmax_resample='nearest',
+                       et_fraction_type='alfalfa',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -93,6 +95,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'tmax_source': tmax_source,
         'dt_resample': dt_resample,
         'tmax_resample': tmax_resample,
+        'et_fraction_type': et_fraction_type,
     }
 
 
@@ -109,6 +112,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       tmax_source=310.15,
                       dt_resample='nearest',
                       tmax_resample='nearest',
+                      et_fraction_type='alfalfa',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -123,6 +127,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         tmax_source=tmax_source,
         dt_resample=dt_resample,
         tmax_resample=tmax_resample,
+        et_fraction_type=et_fraction_type,
     ))
 
 
@@ -134,7 +139,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V0'
     assert m._elev_source == 'SRTM'
-    assert m._tcorr_source == 'SCENE'
+    assert m._tcorr_source == 'DYNAMIC'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     assert m._dt_min == 6
@@ -157,9 +162,11 @@ def test_Image_init_date_properties():
     assert utils.getinfo(m._date)['value'] == SCENE_TIME
     assert utils.getinfo(m._year) == int(SCENE_DATE.split('-')[0])
     assert utils.getinfo(m._month) == int(SCENE_DATE.split('-')[1])
-    assert utils.getinfo(m._start_date)['value'] == SCENE_TIME
-    assert utils.getinfo(m._end_date)['value'] == utils.millis(
-        SCENE_DT + datetime.timedelta(days=1))
+    assert utils.getinfo(m._start_date)['value'] == utils.millis(SCENE_DT)
+    assert utils.getinfo(m._end_date)['value'] == (
+        utils.millis(SCENE_DT) + 24 * 3600 * 1000)
+    # assert utils.getinfo(m._end_date)['value'] == utils.millis(
+    #     SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
     assert utils.getinfo(m._cycle_day) == int(
         (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
@@ -881,13 +888,14 @@ def test_Image_time_properties():
 
 
 def test_Image_time_values():
+    # The time band should be the 0 UTC datetime, not the system:time_start
     # The time image is currently being built from the et_fraction image, so all
     #   the ancillary values must be set.
     output_img = default_image_obj(
         ndvi=0.5, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).time
     output = utils.point_image_value(output_img, TEST_POINT)
-    assert output['time'] == SCENE_TIME
+    assert output['time'] == utils.millis(SCENE_DT)
 
 
 def test_Image_calculate_properties():
@@ -1159,3 +1167,46 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
         tmax_resample='nearest').tcorr_stats)
     assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']
+
+
+# def test_Image_et_fraction_properties():
+#     """Test if properties are set on the ETf image"""
+#     output = utils.getinfo(default_image_obj().et_fraction)
+#     assert output['bands'][0]['id'] == 'et_fraction'
+#     assert output['properties']['system:index'] == SCENE_ID
+#     assert output['properties']['system:time_start'] == SCENE_TIME
+#
+#
+# @pytest.mark.parametrize(
+#     'dt, elev, tcorr, tmax, expected', [[10, 50, 0.98, 310, 0.88]]
+# )
+# def test_Image_et_fraction_values(dt, elev, tcorr, tmax, expected, tol=0.0001):
+#     output_img = default_image_obj(
+#         dt_source=dt, elev_source=elev,
+#         tcorr_source=tcorr, tmax_source=tmax).et_fraction
+#     output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
+#     assert abs(output['et_fraction'] - expected) <= tol
+#     # assert output['et_fraction'] > 0
+
+
+@pytest.mark.parametrize(
+    'et_fraction_type, expected',
+    [
+        # ['alfalfa', 0.88],
+        ['grass', 0.88 * 1.24],
+        # ['Grass', 0.88 * 0.5],
+    ]
+)
+def test_Image_et_fraction_type(et_fraction_type, expected, tol=0.0001):
+    output_img = default_image_obj(
+        dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310,
+        et_fraction_type=et_fraction_type).et_fraction
+    output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
+    assert abs(output['et_fraction'] - expected) <= tol
+    # assert output['bands'][0]['id'] == 'et_fraction'
+
+
+def test_Image_et_fraction_type_exception():
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(et_fraction_type='deadbeef').et_fraction)

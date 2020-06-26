@@ -42,11 +42,12 @@ class Image():
             et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V0',
             elev_source='SRTM',
-            tcorr_source='SCENE',
+            tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=6,
             dt_max=25,
+            et_fraction_type='alfalfa',
             **kwargs,
         ):
         """Construct a generic SSEBop Image
@@ -74,12 +75,10 @@ class Image():
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
-        tcorr_source : {'FEATURE', 'FEATURE_MONTHLY', 'FEATURE_ANNUAL',
+        tcorr_source : {'DYNAMIC',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
-                        'SCENE_ANNUAL', 'SCENE_DEFAULT'
-                        'IMAGE', 'IMAGE_DAILY', 'IMAGE_MONTHLY',
-                        'IMAGE_ANNUAL', 'IMAGE_DEFAULT', or float}, optional
-            Tcorr source keyword (the default is 'IMAGE').
+                        'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
+            Tcorr source keyword (the default is 'DYNAMIC').
         tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'DAYMET_MEDIAN_V2',
                        'TOPOWX_MEDIAN_V0', or float}, optional
             Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
@@ -90,6 +89,8 @@ class Image():
             Minimum allowable dT [K] (the default is 6).
         dt_max : float, optional
             Maximum allowable dT [K] (the default is 25).
+        et_fraction_type : {'alfalfa', 'grass'}, optional
+            ET fraction  (the default is 'alfalfa').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -188,6 +189,15 @@ class Image():
         else:
             self._tmax_resample = 'bilinear'
 
+        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
+            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
+        self.et_fraction_type = et_fraction_type.lower()
+        # CGM - Should et_fraction_type be set as a kwarg instead?
+        # if 'et_fraction_type' in kwargs.keys():
+        #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
+        # else:
+        #     self.et_fraction_type = 'alfalfa'
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -233,8 +243,51 @@ class Image():
             elr_flag=self._elr_flag, elev=self.elev,
         )
 
+        # TODO: Add support for setting the conversion source dataset
+        # TODO: Interpolate "instantaneous" ETo and ETr?
+        # TODO: Update geerefet version on pypi
+        # TODO: Add geerefet to environement/requirements (geerefet>=0.1.13)
+        # TODO: Move geerefet import to top
+        # TODO: Fork geerefet to openet as "openet-refet-gee"
+        # TODO: Check if etr/eto is right (I think it is)
+        # TODO: Change .etr() in geerefet to a lazy property instead of a method
+        if self.et_fraction_type.lower() == 'grass':
+            import geerefet
+            nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
+                .select(['temperature', 'specific_humidity', 'shortwave_radiation',
+                         'wind_u', 'wind_v'])
+            # # DEADBEEF - Select NLDAS image before the Landsat scene time
+            # nldas_img = ee.Image(nldas_coll
+            #     .filterDate(self._date.advance(-1, 'hour'), self._date)
+            #     .first())
+
+            # Interpolating hourly NLDAS to the Landsat scene time
+            # CGM - The 2 hour window is useful in case an image is missing
+            #   I think EEMETRIC is using a 4 hour window
+            # CGM - Need to check if the NLDAS images are instantaneous
+            #   or some sort of average of the previous or next hour
+            time_start = ee.Number(self._time_start)
+            nldas_prev_img = ee.Image(nldas_coll
+                .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
+                .limit(1, 'system:time_start', False).first())
+            nldas_next_img = ee.Image(nldas_coll
+                .filterDate(time_start, time_start.add(2 * 60 * 60 * 1000))
+                .first())
+            nldas_prev_time = ee.Number(nldas_prev_img.get('system:time_start'))
+            nldas_next_time = ee.Number(nldas_next_img.get('system:time_start'))
+            time_ratio = time_start.subtract(nldas_prev_time)\
+                .divide(nldas_next_time.subtract(nldas_prev_time))
+            nldas_img = nldas_next_img.subtract(nldas_prev_img)\
+                .multiply(time_ratio).add(nldas_prev_img)\
+                .set({'system:time_start': self._time_start})
+
+            et_fraction = et_fraction\
+                .multiply(geerefet.Hourly.nldas(nldas_img).etr())\
+                .divide(geerefet.Hourly.nldas(nldas_img).eto())
+
         return et_fraction.set(self._properties) \
-            .set({'tcorr_index': self.tcorr.get('tcorr_index')})
+            .set({'tcorr_index': self.tcorr.get('tcorr_index'),
+                  'et_fraction_type': self.et_fraction_type.lower()})
 
     @lazy_property
     def et_reference(self):
