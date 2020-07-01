@@ -20,10 +20,9 @@ def pytest_configure():
         GEE_KEY_FILE = 'privatekey.json'
         with open(GEE_KEY_FILE, 'w') as f:
             f.write(content)
-        ee.Initialize(ee.ServiceAccountCredentials('', key_file=GEE_KEY_FILE),
-                      use_cloud_api=True)
+        ee.Initialize(ee.ServiceAccountCredentials('', key_file=GEE_KEY_FILE))
     else:
-        ee.Initialize(use_cloud_api=True)
+        ee.Initialize()
 
 
 @pytest.fixture(scope="session", autouse=True)

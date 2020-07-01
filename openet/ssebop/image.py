@@ -245,22 +245,14 @@ class Image():
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
-        # TODO: Update geerefet version on pypi
-        # TODO: Add geerefet to environement/requirements (geerefet>=0.1.13)
-        # TODO: Move geerefet import to top
-        # TODO: Fork geerefet to openet as "openet-refet-gee"
+        # TODO: Move openet.refetgee import to top?
         # TODO: Check if etr/eto is right (I think it is)
-        # TODO: Change .etr() in geerefet to a lazy property instead of a method
         if self.et_fraction_type.lower() == 'grass':
-            import geerefet
+            import openet.refetgee
             nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
                 .select(['temperature', 'specific_humidity', 'shortwave_radiation',
                          'wind_u', 'wind_v'])
-            # # DEADBEEF - Select NLDAS image before the Landsat scene time
-            # nldas_img = ee.Image(nldas_coll
-            #     .filterDate(self._date.advance(-1, 'hour'), self._date)
-            #     .first())
-
+            
             # Interpolating hourly NLDAS to the Landsat scene time
             # CGM - The 2 hour window is useful in case an image is missing
             #   I think EEMETRIC is using a 4 hour window
@@ -281,9 +273,14 @@ class Image():
                 .multiply(time_ratio).add(nldas_prev_img)\
                 .set({'system:time_start': self._time_start})
 
+            # # DEADBEEF - Select NLDAS image before the Landsat scene time
+            # nldas_img = ee.Image(nldas_coll
+            #     .filterDate(self._date.advance(-1, 'hour'), self._date)
+            #     .first())
+
             et_fraction = et_fraction\
-                .multiply(geerefet.Hourly.nldas(nldas_img).etr())\
-                .divide(geerefet.Hourly.nldas(nldas_img).eto())
+                .multiply(openet.refetgee.Hourly.nldas(nldas_img).etr)\
+                .divide(openet.refetgee.Hourly.nldas(nldas_img).eto)
 
         return et_fraction.set(self._properties) \
             .set({'tcorr_index': self.tcorr.get('tcorr_index'),
