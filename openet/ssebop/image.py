@@ -1141,6 +1141,7 @@ class Image():
         return cls(input_image, **kwargs)
 
     # TODO: Move calculation to model.py
+    # initial commit of c-factor branc
     @lazy_property
     def tcorr_image(self):
         """Compute Tcorr for the current image
