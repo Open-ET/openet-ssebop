@@ -4,9 +4,9 @@ import pprint
 
 import ee
 
-from . import landsat
-from . import model
-from . import utils
+from openet.ssebop import landsat
+from openet.ssebop import model
+from openet.ssebop import utils
 import openet.core.common as common
 # TODO: import utils from common
 # import openet.core.utils as utils
