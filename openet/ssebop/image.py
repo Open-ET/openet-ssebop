@@ -101,6 +101,7 @@ class Image():
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """
+        print('Hello SSEBop! This is the gridded-c Branch of this model!')
         self.image = ee.Image(image)
 
         # Set as "lazy_property" below in order to return custom properties
@@ -1010,6 +1011,7 @@ class Image():
         Image
 
         """
+        print('gridded-C branch!')
         toa_image = ee.Image(toa_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
