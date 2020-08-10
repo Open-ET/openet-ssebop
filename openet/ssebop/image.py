@@ -1180,7 +1180,17 @@ class Image():
         # =================Gridded Tcorr===================
         # =================================================
 
+        # todo - get tcorr crs
+        tcorr_crs = None
+        tcorr_5km_trans = None
+        # todo - get tcorr geotransform
+        tcorr_trans = None
+
         # 1) Resample to 5km taking 5th percentile
+        # reproject and then do a reduce resolution call and reproject again
+        cFact_img5k = tcorr_img.reproject(tcorr_crs, tcorr_trans)\
+                                  .reduceResolution(ee.Reducer.percentile({'percentiles': [5]}), True, 30000)\
+                                  .reproject(tcorr_crs, tcorr_5km_trans).select([0], ['tcorr'])
         # 2) Do a round of focal means
         # 3)
 
