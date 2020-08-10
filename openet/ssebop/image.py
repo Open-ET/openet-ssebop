@@ -355,6 +355,7 @@ class Image():
     @lazy_property
     def ndvi(self):
         """Input normalized difference vegetation index (NDVI)"""
+        print('lazy NDVI for gridded C')
         return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
