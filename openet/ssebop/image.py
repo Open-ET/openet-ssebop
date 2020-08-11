@@ -1290,8 +1290,8 @@ var cFact_img5k_rn_256 = cFact_img5k
         # return tcorr_img.select(['tcorr']).set(self._properties)
 
         # return the smoothed mosaic
-        fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).select([0], ['tcorr'])
-        return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
+        fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).float().select([0], ['tcorr'])
+        return fm_smooth_mosaic.select(['tcorr'])#.set(self._properties)
 
         # # return a smoothed or not smoothed mosaic. TODO: Decide which l8er on...
         # if not smoothed:
