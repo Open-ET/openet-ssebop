@@ -1260,6 +1260,8 @@ class Image():
                   'tmax_source': tmax.get('tmax_source'),
                   'tmax_version': tmax.get('tmax_version')})
 
+
+        # return tcorr_img
         # =================================================
         # =================Gridded Tcorr===================
         # =================================================
@@ -1280,58 +1282,62 @@ class Image():
 
         # 1) Resample to 5km taking 5th percentile
         # reproject and then do a reduce resolution call and reproject again
+        # todo - try simplifying this call to isolate the error.
         cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans)\
                     .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]), bestEffort=True, maxPixels=30000)\
                     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0], ['tcorr'])
 
-        # 2) Do a round of focal means
-        cFact_img5k_fm_1 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=1, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_2 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=2, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_4 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=4, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_8 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=8, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_16 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=16, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_32 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=32, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_64 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=64, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_128 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=128, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        return cFact_img5k.select('tcorr').set(self._properties)
 
-        # # TESTING
-        # return cFact_img5k_fm_4.select([0]).set(self._properties)
+        # TODO - Charles help us...
 
-        # TODO - complains that the Kernel is too large. size 513 max size 512?
-        # cFact_img5k_fm_256 = cFact_img5k\
-        #     .focal_mean(kernel=ee.Kernel.circle(radius=256, units='pixels'), units='pixels')\
+        # # 2) Do a round of focal means
+        # cFact_img5k_fm_1 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=1, units='pixels'), units='pixels')\
         #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-
-        # 3) Mosaic and smooth
-        # TODO - consider not including the original 5k?
-        fm_mosaic = ee.Image([cFact_img5k, cFact_img5k_fm_2, cFact_img5k_fm_4, cFact_img5k_fm_8, cFact_img5k_fm_16, cFact_img5k_fm_32, cFact_img5k_fm_64, cFact_img5k_fm_128]).select([0], ['tcorr'])
-
-
-        # # OLD return
-        # return tcorr_img.select(['tcorr']).set(self._properties)
-
-        # return the smoothed mosaic
-        fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).float().select([0], ['tcorr'])
-        return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
-
-        # return cFact_img5k.select(['tcorr']).set(self._properties)
-
+        # cFact_img5k_fm_2 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=2, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_4 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=4, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_8 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=8, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_16 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=16, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_32 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=32, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_64 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=64, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        # cFact_img5k_fm_128 = cFact_img5k\
+        #     .focal_mean(kernel=ee.Kernel.circle(radius=128, units='pixels'), units='pixels')\
+        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        #
+        # # # TESTING
+        # # return cFact_img5k_fm_4.select([0]).set(self._properties)
+        #
+        # # TODO - complains that the Kernel is too large. size 513 max size 512?
+        # # cFact_img5k_fm_256 = cFact_img5k\
+        # #     .focal_mean(kernel=ee.Kernel.circle(radius=256, units='pixels'), units='pixels')\
+        # #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
+        #
+        # # 3) Mosaic and smooth
+        # # TODO - consider not including the original 5k?
+        # fm_mosaic = ee.Image([cFact_img5k, cFact_img5k_fm_2, cFact_img5k_fm_4, cFact_img5k_fm_8, cFact_img5k_fm_16, cFact_img5k_fm_32, cFact_img5k_fm_64, cFact_img5k_fm_128]) #.select([0], ['tcorr'])
+        #
+        #
+        # # # OLD return
+        # # return tcorr_img.select(['tcorr']).set(self._properties)
+        #
+        # # return the smoothed mosaic
+        # fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).float().select([0], ['tcorr'])
+        # return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
+        #
+        # # return cFact_img5k.select(['tcorr']).set(self._properties)
 
     # TODO: Move calculation to model.py
     @lazy_property
