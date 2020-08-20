@@ -1149,7 +1149,7 @@ class Image():
         return cls(input_image, **kwargs)
 
     @lazy_property
-    def tcorr_image_gridded_rn(self):
+    def tcorr_image_gridded(self):
         """Compute Tcorr for the current image
 
                 Returns
@@ -1250,117 +1250,6 @@ class Image():
         # return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
         # # return fm_coarse_mosaic.select(['tcorr']).set(self._properties)
 
-    @lazy_property
-    def tcorr_image_gridded_focal(self):
-        """Compute Tcorr for the current image
-
-                Returns
-                -------
-                ee.Image of Tcorr values
-
-        """
-
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
-
-        # Compute Tcorr
-        tcorr = lst.divide(tmax)
-
-        # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
-            .reproject(crs=self.crs, crsTransform=self.transform) \
-            .gt(0.7)
-        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
-            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-
-        tcorr_img = tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
-
-
-        # return tcorr_img
-        # =================================================
-        # =================Gridded Tcorr===================
-        # =================================================
-
-        # TODO - is it necessary to have the dimensions beforehand?
-        # imageproperties = {
-        #     'system:index': self._index,
-        #     'system:time_start': self._time_start,
-        #     'image_id': self._id,
-        #     'dimensions': [46, 47],
-        # }
-
-        # todo - get tcorr crs from an extant image
-        tcorr_crs = 'EPSG:32610'
-        tcorr_5km_trans = [5000, 0, 569085, 0, -5000, 4106115]
-        # todo - get tcorr geotransform from an extant image
-        tcorr_trans = [30, 0, 569085, 0, -30, 4106115]
-
-        # 1) Resample to 5km taking 5th percentile
-        # reproject and then do a reduce resolution call and reproject again
-        # todo - try simplifying this call to isolate the error.
-        cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans)\
-                    .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]), bestEffort=True, maxPixels=30000)\
-                    .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0], ['tcorr'])
-
-        # return cFact_img5k.select('tcorr').set(self._properties)
-
-        # TODO - Try an export call to load as an asset n see if it can be seen.
-
-        # 2) Do a round of focal means
-        cFact_img5k_fm_1 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=1, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_2 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=2, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_4 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=4, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_8 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=8, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_16 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=16, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_32 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=32, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_64 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=64, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-        cFact_img5k_fm_128 = cFact_img5k\
-            .focal_mean(kernel=ee.Kernel.circle(radius=128, units='pixels'), units='pixels')\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-
-        # # TESTING
-        # return cFact_img5k_fm_4.select([0]).set(self._properties)
-
-        # TODO - complains that the Kernel is too large. size 513 max size 512?
-        # cFact_img5k_fm_256 = cFact_img5k\
-        #     .focal_mean(kernel=ee.Kernel.circle(radius=256, units='pixels'), units='pixels')\
-        #     .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans)
-
-        # 3) Mosaic and smooth
-        # TODO - consider not including the original 5k?
-        fm_mosaic = ee.Image([cFact_img5k, cFact_img5k_fm_2, cFact_img5k_fm_4, cFact_img5k_fm_8, cFact_img5k_fm_16, cFact_img5k_fm_32, cFact_img5k_fm_64, cFact_img5k_fm_128])
-
-        # return the smoothed mosaic
-        # fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).float().select([0], ['tcorr'])
-        # or a coarse one?
-        fm_coarse_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.firstNonNull()).float().select([0], ['tcorr'])
-
-        # return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
-        return fm_coarse_mosaic.select(['tcorr']).set(self._properties)
-
-    # TODO: Move calculation to model.py
     @lazy_property
     def tcorr_image(self):
         """Compute Tcorr for the current image
