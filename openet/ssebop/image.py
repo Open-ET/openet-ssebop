@@ -75,7 +75,7 @@ class Image():
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
-        tcorr_source : {'DYNAMIC',
+        tcorr_source : {'DYNAMIC', 'GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'DYNAMIC').
@@ -528,7 +528,6 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': 4})
 
-
         elif 'DYNAMIC' == self._tcorr_source.upper():
             # Compute Tcorr dynamically for the scene
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
@@ -651,8 +650,8 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
-        elif 'GRIDDED' in self._tcorr_source.upper:
-            # Compute Tcorr dynamically for the scene
+        elif 'GRIDDED' in self._tcorr_source.upper():
+            # Compute gridded Tcorr for the scene
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             month_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
@@ -696,7 +695,7 @@ class Image():
             # # tcorr_index = ee.Number(
             # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
 
-            gridded_cfactor = self.tcorr_image_gridded
+            scene_img = self.tcorr_image_gridded
 
             # # TODO - we will make all of this happen in gridded cfactor
             # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
@@ -707,7 +706,7 @@ class Image():
 
             # tcorr_coll = ee.ImageCollection([scene_img])
 
-            tcorr_coll = ee.ImageCollection([gridded_cfactor]) \
+            tcorr_coll = ee.ImageCollection([scene_img]) \
                 .merge(month_coll).merge(annual_coll) \
                 .merge(default_coll).merge(mask_coll) \
                 .sort('tcorr_index')
