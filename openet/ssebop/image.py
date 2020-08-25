@@ -42,7 +42,7 @@ class Image():
             et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V0',
             elev_source='SRTM',
-            tcorr_source='DYNAMIC',
+            tcorr_source='GRIDDED',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=6,
@@ -588,6 +588,7 @@ class Image():
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
         elif 'SCENE' in self._tcorr_source.upper():
+
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             scene_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
@@ -651,7 +652,7 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
-        elif 'GRIDDED' in self._tcorr_source.upper:
+        elif 'GRIDDED' == self._tcorr_source.upper():
             # Compute Tcorr dynamically for the scene
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             month_dict = {
@@ -685,27 +686,9 @@ class Image():
                 .filterMetadata('month', 'equals', self._month) \
                 .select(['tcorr'])
 
-            # TODO: don't call tstats call the correct
-            # the minimum pixel count for a
-            MIN_PIXEL_COUNT = 10
-            # t_stats = ee.Dictionary(self.tcorr_stats) \
-            #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            # tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
-            # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-            # tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-            # # tcorr_index = ee.Number(
-            # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
-
+            # checking for a minimum tcorr pixel count should be done insde tcorr_image_gridded
+            MIN_PIXEL_COUNT = 1000
             gridded_cfactor = self.tcorr_image_gridded
-
-            # # TODO - we will make all of this happen in gridded cfactor
-            # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-            # scene_img = mask_img.multiply(tcorr_value) \
-            #     .updateMask(mask_img.unmask(0)) \
-            #     .rename(['tcorr']) \
-            #     .set({'tcorr_index': tcorr_index})
-
-            # tcorr_coll = ee.ImageCollection([scene_img])
 
             tcorr_coll = ee.ImageCollection([gridded_cfactor]) \
                 .merge(month_coll).merge(annual_coll) \
@@ -1242,36 +1225,54 @@ class Image():
         # =================================================
         # =================Gridded Tcorr===================
         # =================================================
-
+        MIN_PIXEL_COUNT = 10
+        # TODO - for weighting
+        MAX_PIXEL_COUNT = 27225
         tcorr_crs = self.crs
         tcorr_trans = self.transform
         # TODO - hardcoded for now but use a server side GEE list object to operationally call transform info.
         tcorr_5km_trans = [5000, 0, 15, 0, -5000, 15]
 
-        # 1) Resample to 5km taking 5th percentile
+        # Resample to 5km taking 5th percentile
         # reproject and then do a reduce resolution call and reproject again
-        # TODO - combine a count reducer, make sure to check how many bands are produced due to the count
+        # combine a count reducer, make sure to check how many bands are produced due to the count
         cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans) \
-            .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer=ee.Reducer.count(), sharedInputs=True),
+            .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
                               bestEffort=True, maxPixels=30000)\
             .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
 
-        # STEP 1 - analysis of cfactor accuracy from GRIDDED mode.
-        return cFact_img5k.select(['tcorr']).set(self._properties)
-        # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
-        # # todo - do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
+        # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
         # #  decision making tool if there are too few 5km calibration pixels in any one image.
+        # TODO - slow...
+        tcorr_scene_count = tcorr_img.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
+                                             scale=None, crs=None, crsTransform=None,
+                                             bestEffort=True, maxPixels=10000000)
+        # set the count as a property.
+        cFact_img5k = cFact_img5k.set({'tcorr_scene_count': tcorr_scene_count})
+
+        cfact_5km = cFact_img5k.select(['tcorr']).set(self._properties)
+        tcorr_count_band = cFact_img5k.select(['count']).set(self._properties)
+
+        # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
+        cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
+        #return cfact_5km
+
         """
+        Do we really want to do it this way rather than how I did it above?
         mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
             scene_img = mask_img.multiply(tcorr_value) \
                 .updateMask(mask_img.unmask(0)) \
                 .rename(['tcorr']) \
                 .set({'tcorr_index': tcorr_index})
         """
+
         # # how do we weight a pixel with a higher tcorr count? use a band as a weighting option?
         # # ---get rid of the old mask and replace with a FLOAT mask as a weighting tool.---
         # # Do an update_mask() call... if you pass it a floating point between 0.0 and 1.0 calculated by:
         # # floatMask = ((countband)/(posible or optimal 30km Tcorr pixels in 5km pixel))
+
+        floatMask = (tcorr_count_band/())
+
         """By default, mean takes the pixel mask into account, weighting the inputs by the fraction of 
         the pixel that's included, whereas count and stdDev do not.  But when you combine reducers,
         they all end up sharing a single weighting interpretation.
