@@ -1243,7 +1243,7 @@ class Image():
 
         # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
         # #  decision making tool if there are too few 5km calibration pixels in any one image.
-        # TODO - slow...
+        # TODO - slow.....
         tcorr_scene_count = tcorr_img.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
                                              scale=None, crs=None, crsTransform=None,
                                              bestEffort=True, maxPixels=10000000)
