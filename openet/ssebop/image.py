@@ -652,7 +652,7 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
-        elif 'GRIDDED' in self._tcorr_source.upper():
+        elif 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             month_dict = {
@@ -686,180 +686,29 @@ class Image():
                 .filterMetadata('month', 'equals', self._month) \
                 .select(['tcorr'])
 
-            # checking for a minimum tcorr pixel count should be done insde tcorr_image_gridded
-            MIN_PIXEL_COUNT = 1000
+            # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
+            MIN_PIXEL_COUNT = 5
             gridded_cfactor = self.tcorr_image_gridded
 
-            tcorr_coll = ee.ImageCollection([gridded_cfactor]) \
+            # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
+            cfactor_5km_count = ee.Number(gridded_cfactor.get('cfactor_5km_count'))
+            # TODO - hardcoding this for now
+            tcorr_index = ee.Number(0)
+            # tcorr_index = cfactor_5km_count.lt(MIN_PIXEL_COUNT).multiply(9)
+            # mask_img = mask_img.add(cfactor_5km_count.gte(MIN_PIXEL_COUNT))
+            # scene_img = mask_img.multiply(tcorr_value) \
+            #     .updateMask(mask_img.unmask(0)) \
+            #     .rename(['tcorr']) \
+            #     .set({'tcorr_index': tcorr_index})
+
+            scene_img = gridded_cfactor.set({'tcorr_index': tcorr_index})
+            # building a collection of the dynamic c-factor or fallback images.
+            tcorr_coll = ee.ImageCollection([scene_img]) \
                 .merge(month_coll).merge(annual_coll) \
                 .merge(default_coll).merge(mask_coll) \
                 .sort('tcorr_index')
 
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
-
-        # elif 'FEATURE' in self._tcorr_source.upper():
-        #     # Lookup Tcorr collections by keyword value
-        #
-        #     scene_coll_dict = {
-        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
-        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
-        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
-        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
-        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
-        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
-        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
-        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
-        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
-        #     }
-        #     month_coll_dict = {
-        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
-        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
-        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
-        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
-        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
-        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
-        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
-        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
-        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
-        #     }
-        #     # annual_coll_dict = {}
-        #     default_value_dict = {
-        #         'CIMIS': 0.978,
-        #         'DAYMET': 0.978,
-        #         'GRIDMET': 0.978,
-        #         'TOPOWX': 0.978,
-        #         'CIMIS_MEDIAN_V1': 0.978,
-        #         'DAYMET_MEDIAN_V0': 0.978,
-        #         'DAYMET_MEDIAN_V1': 0.978,
-        #         'GRIDMET_MEDIAN_V1': 0.978,
-        #         'TOPOWX_MEDIAN_V0': 0.978,
-        #         'TOPOWX_MEDIAN_V0B': 0.978,
-        #     }
-        #
-        #     # Check Tmax source value
-        #     if (utils.is_number(self._tmax_source) or
-        #             self._tmax_source.upper() not in default_value_dict.keys()):
-        #         raise ValueError(
-        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #     tmax_key = self._tmax_source.upper()
-        #
-        #     default_coll = ee.FeatureCollection([
-        #         ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
-        #     month_coll = ee.FeatureCollection(month_coll_dict[tmax_key])\
-        #         .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile)\
-        #         .filterMetadata('MONTH', 'equals', self._month)
-        #     if self._tcorr_source.upper() in ['FEATURE', 'SCENE']:
-        #         scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key])\
-        #             .filterMetadata('SCENE_ID', 'equals', self._scene_id)
-        #         tcorr_coll = ee.FeatureCollection(
-        #             default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
-        #     elif 'MONTH' in self._tcorr_source.upper():
-        #         tcorr_coll = ee.FeatureCollection(
-        #             default_coll.merge(month_coll)).sort('INDEX')
-        #     else:
-        #         raise ValueError(
-        #             'Invalid tcorr_source: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #
-        #     tcorr_ftr = ee.Feature(tcorr_coll.first())
-        #     tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-        #     tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-        #
-        #     return tcorr, tcorr_index
-        #
-        # elif 'IMAGE' in self._tcorr_source.upper():
-        #     # Lookup Tcorr collections by keyword value
-        #     daily_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
-        #     }
-        #     month_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
-        #     }
-        #     annual_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
-        #     }
-        #     default_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
-        #     }
-        #
-        #     # Check Tmax source value
-        #     if (utils.is_number(self._tmax_source) or
-        #             self._tmax_source.upper() not in default_dict.keys()):
-        #         raise ValueError(
-        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #     tmax_key = self._tmax_source.upper()
-        #
-        #     # The mask image will be merged into all the Tcorr image collections
-        #     #   to ensure that all collections (daily, monthly, annual) have data
-        #     #   even if the collection is empty
-        #     default_img = ee.Image(default_dict[tmax_key])
-        #     mask_img = default_img.updateMask(0)
-        #
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'DAILY' in self._tcorr_source.upper()):
-        #         daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
-        #             .filterDate(self._start_date, self._end_date)\
-        #             .select(['tcorr'])
-        #         # Assume there may be multiple daily images for the same date
-        #         # Use the one with the latest EXPORT_DATE property
-        #         daily_coll = daily_coll\
-        #             .limit(1, 'date_ingested', False)\
-        #             .merge(ee.ImageCollection(mask_img))
-        #         daily_img = ee.Image(daily_coll.mosaic())
-        #         # .filterMetadata('DATE', 'equals', self._date)
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'MONTH' in self._tcorr_source.upper()):
-        #         month_coll = ee.ImageCollection(month_dict[tmax_key])\
-        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-        #             .filterMetadata('month', 'equals', self._month)\
-        #             .select(['tcorr'])
-        #         month_coll = month_coll.merge(ee.ImageCollection(mask_img))
-        #         month_img = ee.Image(month_coll.mosaic())
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'ANNUAL' in self._tcorr_source.upper()):
-        #         annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-        #             .select(['tcorr'])
-        #         annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
-        #         annual_img = ee.Image(annual_coll.mosaic())
-        #
-        #     if self._tcorr_source.upper() == 'IMAGE':
-        #         # Composite Tcorr images to ensure that a value is returned
-        #         #   (even if the daily image doesn't exist)
-        #         composite_coll = ee.ImageCollection([
-        #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
-        #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-        #             month_img.addBands(month_img.multiply(0).add(1).uint8()),
-        #             daily_img.addBands(daily_img.multiply(0).uint8())])
-        #         composite_img = composite_coll.mosaic()
-        #         tcorr_img = composite_img.select([0], ['tcorr'])
-        #         index_img = composite_img.select([1], ['index'])
-        #     elif 'DAILY' in self._tcorr_source.upper():
-        #         tcorr_img = daily_img
-        #         index_img = daily_img.multiply(0).uint8()
-        #     elif 'MONTH' in self._tcorr_source.upper():
-        #         tcorr_img = month_img
-        #         index_img = month_img.multiply(0).add(1).uint8()
-        #     elif 'ANNUAL' in self._tcorr_source.upper():
-        #         tcorr_img = annual_img
-        #         index_img = annual_img.multiply(0).add(2).uint8()
-        #     elif 'DEFAULT' in self._tcorr_source.upper():
-        #         tcorr_img = default_img
-        #         index_img = default_img.multiply(0).add(3).uint8()
-        #     else:
-        #         raise ValueError(
-        #             'Invalid tcorr_source: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #
-        #     return tcorr_img, index_img.rename(['index'])
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
@@ -1226,7 +1075,7 @@ class Image():
         # =================Gridded Tcorr===================
         # =================================================
         MIN_PIXEL_COUNT = 10
-        # TODO - for weighting
+        # TODO - for weighting...
         MAX_PIXEL_COUNT = 27225
         tcorr_crs = self.crs
         tcorr_trans = self.transform
@@ -1234,86 +1083,91 @@ class Image():
         tcorr_5km_trans = [5000, 0, 15, 0, -5000, 15]
 
         # Resample to 5km taking 5th percentile
-        # reproject and then do a reduce resolution call and reproject again
-        # combine a count reducer, make sure to check how many bands are produced due to the count
+        #         # reproject and then do a reduce resolution call and re-project again
+        #         # combine a count reducer, make sure to check how many bands are produced due to the count
         cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans) \
             .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
                               bestEffort=True, maxPixels=30000)\
             .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
 
-        # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
-        # #  decision making tool if there are too few 5km calibration pixels in any one image.
-        # TODO - slow.....
-        tcorr_scene_count = tcorr_img.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
-                                             scale=None, crs=None, crsTransform=None,
-                                             bestEffort=True, maxPixels=10000000)
-        # set the count as a property.
-        cFact_img5k = cFact_img5k.set({'tcorr_scene_count': tcorr_scene_count})
+
 
         cfact_5km = cFact_img5k.select(['tcorr']).set(self._properties)
         tcorr_count_band = cFact_img5k.select(['count']).set(self._properties)
 
-        # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
-        cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
-        #return cfact_5km
+        # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
+        # #  decision making tool if there are too few 5km calibration pixels in any one image.
+        cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
+                                                   scale=None, crs=None, crsTransform=None,
+                                                   bestEffort=True, maxPixels=10000000)
+        # set the total 5km pixel count as a property
+        cfact_5km = cfact_5km.set({'cfactor_5km_count': cfactor_5km_count})
 
-        """
-        Do we really want to do it this way rather than how I did it above?
-        mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-            scene_img = mask_img.multiply(tcorr_value) \
-                .updateMask(mask_img.unmask(0)) \
-                .rename(['tcorr']) \
-                .set({'tcorr_index': tcorr_index})
-        """
+        # # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
+        # cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
+        return cfact_5km
 
-        # # how do we weight a pixel with a higher tcorr count? use a band as a weighting option?
-        # # ---get rid of the old mask and replace with a FLOAT mask as a weighting tool.---
-        # # Do an update_mask() call... if you pass it a floating point between 0.0 and 1.0 calculated by:
-        # # floatMask = ((countband)/(posible or optimal 30km Tcorr pixels in 5km pixel))
-
-        floatMask = (tcorr_count_band/())
-
-        """By default, mean takes the pixel mask into account, weighting the inputs by the fraction of 
-        the pixel that's included, whereas count and stdDev do not.  But when you combine reducers,
-        they all end up sharing a single weighting interpretation.
-        You could force everything to be unweighted (treat all pixels as either 100% off or 100% on) 
-        by sticking .unweighted() on the end of the reducer constructors."""
-        # # todo - experiment with a median I and taking off the update_Mask(1)? The mask may contain embedded info on the reduceNeighborhood operation.
-        # cFact_img5k_rn_1 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # """
+        # Do we really want to do it this way rather than how I did it above?
+        # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
+        #     scene_img = mask_img.multiply(tcorr_value) \
+        #         .updateMask(mask_img.unmask(0)) \
+        #         .rename(['tcorr']) \
+        #         .set({'tcorr_index': tcorr_index})
+        # """
+        #
+        # # # # how do we weight a pixel with a higher tcorr count? use a band as a weighting option?
+        # # # # ---get rid of the old mask and replace with a FLOAT mask as a weighting tool.---
+        # # # # Do an update_mask() call... if you pass it a floating point between 0.0 and 1.0 calculated by:
+        # # # # floatMask = ((countband)/(posible or optimal 30km Tcorr pixels in 5km pixel))
+        # # floatMask = (tcorr_count_band/MAX_PIXEL_COUNT)
+        #
+        # """By default, mean takes the pixel mask into account, weighting the inputs by the fraction of
+        # the pixel that's included, whereas count and stdDev do not.  But when you combine reducers,
+        # they all end up sharing a single weighting interpretation.
+        # You could force everything to be unweighted (treat all pixels as either 100% off or 100% on)
+        # by sticking .unweighted() on the end of the reducer constructors."""
+        #
+        # # # todo - experiment with a median I and taking off the update_Mask(1)? The mask may contain embedded info on the reduceNeighborhood operation.
+        # cFact_img5k_rn_1 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                   kernel=ee.Kernel.circle(radius=1, units='pixels'),
         #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_2 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_2 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                   kernel=ee.Kernel.circle(radius=2, units='pixels'),
         #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_4 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_4 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                   kernel=ee.Kernel.circle(radius=4, units='pixels'),
         #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_8 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_8 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                   kernel=ee.Kernel.circle(radius=8, units='pixels'),
         #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_16 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_16 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                    kernel=ee.Kernel.circle(radius=16, units='pixels'),
         #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_32 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_32 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                    kernel=ee.Kernel.circle(radius=32, units='pixels'),
         #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_64 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_64 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                    kernel=ee.Kernel.circle(radius=64, units='pixels'),
         #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_128 = cFact_img5k.reduceNeighborhood(reducer=ee.Reducer.mean(),
+        # cFact_img5k_rn_128 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
         #                                                     kernel=ee.Kernel.circle(radius=128, units='pixels'),
         #                                                     skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
         #
-        # # TODO - Bilinear resampling l8er on at point of use. Add a quality band indicating
         #
-        # # Mosaic and smooth
-        # # TODO - try with [original, 2, 4, 16, 128] ...or somethin'
+        #
+        # # TODO - Bilinear resampling l8er on at point of use. Add a quality band indicating...the iteration number?
+        #
+        # # ---Mosaic and smooth---
         # fm_mosaic = ee.Image(
         #     [cFact_img5k, cFact_img5k_rn_1, cFact_img5k_rn_2, cFact_img5k_rn_4, cFact_img5k_rn_8, cFact_img5k_rn_16,
         #      cFact_img5k_rn_32, cFact_img5k_rn_64, cFact_img5k_rn_128])
+        # # # TODO - try with [original, 2, 4, 16, 128] ...or somethin'
+        # # fm_mosaic = ee.Image(
+        # #     [cFact_img5k, cFact_img5k_rn_2, cFact_img5k_rn_4,  cFact_img5k_rn_16, cFact_img5k_rn_128])
         # # return the smoothed mosaic
-        # # todo - experiment with a median II
-        # fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).float().select([0], ['tcorr'])
+        # # todo - experiment with a median II (instead of mean)
+        # fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).select([0], ['tcorr'])
         # # fm_coarse_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.firstNonNull()).float().select([0], ['tcorr'])
         #
         # return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
