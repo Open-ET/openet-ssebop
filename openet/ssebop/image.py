@@ -689,7 +689,6 @@ class Image():
             # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
             MIN_PIXEL_COUNT = 5
             gridded_cfactor = self.tcorr_image_gridded
-
             # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
             cfactor_5km_count = ee.Number(gridded_cfactor.get('cfactor_5km_count'))
             # TODO - hardcoding this for now
@@ -700,7 +699,6 @@ class Image():
             #     .updateMask(mask_img.unmask(0)) \
             #     .rename(['tcorr']) \
             #     .set({'tcorr_index': tcorr_index})
-
             scene_img = gridded_cfactor.set({'tcorr_index': tcorr_index})
             # building a collection of the dynamic c-factor or fallback images.
             tcorr_coll = ee.ImageCollection([scene_img]) \
@@ -708,7 +706,7 @@ class Image():
                 .merge(default_coll).merge(mask_coll) \
                 .sort('tcorr_index')
 
-            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+            return ee.Image(tcorr_coll.first()).rename(['tcorr']) # todo .resample then .resample.reproject for bilinear.
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
@@ -1039,6 +1037,38 @@ class Image():
         return cls(input_image, **kwargs)
 
     @lazy_property
+    def tcorr_image_gridded_weight(self):
+        MIN_PIXEL_COUNT = 10
+        # TODO - for weighting...
+        MAX_PIXEL_COUNT = 27225
+        cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans) \
+            .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+                              bestEffort=True, maxPixels=30000)\
+            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
+        cfact_5km = cFact_img5k.select(['tcorr']).set(self._properties)
+        # tcorr count band can be used to filter out low-tcorr pixels or to weight them
+        tcorr_count_band = cFact_img5k.select(['count']).set(self._properties)
+
+        # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
+        # #  decision making tool if there are too few 5km calibration pixels in any one image.
+        # cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
+        #                                            scale=None, crs=None, crsTransform=None,
+        #                                            bestEffort=True, maxPixels=10000000)
+
+        cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
+
+        # todo - instead of None for crs and crsTransform, put the actual crs and transform in there. (Was likely causing the masking problem)
+        cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), crs=tcorr_crs, crsTransform=tcorr_5km_trans,
+                                                   bestEffort=False, maxPixels=1000000)
+        # set the total 5km pixel count as a property
+        # cfact_5km = cfact_5km.set({'cfactor_5km_count': cfactor_5km_count})
+
+        # # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
+        # cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
+
+        pass
+
+    @lazy_property
     def tcorr_image_gridded(self):
         """Compute a continuous gridded Tcorr for the current image
 
@@ -1047,36 +1077,28 @@ class Image():
                 ee.Image of Tcorr values
 
         """
-
+        MIN_PIXEL_COUNT = 10
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
-
         # Compute Tcorr
         tcorr = lst.divide(tmax)
-
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
             .reproject(crs=self.crs, crsTransform=self.transform) \
             .gt(0.7)
         ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
             ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-
         # Remove low LST and low NDVI
         tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-
         tcorr_img = tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
                   'tmax_version': tmax.get('tmax_version')})
-
         # =================================================
         # =================Gridded Tcorr===================
         # =================================================
-        MIN_PIXEL_COUNT = 10
-        # TODO - for weighting...
-        MAX_PIXEL_COUNT = 27225
         tcorr_crs = self.crs
         tcorr_trans = self.transform
         # TODO - hardcoded for now but use a server side GEE list object to operationally call transform info.
@@ -1085,93 +1107,54 @@ class Image():
         # Resample to 5km taking 5th percentile
         #         # reproject and then do a reduce resolution call and re-project again
         #         # combine a count reducer, make sure to check how many bands are produced due to the count
-        cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans) \
-            .reduceResolution(reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
-                              bestEffort=True, maxPixels=30000)\
-            .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
+        cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans).reduceResolution(\
+                reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+                bestEffort=True, maxPixels=30000) \
+                .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
 
+        cfact_5km = cFact_img5k.select(['tcorr'])
+        tcorr_count_band = cFact_img5k.select(['count'])
+        cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
+        cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), crs=tcorr_crs,
+                                                   crsTransform=tcorr_5km_trans,
+                                                   bestEffort=False, maxPixels=100000)
+        cfactor_count = ee.Number(cfactor_5km_count.get('tcorr'))
 
+        # do reduce neighborhood to interpolate c factor
+        cfact_rn_2 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                                          kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                                          skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
+        cfact_rn_4 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                                          kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                                          skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
+        cfact_rn_16 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                                           kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                                           skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
 
-        cfact_5km = cFact_img5k.select(['tcorr']).set(self._properties)
-        tcorr_count_band = cFact_img5k.select(['count']).set(self._properties)
+        # todo - do a reduce region call and burn it into an image. Try with 128, try without and Fill with 128. 128 is a scene-wide average.
+        scene_cfactor = ee.Image(tcorr_img).reduceRegion(
+            reducer=ee.Reducer.percentile([5]),
+            crs=self.crs,
+            crsTransform=self.transform,
+            geometry=self.image.geometry().buffer(1000),
+            bestEffort=False,
+            maxPixels=2*10000*10000,
+            tileScale=1,
+        )
 
-        # # do a reduce region and get a pixel count and get that as a property, to be used later on to use as a
-        # #  decision making tool if there are too few 5km calibration pixels in any one image.
-        cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), geometry=None,
-                                                   scale=None, crs=None, crsTransform=None,
-                                                   bestEffort=True, maxPixels=10000000)
-        # set the total 5km pixel count as a property
-        cfact_5km = cfact_5km.set({'cfactor_5km_count': cfactor_5km_count})
-
-        # # # todo - update mask to eliminate count of <10 tcorr values based on the count band produced above # try nevada, middle rio grande
-        # cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
-        return cfact_5km
-
-        # """
-        # Do we really want to do it this way rather than how I did it above?
-        # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-        #     scene_img = mask_img.multiply(tcorr_value) \
-        #         .updateMask(mask_img.unmask(0)) \
-        #         .rename(['tcorr']) \
-        #         .set({'tcorr_index': tcorr_index})
-        # """
-        #
-        # # # # how do we weight a pixel with a higher tcorr count? use a band as a weighting option?
-        # # # # ---get rid of the old mask and replace with a FLOAT mask as a weighting tool.---
-        # # # # Do an update_mask() call... if you pass it a floating point between 0.0 and 1.0 calculated by:
-        # # # # floatMask = ((countband)/(posible or optimal 30km Tcorr pixels in 5km pixel))
-        # # floatMask = (tcorr_count_band/MAX_PIXEL_COUNT)
-        #
-        # """By default, mean takes the pixel mask into account, weighting the inputs by the fraction of
-        # the pixel that's included, whereas count and stdDev do not.  But when you combine reducers,
-        # they all end up sharing a single weighting interpretation.
-        # You could force everything to be unweighted (treat all pixels as either 100% off or 100% on)
-        # by sticking .unweighted() on the end of the reducer constructors."""
-        #
-        # # # todo - experiment with a median I and taking off the update_Mask(1)? The mask may contain embedded info on the reduceNeighborhood operation.
-        # cFact_img5k_rn_1 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                   kernel=ee.Kernel.circle(radius=1, units='pixels'),
-        #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_2 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                   kernel=ee.Kernel.circle(radius=2, units='pixels'),
-        #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_4 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                   kernel=ee.Kernel.circle(radius=4, units='pixels'),
-        #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_8 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                   kernel=ee.Kernel.circle(radius=8, units='pixels'),
-        #                                                   skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_16 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                    kernel=ee.Kernel.circle(radius=16, units='pixels'),
-        #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_32 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                    kernel=ee.Kernel.circle(radius=32, units='pixels'),
-        #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_64 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                    kernel=ee.Kernel.circle(radius=64, units='pixels'),
-        #                                                    skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        # cFact_img5k_rn_128 = cfact_5km.reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                                                     kernel=ee.Kernel.circle(radius=128, units='pixels'),
-        #                                                     skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
-        #
-        #
-        #
         # # TODO - Bilinear resampling l8er on at point of use. Add a quality band indicating...the iteration number?
-        #
         # # ---Mosaic and smooth---
-        # fm_mosaic = ee.Image(
-        #     [cFact_img5k, cFact_img5k_rn_1, cFact_img5k_rn_2, cFact_img5k_rn_4, cFact_img5k_rn_8, cFact_img5k_rn_16,
-        #      cFact_img5k_rn_32, cFact_img5k_rn_64, cFact_img5k_rn_128])
-        # # # TODO - try with [original, 2, 4, 16, 128] ...or somethin'
-        # # fm_mosaic = ee.Image(
-        # #     [cFact_img5k, cFact_img5k_rn_2, cFact_img5k_rn_4,  cFact_img5k_rn_16, cFact_img5k_rn_128])
-        # # return the smoothed mosaic
-        # # todo - experiment with a median II (instead of mean)
-        # fm_smooth_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean()).select([0], ['tcorr'])
-        # # fm_coarse_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.firstNonNull()).float().select([0], ['tcorr'])
-        #
-        # return fm_smooth_mosaic.select(['tcorr']).set(self._properties)
-        # # return fm_coarse_mosaic.select(['tcorr']).set(self._properties)
+        fm_mosaic = ee.Image(
+            [cfact_5km, cfact_rn_2, cfact_rn_4, cfact_rn_16])
+        # todo - were going to go with MEAN
+        fm_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean())
+
+        fm_mosaic_full = ee.Image([fm_mosaic, scene_cfactor]).reduce(reducer=ee.Reducer.firstNonNull()).select([0], ['tcorr'])
+        # fm_smooth_resampled = fm_smooth_mosaic.resample('bilinear').select([0], ['tcorr']) # todo .reproject(...tolandsat)
+
+        # todo - the tcorr count band may want to be returned for further analysis of tcorr count on cfactor
+        return fm_mosaic_full.set(self._properties).set({'cfactor_5km_count': cfactor_count})
+
 
     @lazy_property
     def tcorr_image(self):
