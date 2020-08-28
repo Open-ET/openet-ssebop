@@ -1142,20 +1142,20 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463129}],  # 0.99255676, 971875
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463133}],  # 0.99255676, 971875
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
          {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}],   # 0.95788514, 2315630
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514981}],   # 0.95788514, 2315630
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463129}],
+         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463133}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
+         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514981}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
          {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
     ]
