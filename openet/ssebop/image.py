@@ -1079,7 +1079,6 @@ class Image():
                 ee.Image of Tcorr values
 
         """
-        MIN_PIXEL_COUNT = 10
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
@@ -1152,6 +1151,9 @@ class Image():
                 reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
                 bestEffort=True, maxPixels=30000) \
                 .reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).select([0, 1], ['tcorr', 'count'])
+
+        # New pixel count for the minimum of 5km cells to be considered a valid image
+        MIN_PIXEL_COUNT = 10
 
         cfact_5km = cFact_img5k.select(['tcorr'])
         tcorr_count_band = cFact_img5k.select(['count'])
