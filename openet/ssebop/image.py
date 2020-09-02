@@ -661,6 +661,8 @@ class Image():
             annual_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
             }
+
+            # Adding this block into the gridded_tcorr func for now
             default_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
             }
@@ -1096,6 +1098,45 @@ class Image():
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
                   'tmax_version': tmax.get('tmax_version')})
+
+        # Get the scene tcorr_stats for the count logic and final fill img
+        tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
+        default_dict = {
+            'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+        }
+
+        # Check Tmax source value
+        if (utils.is_number(self._tmax_source) or
+                self._tmax_source.upper() not in default_dict.keys()):
+            raise ValueError(
+                '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                    self._tcorr_source, self._tmax_source))
+        tmax_key = self._tmax_source.upper()
+
+        default_coll = ee.ImageCollection(default_dict[tmax_key]) \
+            .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+        mask_img = ee.Image(default_coll.first()).multiply(0)
+        mask_coll = ee.ImageCollection(
+            mask_img.updateMask(0).set({'tcorr_index': 9}))
+
+        # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
+        MIN_PIXEL_COUNT = 250
+        t_stats = ee.Dictionary(self.tcorr_stats) \
+            .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
+        tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+        tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+        tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
+        # tcorr_index = ee.Number(
+        #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
+
+        mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
+        scene_img = mask_img.multiply(tcorr_value) \
+            .updateMask(mask_img.unmask(0)) \
+            .rename(['tcorr']) \
+            .set({'tcorr_index': tcorr_index})
+
+        # TODO - add conditional IF ELIF statement based on tcorr_count to see if need to proceed?
+
         # =================================================
         # =================Gridded Tcorr===================
         # =================================================
@@ -1131,29 +1172,26 @@ class Image():
                                                            kernel=ee.Kernel.circle(radius=16, units='pixels'),
                                                            skipMasked=False).reproject(crs=tcorr_crs, crsTransform=tcorr_5km_trans).updateMask(1)
 
-        # todo - do a reduce region call and burn it into an image. Try with 128, try without and Fill with 128. 128 is a scene-wide average.
-        scene_cfactor = ee.Image(tcorr_img).reduceRegion(
-            reducer=ee.Reducer.percentile([5]),
-            crs=self.crs,
-            crsTransform=self.transform,
-            geometry=self.image.geometry().buffer(1000),
-            bestEffort=False,
-            maxPixels=2*10000*10000,
-            tileScale=1,
-        )
 
-        # # TODO - Bilinear resampling l8er on at point of use. Add a quality band indicating...the iteration number?
-        # # ---Mosaic and smooth---
+
+        # # todo - do a reduce region call and burn it into an image. Try with 128, try without and Fill with 128. 128 is a scene-wide average.
+        # TODO - Bilinear resampling l8er on at point of use. Add a quality band indicating...the iteration number?
+        # ---Mosaic and smooth---
         fm_mosaic = ee.Image(
             [cfact_5km, cfact_rn_2, cfact_rn_4, cfact_rn_16])
         # todo - were going to go with MEAN
         fm_mosaic = fm_mosaic.reduce(reducer=ee.Reducer.mean())
 
-        fm_mosaic_full = ee.Image([fm_mosaic, scene_cfactor]).reduce(reducer=ee.Reducer.firstNonNull()).select([0], ['tcorr'])
+        # Apply the scene wide tcorr as a last fill image if necessary
+        fm_mosaic_full = ee.Image([fm_mosaic, scene_img]).reduce(reducer=ee.Reducer.firstNonNull()).select([0], ['tcorr'])
+
+        # TODO: Test adding a final smoothing using a reduceNeighborhood kernel radius = 1
+
+        # Test adding a final smoothing using a resample call?
         # fm_smooth_resampled = fm_smooth_mosaic.resample('bilinear').select([0], ['tcorr']) # todo .reproject(...tolandsat)
 
         # todo - the tcorr count band may want to be returned for further analysis of tcorr count on cfactor
-        return fm_mosaic_full.set(self._properties).set({'cfactor_5km_count': cfactor_count})
+        return fm_mosaic_full.set(self._properties).set({'cfactor_5km_count': cfactor_count}).select([0], ['tcorr'])
 
 
     @lazy_property
