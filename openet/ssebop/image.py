@@ -1111,8 +1111,8 @@ class Image():
         tcorr_5km_trans = [5000, 0, 15, 0, -5000, 15]
 
         # Resample to 5km taking 5th percentile
-        # reproject and then do a reduce resolution call and re-project again
-        # combine a count reducer, 2 bands are produced due to the count
+        # reproject, then do a reduce resolution call, re-project again
+        # combine a count reducer, 2 bands are produced.
         cFact_img5k = tcorr_img.reproject(crs=tcorr_crs, crsTransform=tcorr_trans).reduceResolution( \
             reducer=ee.Reducer.percentile(percentiles=[5]).combine(reducer2=ee.Reducer.count(), sharedInputs=True),
             bestEffort=True, maxPixels=30000) \
@@ -1123,6 +1123,7 @@ class Image():
 
         cfact_5km = cFact_img5k.select(['tcorr'])
         tcorr_count_band = cFact_img5k.select(['count'])
+        # discard 5km c-factor pixels that don't have at least 10 pixels of tcorr (the ammount of 1 thermal pixel)
         cfact_5km = cfact_5km.updateMask(mask=tcorr_count_band.gte(MIN_PIXEL_COUNT))
         cfactor_5km_count = cfact_5km.reduceRegion(reducer=ee.Reducer.count(), crs=tcorr_crs,
                                                    crsTransform=tcorr_5km_trans,
@@ -1170,7 +1171,7 @@ class Image():
         fm_mosaic_3 = ee.Image([cfact_rn_2.multiply(0.5), cfact_rn_4.multiply(0.3), cfact_rn_16.multiply(0.2)])
         fm_mosaic_3_reduce = fm_mosaic_3.reduce(ee.Reducer.sum()).updateMask(total_score_img.eq(3))
         # for 2 use 50, 50
-        fm_mosaic_2 =  ee.Image([ cfact_rn_4.multiply(0.5), cfact_rn_16.multiply(0.5)])
+        fm_mosaic_2 = ee.Image([cfact_rn_4.multiply(0.5), cfact_rn_16.multiply(0.5)])
         fm_mosaic_2_reduce = fm_mosaic_2.reduce(ee.Reducer.sum()).updateMask(total_score_img.eq(2))
         # for 1 use the value of 16
         fm_mosaic_1 = cfact_rn_16.updateMask(total_score_img.eq(1))
@@ -1184,9 +1185,10 @@ class Image():
                                                 kernel=ee.Kernel.circle(radius=1, units='pixels'),
                                                 skipMasked=False).reproject(tcorr_crs, tcorr_5km_trans).updateMask(1)
 
-
         # todo - the tcorr count band should be returned for further analysis of tcorr count on cfactor
         return cfact.set(self._properties).set({'cfactor_5km_count': cfactor_count}).select([0], ['tcorr'])
+        # # option to return c factor with no smoothing
+        # return final_mosaic.set(self._properties).set({'cfactor_5km_count': cfactor_count}).select([0], ['tcorr'])
 
     @lazy_property
     def tcorr_image_gridded(self):
