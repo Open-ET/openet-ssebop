@@ -101,7 +101,6 @@ class Image():
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """
-        print('Hello SSEBop! This is the gridded-c Branch of this model!')
         self.image = ee.Image(image)
 
         # Set as "lazy_property" below in order to return custom properties
@@ -355,7 +354,6 @@ class Image():
     @lazy_property
     def ndvi(self):
         """Input normalized difference vegetation index (NDVI)"""
-        print('lazy NDVI for gridded C')
         return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
@@ -528,9 +526,10 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': 4})
 
-
         elif 'DYNAMIC' == self._tcorr_source.upper():
             # Compute Tcorr dynamically for the scene
+            # Use the precomputed scene monthly/annual climatologies if Tcorr
+            #   can't be computed dynamically.
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             month_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
@@ -587,8 +586,66 @@ class Image():
 
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
-        elif 'SCENE' in self._tcorr_source.upper():
+        elif 'GRIDDED' == self._tcorr_source.upper():
+            # Compute gridded Tcorr for the scene
+            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
+            month_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
+            }
+            annual_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
+            }
 
+            # Adding this block into the gridded_tcorr func for now
+            default_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+            }
+
+            # Check Tmax source value
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in default_dict.keys()):
+                raise ValueError(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                        self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
+
+            default_coll = ee.ImageCollection(default_dict[tmax_key]) \
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+            mask_img = ee.Image(default_coll.first()).multiply(0)
+            mask_coll = ee.ImageCollection(
+                mask_img.updateMask(0).set({'tcorr_index': 9}))
+            annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
+                .select(['tcorr'])
+            month_coll = ee.ImageCollection(month_dict[tmax_key]) \
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
+                .filterMetadata('month', 'equals', self._month) \
+                .select(['tcorr'])
+
+            # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
+            MIN_PIXEL_COUNT = 5
+            gridded_cfactor = self.tcorr_image_gridded
+            # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
+            cfactor_5km_count = ee.Number(gridded_cfactor.get('cfactor_5km_count'))
+            # TODO - hardcoding this for now
+            tcorr_index = ee.Number(0)
+            # tcorr_index = cfactor_5km_count.lt(MIN_PIXEL_COUNT).multiply(9)
+            # mask_img = mask_img.add(cfactor_5km_count.gte(MIN_PIXEL_COUNT))
+            # scene_img = mask_img.multiply(tcorr_value) \
+            #     .updateMask(mask_img.unmask(0)) \
+            #     .rename(['tcorr']) \
+            #     .set({'tcorr_index': tcorr_index})
+            scene_img = gridded_cfactor.set({'tcorr_index': tcorr_index})
+            # building a collection of the dynamic c-factor or fallback images.
+            tcorr_coll = ee.ImageCollection([scene_img]) \
+                .merge(month_coll).merge(annual_coll) \
+                .merge(default_coll).merge(mask_coll) \
+                .sort('tcorr_index')
+
+            return ee.Image(tcorr_coll.first()).rename(['tcorr']) # todo .resample then .resample.reproject for bilinear.
+
+        elif 'SCENE' in self._tcorr_source.upper():
+            # Use a precompute Tcorr scene
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             scene_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
@@ -651,64 +708,6 @@ class Image():
                         self._tcorr_source, self._tmax_source))
 
             return tcorr_img.rename(['tcorr'])
-
-        elif 'GRIDDED' == self._tcorr_source.upper():
-            # Compute gridded Tcorr for the scene
-            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
-            month_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
-            }
-            annual_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
-            }
-
-            # Adding this block into the gridded_tcorr func for now
-            default_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
-            }
-
-            # Check Tmax source value
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_dict.keys()):
-                raise ValueError(
-                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
-
-            default_coll = ee.ImageCollection(default_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
-            mask_img = ee.Image(default_coll.first()).multiply(0)
-            mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': 9}))
-            annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
-                .select(['tcorr'])
-            month_coll = ee.ImageCollection(month_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
-                .filterMetadata('month', 'equals', self._month) \
-                .select(['tcorr'])
-
-            # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
-            MIN_PIXEL_COUNT = 5
-            gridded_cfactor = self.tcorr_image_gridded
-            # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
-            cfactor_5km_count = ee.Number(gridded_cfactor.get('cfactor_5km_count'))
-            # TODO - hardcoding this for now
-            tcorr_index = ee.Number(0)
-            # tcorr_index = cfactor_5km_count.lt(MIN_PIXEL_COUNT).multiply(9)
-            # mask_img = mask_img.add(cfactor_5km_count.gte(MIN_PIXEL_COUNT))
-            # scene_img = mask_img.multiply(tcorr_value) \
-            #     .updateMask(mask_img.unmask(0)) \
-            #     .rename(['tcorr']) \
-            #     .set({'tcorr_index': tcorr_index})
-            scene_img = gridded_cfactor.set({'tcorr_index': tcorr_index})
-            # building a collection of the dynamic c-factor or fallback images.
-            tcorr_coll = ee.ImageCollection([scene_img]) \
-                .merge(month_coll).merge(annual_coll) \
-                .merge(default_coll).merge(mask_coll) \
-                .sort('tcorr_index')
-
-            return ee.Image(tcorr_coll.first()).rename(['tcorr']) # todo .resample then .resample.reproject for bilinear.
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
@@ -1123,6 +1122,10 @@ class Image():
                   'tmax_version': tmax.get('tmax_version')})
 
 
+        # CM - I think we should try and avoid doing this operation
+        #   (and the next one) in this function
+        # This function should be independent of the Tmax source and the
+        #   compositing should be done in the main Tcorr function
         # Get the scene tcorr_stats for the count logic and final fill img
         tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
         default_dict = {
@@ -1144,6 +1147,7 @@ class Image():
             mask_img.updateMask(0).set({'tcorr_index': 9}))
 
         # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
+        # TODO: Call tcorr stats function instead of duplicating code here if possible
         MIN_PIXEL_COUNT = 250
         t_stats = ee.Dictionary(self.tcorr_stats) \
             .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
@@ -1315,7 +1319,10 @@ class Image():
                   'tmax_source': tmax.get('tmax_source'),
                   'tmax_version': tmax.get('tmax_version')})
 
-
+        # CM - I think we should try and avoid doing this operation
+        #   (and the next one) in this function
+        # This function should be independent of the Tmax source and the
+        #   compositing should be done in the main Tcorr function
         # Get the scene tcorr_stats for the count logic and final fill img
         tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
         default_dict = {
@@ -1338,6 +1345,7 @@ class Image():
             mask_img.updateMask(0).set({'tcorr_index': 9}))
 
         # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
+        # TODO: Call tcorr stats function instead of duplicating code here if possible
         MIN_PIXEL_COUNT = 250
         t_stats = ee.Dictionary(self.tcorr_stats) \
             .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)

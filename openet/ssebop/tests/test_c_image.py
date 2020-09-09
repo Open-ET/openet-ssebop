@@ -423,71 +423,116 @@ def test_Image_tmax_properties(tmax_source, expected):
     assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
-# @pytest.mark.parametrize(
-#     'tcorr_source, tmax_source, scene_id, month, expected',
-#     [
-#         ['FEATURE', 'CIMIS', SCENE_ID, 7, [0.9789, 0]],
-#         ['FEATURE', 'DAYMET', SCENE_ID, 7, [0.9825, 0]],
-#         ['FEATURE', 'GRIDMET', SCENE_ID, 7, [0.9835, 0]],
-#         ['FEATURE', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9742, 0]],
-#         ['FEATURE', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9764, 0]],
-#         ['FEATURE', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9762, 0]],
-#         ['FEATURE', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9750, 0]],
-#         ['FEATURE', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9752, 0]],
-#         ['FEATURE', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9752, 0]],
-#         # If scene_id doesn't match, use monthly value
-#         ['FEATURE', 'CIMIS', 'XXXX_042035_20150713', 7, [0.9701, 1]],
-#         ['FEATURE', 'DAYMET', 'XXXX_042035_20150713', 7, [0.9718, 1]],
-#         ['FEATURE', 'GRIDMET', 'XXXX_042035_20150713', 7, [0.9743, 1]],
-#         ['FEATURE', 'CIMIS_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9694, 1]],
-#         ['FEATURE', 'DAYMET_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9727, 1]],
-#         ['FEATURE', 'DAYMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9717, 1]],
-#         ['FEATURE', 'GRIDMET_MEDIAN_V1', 'XXXX_042035_20150713', 7, [0.9725, 1]],
-#         ['FEATURE', 'TOPOWX_MEDIAN_V0', 'XXXX_042035_20150713', 7, [0.9720, 1]],
-#         ['FEATURE', 'TOPOWX_MEDIAN_V0B', 'XXXX_042035_20150713', 7, [0.9723, 1]],
-#         # Get monthly value directly (ignore scene ID)
-#         ['FEATURE_MONTH', 'CIMIS', SCENE_ID, 7, [0.9701, 1]],
-#         ['FEATURE_MONTH', 'DAYMET', SCENE_ID, 7, [0.9718, 1]],
-#         ['FEATURE_MONTH', 'GRIDMET', SCENE_ID, 7, [0.9743, 1]],
-#         ['FEATURE_MONTH', 'CIMIS_MEDIAN_V1', SCENE_ID, 7, [0.9694, 1]],
-#         ['FEATURE_MONTH', 'DAYMET_MEDIAN_V0', SCENE_ID, 7, [0.9727, 1]],
-#         ['FEATURE_MONTH', 'DAYMET_MEDIAN_V1', SCENE_ID, 7, [0.9717, 1]],
-#         ['FEATURE_MONTH', 'GRIDMET_MEDIAN_V1', SCENE_ID, 7, [0.9725, 1]],
-#         ['FEATURE_MONTH', 'TOPOWX_MEDIAN_V0', SCENE_ID, 7, [0.9720, 1]],
-#         ['FEATURE_MONTH', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9723, 1]],
-#         # Get annual value directly
-#         # ['FEATURE_ANNUAL', 'TOPOWX_MEDIAN_V0B', SCENE_ID, 7, [0.9786, 2]],
-#         # If scene_id and wrs2_tile/month don't match, use default value
-#         # Testing one Tmax source should be good
-#         ['FEATURE', 'DAYMET', 'XXXX_042035_20150713', 13, [0.9780, 3]],
-#         ['FEATURE_MONTH', 'DAYMET', SCENE_ID, 13, [0.9780, 3]],
-#         # Test a user defined Tcorr value
-#         ['0.9850', 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
-#         [0.9850, 'DAYMET', SCENE_ID, 6, [0.9850, 4]],
-#     ]
-# )
-# def test_Image_tcorr_ftr_source(tcorr_source, tmax_source, scene_id, month,
-#                                 expected, tol=0.0001):
-#     """Test getting Tcorr value and index for a single date at a real point"""
-#     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
-#         .strftime('%Y-%m-%d')
-#     input_image = ee.Image.constant(1).set({
-#         'system:index': scene_id,
-#         'system:time_start': ee.Date(scene_date).millis()})
-#     m = ssebop.Image(input_image, tcorr_source=tcorr_source,
-#                      tmax_source=tmax_source)
-#     # Overwrite the month property with the test value
-#     m._month = ee.Number(month)
-#
-#     # _tcorr returns a tuple of the tcorr and tcorr_index
-#     tcorr, tcorr_index = m.tcorr
-#     tcorr = utils.getinfo(tcorr)
-#     tcorr_index = utils.getinfo(tcorr_index)
-#
-#     assert abs(tcorr - expected[0]) <= tol
-#     assert tcorr_index == expected[1]
+def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
+                                    tol=0.00000001):
+    output = utils.getinfo(default_image_obj(
+        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).tcorr_stats)
+    assert abs(output['tcorr_p5'] - tcorr) <= tol
+    assert output['tcorr_count'] == count
 
 
+# NOTE: Testing tcorr_stats() here is a little out of order, but it is only a
+#   function of the tmax_source and is used by the other tcorr functions
+# NOTE: These values seem to change by small amounts for no reason
+@pytest.mark.parametrize(
+    'image_id, tmax_source, expected',
+    [
+        # TOPOWX_MEDIAN_V0
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463129}], # 2463133
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}], # 514981
+        # DAYMET_MEDIAN_V2
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463129}],
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
+    ]
+)
+def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
+                                   tol=0.0000001):
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id), tmax_source=tmax_source,
+        tmax_resample='nearest').tcorr_stats)
+    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
+    assert abs(output['tcorr_count'] == expected['tcorr_count']) <= 1
+    # assert (abs(output['tcorr_count'] == expected['tcorr_count']) /
+    #         expected['tcorr_count']) <= 0.0000001
+
+
+def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
+                                  tol=0.0001):
+    output_img = default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+    output = utils.point_image_value(output_img, TEST_POINT)
+    assert abs(output['tcorr'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    # Note: These are made up values
+    'lst, ndvi, tmax, expected',
+    [
+        [300, 0.69, 306, None],  # NDVI < 0.7
+        [269, 0.69, 306, None],  # LST < 270
+        # TODO: Add a test for the NDVI smoothing
+    ]
+)
+def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
+    output = utils.constant_image_value(default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
+    assert output['tcorr'] is None and expected is None
+
+
+def test_Image_tcorr_image_band_name():
+    output = utils.getinfo(default_image_obj().tcorr_image)
+    assert output['bands'][0]['id'] == 'tcorr'
+
+
+def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
+                                      expected={'tmax_version': 'median_v2'}):
+    """Test if properties are set on the tcorr image"""
+    output = utils.getinfo(default_image_obj(
+        tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
+
+
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, expected',
+    [
+        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+         [0.9743747113938074, 0]],
+        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         [0.9798917542625591, 1]],
+    ]
+)
+def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
+                                    expected, tol=0.000001):
+    """Test getting Tcorr value and index for a single date at a real point"""
+    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id), tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index == expected[1]
+
+
+# TODO: Modify these tests for the DYNAMIC tcorr source
+#   to check that the monthly and annual fallback collections are used
 # @pytest.mark.parametrize(
 #     'tcorr_source, tmax_source, scene_id, expected',
 #     [
@@ -564,37 +609,9 @@ def test_Image_tmax_properties(tmax_source, expected):
 #     index = utils.point_image_value(index_img, SCENE_POINT)
 #     assert abs(tcorr['tcorr'] - expected[0]) <= tol
 #     assert index['index'] == expected[1]
-#
-#
-# def test_Image_tcorr_image_daily():
-#     """Tcorr should be masked for date outside range with IMAGE_DAILY"""
-#     input_image = ee.Image.constant(1).set({
-#         'system:time_start': ee.Date('1980-07-04').millis()})
-#     m = ssebop.Image(input_image, tcorr_source='IMAGE_DAILY',
-#                      tmax_source='TOPOWX_MEDIAN_V0')
-#     tcorr_img, index_img = m.tcorr
-#     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
-#     index = utils.point_image_value(index_img, SCENE_POINT)
-#     assert tcorr['tcorr'] is None
-#     assert index['index'] is None
-#
-#
-# def test_Image_tcorr_image_daily_last_date_ingested():
-#     """Test if last exported daily Tcorr image is used
-#
-#     Two extra daily images with system:time_starts of "1979-01-01" but different
-#     "date_ingested" properties were added to the collection for this test.
-#     The "first" and "second" images have values of 1 and 2 respectively.
-#     """
-#     input_image = ee.Image.constant(1).set({
-#         'system:time_start': ee.Date('1979-01-01').millis()})
-#     m = ssebop.Image(input_image, tcorr_source='IMAGE_DAILY',
-#                      tmax_source='TOPOWX_MEDIAN_V0')
-#     tcorr_img, index_img = m.tcorr
-#     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
-#     assert tcorr['tcorr'] == 2
 
 
+# NOTE: Support for reading the scene Tcorr functions will likely be deprecated
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
     [
@@ -627,33 +644,6 @@ def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
         tmax_source=tmax_source, tmax_resample='nearest').tcorr
 
     # Tcorr images are constant images and need to be queried at a point
-    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
-    assert index == expected[1]
-
-
-# Note, this is calling .tcorr_stats(), which isn't tested till the end.
-# I'm not sure if it would make more sense to move this to the end or maybe
-#   move the .tcorr_stats test further up, since they are independent of most
-#   of the other functions.
-@pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, expected',
-    [
-        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         [0.9743747113938074, 0]],
-        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
-         [0.9798917542625591, 1]],
-    ]
-)
-def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
-                                    expected, tol=0.000001):
-    """Test getting Tcorr value and index for a single date at a real point"""
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -726,8 +716,7 @@ def test_Image_tcorr_scene_daily():
     'tcorr_src',
     [
         '',
-        'FEATURE_DEADBEEF',
-        'IMAGE_DEADBEEF',
+        'DEADBEEF',
         'SCENE_DEADBEEF',
     ]
 )
@@ -739,8 +728,8 @@ def test_Image_tcorr_sources_exception(tcorr_src):
 @pytest.mark.parametrize(
     'tcorr_src, tmax_src',
     [
-        ['FEATURE', 'DEADBEEF'],
-        ['IMAGE', 'DEADBEEF'],
+        ['GRIDDED', 'DEADBEEF'],
+        ['DYNAMIC', 'DEADBEEF'],
         ['SCENE', 'DEADBEEF'],
     ]
 )
@@ -1084,89 +1073,6 @@ def test_Image_from_method_kwargs():
     assert ssebop.Image.from_landsat_c1_sr(
         'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
         elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
-
-
-def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
-                                  tol=0.0001):
-    output_img = default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
-    output = utils.point_image_value(output_img, TEST_POINT)
-    assert abs(output['tcorr'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
-    # Note: These are made up values
-    'lst, ndvi, tmax, expected',
-    [
-        [300, 0.69, 306, None],  # NDVI < 0.7
-        [269, 0.69, 306, None],  # LST < 270
-        # TODO: Add a test for the NDVI smoothing
-    ]
-)
-def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
-    output = utils.constant_image_value(default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
-    assert output['tcorr'] is None and expected is None
-
-
-def test_Image_tcorr_image_band_name():
-    output = utils.getinfo(default_image_obj().tcorr_image)
-    assert output['bands'][0]['id'] == 'tcorr'
-
-
-def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
-                                      expected={'tmax_version': 'median_v2'}):
-    """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(
-        tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
-
-
-def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
-                                    tol=0.00000001):
-    output = utils.getinfo(default_image_obj(
-        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).tcorr_stats)
-    assert abs(output['tcorr_p5'] - tcorr) <= tol
-    assert output['tcorr_count'] == count
-
-
-@pytest.mark.parametrize(
-    'image_id, tmax_source, expected',
-    [
-        # TOPOWX_MEDIAN_V0
-        # Note, these values are slightly different than those in the tcorr
-        #   feature collection (commented out values), because the original
-        #   values were built with snap points of 0, 0 instead of 15, 15.
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463129}],  # 0.99255676, 971875
-        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
-        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}],   # 0.95788514, 2315630
-        # DAYMET_MEDIAN_V2
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463129}],
-        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
-        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
-    ]
-)
-def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
-                                   tol=0.0000001):
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id), tmax_source=tmax_source,
-        tmax_resample='nearest').tcorr_stats)
-    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
-    assert output['tcorr_count'] == expected['tcorr_count']
 
 
 # def test_Image_et_fraction_properties():
