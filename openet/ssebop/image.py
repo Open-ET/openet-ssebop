@@ -42,7 +42,7 @@ class Image():
             et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V0',
             elev_source='SRTM',
-            tcorr_source='GRIDDED',
+            tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=6,
