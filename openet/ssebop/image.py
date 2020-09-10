@@ -1238,7 +1238,7 @@ class Image():
 
         # *WEIGHTED MEAN*
         # use the score band to mask out the areas of overlap to weight the c factor:
-        # for 4 use 40, 30, 20, 10
+        # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
         fm_mosaic_4 = ee.Image([cfact_5km.multiply(0.4).updateMask(1),
                                 cfact_rn_2.multiply(0.3).updateMask(1),
                                 cfact_rn_4.multiply(0.2).updateMask(1),
@@ -1246,16 +1246,16 @@ class Image():
         fm_mosaic_4_reduce = fm_mosaic_4.reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(4))
 
-        # for 3 use 50, 30, 20
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
         fm_mosaic_3 = ee.Image([cfact_rn_2.multiply(0.5),
-                                cfact_rn_4.multiply(0.3),
-                                cfact_rn_16.multiply(0.2)])
+                                cfact_rn_4.multiply(0.33),
+                                cfact_rn_16.multiply(0.17)])
         fm_mosaic_3_reduce = fm_mosaic_3.reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(3))
 
-        # for 2 use 50, 50
-        fm_mosaic_2 = ee.Image([cfact_rn_4.multiply(0.5),
-                                cfact_rn_16.multiply(0.5)])
+        # for 2:1 use weights (2/3, 1/3)
+        fm_mosaic_2 = ee.Image([cfact_rn_4.multiply(0.67),
+                                cfact_rn_16.multiply(0.33)])
         fm_mosaic_2_reduce = fm_mosaic_2.reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(2))
 
