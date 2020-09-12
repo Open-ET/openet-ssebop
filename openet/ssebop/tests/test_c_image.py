@@ -611,6 +611,37 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 #     assert index['index'] == expected[1]
 
 
+# CGM - Only checking that for a small area a consistent Tcorr value is returned
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, clip, xy, expected',
+    [
+        ['GRIDDED', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9901982, 0]],
+    ]
+)
+def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
+                                    clip, xy, expected, tol=0.000001):
+    """Test getting the gridded Tcorr values"""
+    image_crs = ee.Image(image_id).select([3]).projection().crs()
+    print(image_crs.getInfo())
+    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+        .coordinates().getInfo()
+    print(point_xy)
+    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, point_xy)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    # assert index == expected[1]
+
+
+# TODO: Add check for Tcorr coarse count property
+
+
 # NOTE: Support for reading the scene Tcorr functions will likely be deprecated
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, scene_id, expected',
@@ -718,6 +749,8 @@ def test_Image_tcorr_scene_daily():
         '',
         'DEADBEEF',
         'SCENE_DEADBEEF',
+        'FEATURE',
+        'IMAGE',
     ]
 )
 def test_Image_tcorr_sources_exception(tcorr_src):
