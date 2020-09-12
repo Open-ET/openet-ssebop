@@ -1103,29 +1103,8 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        # TODO: Call tcorr_image here instead of duplicating code
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
-
-        # Compute Tcorr
-        tcorr = lst.divide(tmax)
-
-        # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
-            .reproject(crs=self.crs, crsTransform=self.transform) \
-            .gt(0.7)
-        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
-            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-        tcorr_img = tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
-
+        # First compute the 30m Tcorr image
+        tcorr_img = self.tcorr_image
 
         # CM - I think we should try and avoid doing this operation
         #   (and the next one) in this function
@@ -1304,29 +1283,8 @@ class Image():
         ee.Image of Tcorr values
 
         """
-
-        # TODO: Call tcorr_image here instead of duplicating code
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
-
-        # Compute Tcorr
-        tcorr = lst.divide(tmax)
-
-        # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
-            .reproject(crs=self.crs, crsTransform=self.transform) \
-            .gt(0.7)
-        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
-            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-        tcorr_img = tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
+        # First compute the 30m Tcorr image
+        tcorr_img = self.tcorr_image
 
         # CM - I think we should try and avoid doing this operation
         #   (and the next one) in this function
