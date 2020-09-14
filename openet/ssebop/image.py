@@ -198,6 +198,17 @@ class Image():
         # else:
         #     self.et_fraction_type = 'alfalfa'
 
+        # CGM - What is the right way to process kwargs with default values?
+        if 'tcorr_gridded_weight_flag' in kwargs.keys():
+            self.tcorr_gridded_weight_flag = kwargs['tcorr_gridded_weight_flag']
+        else:
+            self.tcorr_gridded_weight_flag = False
+
+        if 'tcorr_gridded_smooth_flag' in kwargs.keys():
+            self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_smooth_flag']
+        else:
+            self.tcorr_gridded_smooth_flag = False
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -588,66 +599,87 @@ class Image():
 
         elif 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
-            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
-            month_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
-            }
-            annual_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
-            }
+            # tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
+            # month_dict = {
+            #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
+            # }
+            # annual_dict = {
+            #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
+            # }
+            #
+            # # Adding this block into the gridded_tcorr func for now
+            # default_dict = {
+            #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+            # }
+            #
+            # # Check Tmax source value
+            # if (utils.is_number(self._tmax_source) or
+            #         self._tmax_source.upper() not in default_dict.keys()):
+            #     raise ValueError(
+            #         '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+            #             self._tcorr_source, self._tmax_source))
+            # tmax_key = self._tmax_source.upper()
+            #
+            # default_coll = ee.ImageCollection(default_dict[tmax_key]) \
+            #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+            # mask_img = ee.Image(default_coll.first()).multiply(0)
+            # mask_coll = ee.ImageCollection(
+            #     mask_img.updateMask(0).set({'tcorr_index': 9}))
+            # annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
+            #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
+            #     .select(['tcorr'])
+            # month_coll = ee.ImageCollection(month_dict[tmax_key]) \
+            #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
+            #     .filterMetadata('month', 'equals', self._month) \
+            #     .select(['tcorr'])
 
-            # Adding this block into the gridded_tcorr func for now
-            default_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
-            }
 
-            # Check Tmax source value
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_dict.keys()):
-                raise ValueError(
-                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
+            # # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
+            # MIN_PIXEL_COUNT = 250
+            # t_stats = ee.Dictionary(self.tcorr_stats) \
+            #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
+            # tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+            # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+            # tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
+            # # tcorr_index = ee.Number(
+            # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
+            # #
+            # # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
+            # # scene_img = mask_img.multiply(tcorr_value) \
+            # #     .updateMask(mask_img.unmask(0)) \
+            # #     .rename(['tcorr']) \
+            # #     .set({'tcorr_index': tcorr_index})
 
-            default_coll = ee.ImageCollection(default_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
-            mask_img = ee.Image(default_coll.first()).multiply(0)
-            mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': 9}))
-            annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
-                .select(['tcorr'])
-            month_coll = ee.ImageCollection(month_dict[tmax_key]) \
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
-                .filterMetadata('month', 'equals', self._month) \
-                .select(['tcorr'])
 
             # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
-            MIN_PIXEL_COUNT = 5
+            MIN_PIXELS_PER_IMAGE = 250
+            MIN_GRID_COUNT = 5
 
-            tcorr_gridded = self.tcorr_image_gridded
-            # tcorr_gridded = self.tcorr_image_gridded_weight
+            scene_img = self.tcorr_gridded
 
             # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
-            tcorr_coarse_count = ee.Number(tcorr_gridded.get('tcorr_coarse_count'))
+            tcorr_coarse_count = ee.Number(scene_img.get('tcorr_coarse_count'))
 
             # TODO - hardcoding this for now
             tcorr_index = ee.Number(0)
-            # tcorr_index = cfactor_5km_count.lt(MIN_PIXEL_COUNT).multiply(9)
+            # tcorr_index = cfactor_5km_count.lt(MIN_PIXELS_PER_IMAGE).multiply(9)
             # mask_img = mask_img.add(cfactor_5km_count.gte(MIN_PIXEL_COUNT))
             # scene_img = mask_img.multiply(tcorr_value) \
             #     .updateMask(mask_img.unmask(0)) \
             #     .rename(['tcorr']) \
             #     .set({'tcorr_index': tcorr_index})
-            scene_img = tcorr_gridded.set({'tcorr_index': tcorr_index})
-            # building a collection of the dynamic c-factor or fallback images.
-            tcorr_coll = ee.ImageCollection([scene_img]) \
-                .merge(month_coll).merge(annual_coll) \
-                .merge(default_coll).merge(mask_coll) \
-                .sort('tcorr_index')
+            scene_img = scene_img.set({'tcorr_index': tcorr_index})
 
-            # TODO - .resample then .resample.reproject for bilinear.
-            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+            # # Building a collection of the gridded c-factor or fallback images.
+            # tcorr_coll = ee.ImageCollection([scene_img])\
+            #     .merge(month_coll).merge(annual_coll)\
+            #     .merge(default_coll).merge(mask_coll)\
+            #     .sort('tcorr_index')
+            #
+            # # TODO - .resample then .resample.reproject for bilinear.
+            # return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+
+            return scene_img.rename(['tcorr'])
 
         elif 'SCENE' in self._tcorr_source.upper():
             # Use a precompute Tcorr scene
@@ -1095,7 +1127,7 @@ class Image():
         )
 
     @lazy_property
-    def tcorr_image_gridded_weight(self):
+    def tcorr_gridded(self):
         """Compute a continuous gridded Tcorr for the current image
 
         Returns
@@ -1103,55 +1135,6 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        # First compute the 30m Tcorr image
-        tcorr_img = self.tcorr_image
-
-        # # CM - I think we should try and avoid doing this operation
-        # #   (and the next one) in this function
-        # # This function should be independent of the Tmax source and the
-        # #   compositing should be done in the main Tcorr function
-        # # Get the scene tcorr_stats for the count logic and final fill img
-        # tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
-        # default_dict = {
-        #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
-        # }
-        #
-        # # Check Tmax source value
-        # if (utils.is_number(self._tmax_source) or
-        #         self._tmax_source.upper() not in default_dict.keys()):
-        #     raise ValueError(
-        #         '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #             self._tcorr_source, self._tmax_source))
-        # tmax_key = self._tmax_source.upper()
-        #
-        # default_coll = ee.ImageCollection(default_dict[tmax_key]) \
-        #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
-        # mask_img = ee.Image(default_coll.first()).multiply(0)
-        # mask_coll = ee.ImageCollection(
-        #     mask_img.updateMask(0).set({'tcorr_index': 9}))
-        #
-        # # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
-        # # TODO: Call tcorr stats function instead of duplicating code here if possible
-        # MIN_PIXEL_COUNT = 250
-        # t_stats = ee.Dictionary(self.tcorr_stats) \
-        #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-        # tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
-        # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-        # tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-        # # tcorr_index = ee.Number(
-        # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
-        #
-        # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-        # scene_img = mask_img.multiply(tcorr_value) \
-        #     .updateMask(mask_img.unmask(0)) \
-        #     .rename(['tcorr']) \
-        #     .set({'tcorr_index': tcorr_index})
-
-        # TODO - add conditional IF-ELIF statement based on tcorr_count to see if need to proceed?
-
-        # =================================================
-        # =================Gridded Tcorr===================
-        # =================================================
         # TODO: Define coarse cellsize or transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
@@ -1159,185 +1142,7 @@ class Image():
         # coarse_transform = [5000, 0, 0, 0, -5000, 0]
 
         # Resample to 5km taking 5th percentile
-        # reproject, then do a reduce resolution call, re-project again
-        # combine a count reducer, 2 bands are produced.
-        tcorr_coarse_img = tcorr_img\
-            .reproject(crs=self.crs, crsTransform=self.transform)\
-            .reduceResolution(
-                reducer=ee.Reducer.percentile(percentiles=[5])
-                    .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
-                bestEffort=True, maxPixels=30000) \
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .select([0, 1], ['tcorr', 'count'])
-
-        # The number of valid 30m Tcorr cells that must be present in each
-        #   coarse grid cell to be "valid"
-        MIN_PIXEL_COUNT = 10
-
-        # Mask cells without enough fine resolution Tcorr cells
-        # The count band is dropped after it is used to mask
-        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
-            .updateMask(tcorr_coarse_img.select(['count']).gte(MIN_PIXEL_COUNT))
-
-        # This is the count of valid (unmasked) coarse resolution Tcorr cells
-        count_coarse = tcorr_coarse\
-            .reduceRegion(reducer=ee.Reducer.count(),
-                          crs=self.crs, crsTransform=coarse_transform,
-                          bestEffort=False, maxPixels=100000)
-        tcorr_count = ee.Number(count_coarse.get('tcorr'))
-
-        # Do reduce neighborhood to interpolate c factor
-        tcorr_rn02 = tcorr_coarse\
-            .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .updateMask(1)
-        tcorr_rn04 = tcorr_coarse\
-            .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .updateMask(1)
-        tcorr_rn16 = tcorr_coarse\
-            .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=16, units='pixels'),
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .updateMask(1)
-
-        # --- In this section we build an image to weight the cfactor
-        #   proportionally to how close it is to the original c ---
-        fm_mosaic = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
-            .reduce(ee.Reducer.firstNonNull())
-        zero_img = fm_mosaic.multiply(0).updateMask(1)
-
-        # We make a series of binary images to map the extent of each layer's c factor
-        score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
-        score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
-        score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
-        score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
-
-        # This layer has a score of 0-4 based on where the binaries overlap.
-        # This will help us to know where to apply different weights as directed by G. Senay.
-        total_score_img = ee.Image([score_coarse, score_02, score_04, score_16])\
-            .reduce(ee.Reducer.sum())
-
-        # *WEIGHTED MEAN*
-        # Use the score band to mask out the areas of overlap to weight the c factor:
-        # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
-        fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
-                                tcorr_rn02.multiply(0.3).updateMask(1),
-                                tcorr_rn04.multiply(0.2).updateMask(1),
-                                tcorr_rn16.multiply(0.1).updateMask(1)])\
-            .reduce(ee.Reducer.sum())\
-            .updateMask(total_score_img.eq(4))
-
-        # CM - Why do the values above have .updateMask(1) calls but not these?
-        # for 3:2:1 use weights (3/6, 2/6, 1/6)
-        fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
-                                tcorr_rn04.multiply(0.33),
-                                tcorr_rn16.multiply(0.17)])\
-            .reduce(ee.Reducer.sum())\
-            .updateMask(total_score_img.eq(3))
-
-        # for 2:1 use weights (2/3, 1/3)
-        fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
-                                tcorr_rn16.multiply(0.33)])\
-            .reduce(ee.Reducer.sum())\
-            .updateMask(total_score_img.eq(2))
-
-        # for 1 use the value of 16
-        fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
-        
-        # Combine the weighted means into a single image using first non-null
-        tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
-            .reduce(ee.Reducer.firstNonNull())
-
-        # Do one more reduce neighborhood to smooth the c factor
-        # TODO: Make this a parameter
-        smooth_tcorr_flag = False
-        if smooth_tcorr_flag:
-            tcorr = tcorr\
-                .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                    kernel=ee.Kernel.circle(radius=1, units='pixels'),
-                                    skipMasked=False)\
-                .reproject(crs=self.crs, crsTransform=coarse_transform)\
-                .updateMask(1)
-
-        # TODO - the tcorr count band should be returned
-        #   for further analysis of tcorr count on cfactor
-        return tcorr.select([0], ['tcorr'])\
-            .set(self._properties)\
-            .set({'tcorr_coarse_count': tcorr_count})
-
-    @lazy_property
-    def tcorr_image_gridded(self):
-        """Compute a continuous gridded Tcorr for the current image
-
-        Returns
-        -------
-        ee.Image of Tcorr values
-
-        """
-        # First compute the 30m Tcorr image
-        tcorr_img = self.tcorr_image
-
-        # # CM - I think we should try and avoid doing this operation
-        # #   (and the next one) in this function
-        # # This function should be independent of the Tmax source and the
-        # #   compositing should be done in the main Tcorr function
-        # # Get the scene tcorr_stats for the count logic and final fill img
-        # tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
-        # default_dict = {
-        #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
-        # }
-        #
-        # # Check Tmax source value
-        # if (utils.is_number(self._tmax_source) or
-        #         self._tmax_source.upper() not in default_dict.keys()):
-        #     raise ValueError(
-        #         '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #             self._tcorr_source, self._tmax_source))
-        # tmax_key = self._tmax_source.upper()
-        #
-        # default_coll = ee.ImageCollection(default_dict[tmax_key]) \
-        #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
-        # mask_img = ee.Image(default_coll.first()).multiply(0)
-        # # CM - This isn't used later?
-        # mask_coll = ee.ImageCollection(
-        #     mask_img.updateMask(0).set({'tcorr_index': 9}))
-        #
-        # # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
-        # # TODO: Call tcorr stats function instead of duplicating code here if possible
-        # MIN_PIXEL_COUNT = 250
-        # t_stats = ee.Dictionary(self.tcorr_stats) \
-        #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-        # tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
-        # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-        # tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-        # # tcorr_index = ee.Number(
-        # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
-        #
-        # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-        # scene_img = mask_img.multiply(tcorr_value) \
-        #     .updateMask(mask_img.unmask(0)) \
-        #     .rename(['tcorr']) \
-        #     .set({'tcorr_index': tcorr_index})
-
-        # TODO - add conditional IF ELIF statement based on tcorr_count to see if need to proceed?
-
-        # =================================================
-        # =================Gridded Tcorr===================
-        # =================================================
-        # TODO: Define coarse cellsize or transform as a parameter
-        # NOTE: This transform is being snapped to the Landsat grid
-        #   but this may not be necessary
-        coarse_transform = [5000, 0, 15, 0, -5000, 15]
-        # coarse_transform = [5000, 0, 0, 0, -5000, 0]
-
-        # Resample to 5km taking 5th percentile
-        tcorr_coarse_img = tcorr_img\
+        tcorr_coarse_img = self.tcorr_image\
             .reproject(crs=self.crs, crsTransform=self.transform)\
             .reduceResolution(
                 reducer=ee.Reducer.percentile(percentiles=[5])
@@ -1348,12 +1153,12 @@ class Image():
 
         # The number of valid 30m Tcorr cells that must be present in each
         #   coarse grid cell to be "valid"
-        MIN_PIXEL_COUNT = 10
+        MIN_PIXELS_PER_GRID = 10
 
         # Mask cells without enough fine resolution Tcorr cells
         # The count band is dropped after it is used to mask
         tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
-            .updateMask(tcorr_coarse_img.select(['count']).gte(MIN_PIXEL_COUNT))
+            .updateMask(tcorr_coarse_img.select(['count']).gte(MIN_PIXELS_PER_GRID))
 
         count_coarse = tcorr_coarse\
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
@@ -1381,13 +1186,61 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
-        tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
-            .reduce(reducer=ee.Reducer.mean())
+        if self.tcorr_gridded_weight_flag:
+            # --- In this section we build an image to weight the cfactor
+            #   proportionally to how close it is to the original c ---
+            fm_mosaic = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
+                .reduce(ee.Reducer.firstNonNull())
+            zero_img = fm_mosaic.multiply(0).updateMask(1)
+
+            # We make a series of binary images to map the extent of each layer's c factor
+            score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+            score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+            score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+            score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+
+            # This layer has a score of 0-4 based on where the binaries overlap.
+            # This will help us to know where to apply different weights as directed by G. Senay.
+            total_score_img = ee.Image([score_coarse, score_02, score_04, score_16])\
+                .reduce(ee.Reducer.sum())
+
+            # *WEIGHTED MEAN*
+            # Use the score band to mask out the areas of overlap to weight the c factor:
+            # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
+            fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
+                                    tcorr_rn02.multiply(0.3).updateMask(1),
+                                    tcorr_rn04.multiply(0.2).updateMask(1),
+                                    tcorr_rn16.multiply(0.1).updateMask(1)])\
+                .reduce(ee.Reducer.sum())\
+                .updateMask(total_score_img.eq(4))
+
+            # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
+            # for 3:2:1 use weights (3/6, 2/6, 1/6)
+            fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
+                                    tcorr_rn04.multiply(0.33),
+                                    tcorr_rn16.multiply(0.17)])\
+                .reduce(ee.Reducer.sum())\
+                .updateMask(total_score_img.eq(3))
+
+            # for 2:1 use weights (2/3, 1/3)
+            fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
+                                    tcorr_rn16.multiply(0.33)])\
+                .reduce(ee.Reducer.sum())\
+                .updateMask(total_score_img.eq(2))
+
+            # for 1 use the value of 16
+            fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
+
+            # Combine the weighted means into a single image using first non-null
+            tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+                .reduce(ee.Reducer.firstNonNull())
+        else:
+            # CGM - For testing only return raw gridded Tcorr values
+            tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
+                .reduce(reducer=ee.Reducer.mean())
 
         # Do one more reduce neighborhood to smooth the c factor
-        # TODO: Make this a parameter
-        smooth_tcorr_flag = False
-        if smooth_tcorr_flag:
+        if self.tcorr_gridded_smooth_flag:
             tcorr = tcorr\
                 .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                     kernel=ee.Kernel.circle(radius=1, units='pixels'),
@@ -1400,4 +1253,3 @@ class Image():
         return tcorr.select([0], ['tcorr'])\
             .set(self._properties)\
             .set({'tcorr_coarse_count': tcorr_count})
-
