@@ -198,6 +198,7 @@ class Image():
         # else:
         #     self.et_fraction_type = 'alfalfa'
 
+        """Gridded Tcorr keywork arguments"""
         # CGM - What is the right way to process kwargs with default values?
         if 'tcorr_gridded_weight_flag' in kwargs.keys():
             self.tcorr_gridded_weight_flag = kwargs['tcorr_gridded_weight_flag']
@@ -208,6 +209,27 @@ class Image():
             self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_smooth_flag']
         else:
             self.tcorr_gridded_smooth_flag = False
+
+        if 'tcorr_gridded_scene_fill_flag' in kwargs.keys():
+            self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_scene_fill_flag']
+        else:
+            self.tcorr_gridded_smooth_flag = False
+
+        if 'min_pixels_per_image' in kwargs.keys():
+            self.min_pixels_per_image = kwargs['min_pixels_per_image']
+        else:
+            self.min_pixels_per_image = 250
+
+        if 'min_pixels_per_grid_cell' in kwargs.keys():
+            self.min_pixels_per_grid_cell = kwargs['min_pixels_per_grid_cell']
+        else:
+            self.min_pixels_per_grid_cell = 10
+
+        if 'min_grid_cells_per_image' in kwargs.keys():
+            self.min_grid_cells_per_image = kwargs['min_grid_cells_per_image']
+        else:
+            self.min_grid_cells_per_image = 5
+
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -523,11 +545,15 @@ class Image():
         Notes
         -----
         Tcorr Index values indicate which level of Tcorr was used
-          0 - Scene specific Tcorr
-          1 - Mean monthly Tcorr per WRS2 tile
-          2 - Mean annual Tcorr per WRS2 tile
-          3 - Default Tcorr
-          4 - User defined Tcorr
+          0 - Gridded blended cold/hot Tcorr (*)
+          1 - Gridded cold Tcorr
+          2 - Gridded hot Tcorr (*)
+          3 - Scene specific Tcorr
+          4 - Mean monthly Tcorr per WRS2 tile
+          5 - Mean seasonal Tcorr per WRS2 tile (*)
+          6 - Mean annual Tcorr per WRS2 tile
+          7 - Default Tcorr
+          8 - User defined Tcorr
           9 - No data
 
         """
@@ -632,28 +658,6 @@ class Image():
             #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
             #     .filterMetadata('month', 'equals', self._month) \
             #     .select(['tcorr'])
-
-
-            # # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
-            # MIN_PIXEL_COUNT = 250
-            # t_stats = ee.Dictionary(self.tcorr_stats) \
-            #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            # tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
-            # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-            # tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-            # # tcorr_index = ee.Number(
-            # #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
-            # #
-            # # mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-            # # scene_img = mask_img.multiply(tcorr_value) \
-            # #     .updateMask(mask_img.unmask(0)) \
-            # #     .rename(['tcorr']) \
-            # #     .set({'tcorr_index': tcorr_index})
-
-
-            # checking for a minimum tcorr pixel count should be done inside tcorr_image_gridded
-            MIN_PIXELS_PER_IMAGE = 250
-            MIN_GRID_COUNT = 5
 
             scene_img = self.tcorr_gridded
 
@@ -1151,20 +1155,30 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .select([0, 1], ['tcorr', 'count'])
 
-        # The number of valid 30m Tcorr cells that must be present in each
-        #   coarse grid cell to be "valid"
-        MIN_PIXELS_PER_GRID = 10
-
         # Mask cells without enough fine resolution Tcorr cells
         # The count band is dropped after it is used to mask
         tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
-            .updateMask(tcorr_coarse_img.select(['count']).gte(MIN_PIXELS_PER_GRID))
+            .updateMask(tcorr_coarse_img.select(['count'])
+                        .gte(self.min_pixels_per_grid_cell))
 
+        # Count the number of coarse resolution Tcorr cells
         count_coarse = tcorr_coarse\
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
                           crsTransform=coarse_transform,
                           bestEffort=False, maxPixels=100000)
         tcorr_count = ee.Number(count_coarse.get('tcorr'))
+
+        # TODO: Test the reduceNeighborhood optimization parameters
+        """
+        ReduceNeighborhood Optimization
+        optimization (String, default: null):
+        Optimization strategy. Options are 'boxcar' and 'window'. 
+        The 'boxcar' method is a fast method for computing count, sum or mean. 
+        It requires a homogeneous kernel, a single-input reducer and either 
+        MASK, KERNEL or no weighting. The 'window' method uses a running window, 
+        and has the same requirements as 'boxcar', but can use any single input 
+        reducer. Both methods require considerable additional memory.
+        """
 
         # Do reduce neighborhood to interpolate c factor
         tcorr_rn02 = tcorr_coarse\
@@ -1238,6 +1252,19 @@ class Image():
             # CGM - For testing only return raw gridded Tcorr values
             tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
                 .reduce(reducer=ee.Reducer.mean())
+
+        # CGM - Test me
+        # # Fill missing pixels with the full image Tcorr
+        # if self.tcorr_gridded_scene_fill_flag:
+        #     t_stats = ee.Dictionary(self.tcorr_stats) \
+        #         .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
+        #     tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+        #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+        #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
+        #     # tcorr_index = ee.Number(
+        #     #     ee.Algorithms.If(tcorr_count.gte(self.min_pixels_per_image), 0, 9))
+        #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
+        #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
         # Do one more reduce neighborhood to smooth the c factor
         if self.tcorr_gridded_smooth_flag:
