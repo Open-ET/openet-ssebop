@@ -1257,6 +1257,7 @@ class Image():
         """
 
         # todo - Do rn02 for hot and cold
+        # trivial change
         # Do reduce neighborhood to interpolate c factor
         tcorr_rn02 = tcorr_coarse \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
