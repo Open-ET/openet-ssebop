@@ -31,10 +31,9 @@ def main(key=None, state='READY', regex=None):
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
-                      use_cloud_api=True)
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
     else:
-        ee.Initialize(use_cloud_api=True)
+        ee.Initialize()
 
     # Get current task list
     tasks = utils.get_ee_tasks(states=states)

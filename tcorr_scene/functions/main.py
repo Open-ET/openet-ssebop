@@ -92,8 +92,7 @@ def main(request):
 
 
     logging.debug('\nInitializing Earth Engine')
-    ee.Initialize(ee.ServiceAccountCredentials('', key_file='privatekey.json'),
-                  use_cloud_api=True)
+    ee.Initialize(ee.ServiceAccountCredentials('', key_file='privatekey.json'))
 
     if not ee.data.getInfo(tcorr_scene_coll_id):
         return abort(404, description='Export collection does not exist')

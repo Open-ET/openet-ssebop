@@ -64,7 +64,7 @@ def main(ini_path=None):
 
 
     logging.info('\nInitializing Earth Engine')
-    ee.Initialize(use_cloud_api=False)
+    ee.Initialize()
     ee.Number(1).getInfo()
 
 

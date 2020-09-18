@@ -114,10 +114,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
-                      use_cloud_api=True)
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file))
     else:
-        ee.Initialize(use_cloud_api=True)
+        ee.Initialize()
 
 
     # Get a Tmax image to set the Tcorr values to
