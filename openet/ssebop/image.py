@@ -203,7 +203,7 @@ class Image():
         if 'tcorr_gridded_weight_flag' in kwargs.keys():
             self.tcorr_gridded_weight_flag = kwargs['tcorr_gridded_weight_flag']
         else:
-            self.tcorr_gridded_weight_flag = False
+            self.tcorr_gridded_weight_flag = True
 
         if 'tcorr_gridded_smooth_flag' in kwargs.keys():
             self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_smooth_flag']
@@ -213,7 +213,7 @@ class Image():
         if 'tcorr_gridded_scene_fill_flag' in kwargs.keys():
             self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_scene_fill_flag']
         else:
-            self.tcorr_gridded_smooth_flag = False
+            self.tcorr_gridded_smooth_flag = True
 
         if 'min_pixels_per_image' in kwargs.keys():
             self.min_pixels_per_image = kwargs['min_pixels_per_image']
@@ -1132,11 +1132,14 @@ class Image():
         tcorr = hottemp.divide(tmax)
 
         # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters') \
-            .reproject(crs=self.crs, crsTransform=self.transform) \
-            .gt(0.0).lte(0.25)
-        ndvi_buffer_mask = ndvi.gt(0.0).lte(0.25).reduceNeighborhood(
+        ndvi_smooth = ndvi.focal_mean(radius=120, units='meters') \
+            .reproject(crs=self.crs, crsTransform=self.transform)
+        ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(0.25))
+
+        #changed the gt and lte to be after the reduceNeighborhood() call
+        ndvi_buffer = ndvi.reduceNeighborhood(
             ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
+        ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(0.25))
 
         # No longer worry about low LST. Filter out high NDVI vals and mask out areas that aren't 'Barren'
         tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)
@@ -1176,8 +1179,7 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        # TODO: rename this funtion as tcorr_gridded
-        # TODO: Define coarse cellsize or transform as a parameter
+        # TODO: Define coarse cell-size or transform as a parameter
 
         ## this is currently an experiment but the plan is...
         ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
@@ -1222,7 +1224,6 @@ class Image():
         tcorr_coarse_cold = tcorr_coarse_img_cold.select(['tcorr']) \
             .updateMask(tcorr_coarse_img_cold.select(['count'])
                         .gte(self.min_pixels_per_grid_cell))
-
         # Count the number of coarse resolution Tcorr cells
         count_coarse_cold = tcorr_coarse_cold \
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
@@ -1231,12 +1232,12 @@ class Image():
         tcorr_count_cold = ee.Number(count_coarse_cold.get('tcorr'))
         ### ===================HOT ===================
         # TODO - if there is a Null Image, do we get problems
+        # todo - test export tcorr coarse hot
         # Mask cells without enough fine resolution Tcorr cells
         # The count band is dropped after it is used to mask
         tcorr_coarse_hot = tcorr_coarse_img_hot.select(['tcorr']) \
             .updateMask(tcorr_coarse_img_hot.select(['count'])
                         .gte(self.min_pixels_per_grid_cell))
-
         # Count the number of coarse resolution Tcorr cells
         count_coarse_hot = tcorr_coarse_hot \
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
@@ -1256,24 +1257,40 @@ class Image():
         reducer. Both methods require considerable additional memory.
         """
 
+        # return tcorr_coarse_hot, tcorr_coarse_cold
+
         # todo - Do rn02 for hot and cold
         # trivial change
         # Do reduce neighborhood to interpolate c factor
-        tcorr_rn02 = tcorr_coarse \
+        tcorr_rn02_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn02_hot = tcorr_coarse_hot \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=2, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
 
-        # todo - First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
-        tcorr_rn04 = tcorr_coarse \
+        # # todo - test export rno2 hot and cold...
+        # return tcorr_rn02_cold, tcorr_rn02_hot
+
+        # First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
+        hotCold_rn02_mosaic = ee.Image([tcorr_rn02_cold, tcorr_rn02_hot]) \
+            .reduce(ee.Reducer.firstNonNull())
+        # todo - ...and then the first blended
+
+
+        tcorr_rn04_blended = hotCold_rn02_mosaic \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=4, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
-        tcorr_rn16 = tcorr_coarse \
+        tcorr_rn16_blended = hotCold_rn02_mosaic \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=16, units='pixels'),
                                 skipMasked=False) \
@@ -1283,55 +1300,56 @@ class Image():
         if self.tcorr_gridded_weight_flag:
             # --- In this section we build an image to weight the cfactor
             #   proportionally to how close it is to the original c ---
-            # todo - tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
-            fm_mosaic = ee.Image([tcorr_coarse_cold, tcorr_rn02_cold, tcorr_rn04_blended, tcorr_rn16_blended]) \
+            # todo - ^^^ tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
+            # we make the mosaic below only to use it as a template for zero_img.
+            fm_mosaic = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended]) \
                 .reduce(ee.Reducer.firstNonNull())
+            # create a zero image to add binary images to, in order to weight the image.
             zero_img = fm_mosaic.multiply(0).updateMask(1)
-
+            ## ===== OLD SCORING =====
+            # # We make a series of binary images to map the extent of each layer's c factor
+            # score_coarse = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+            # score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+            # score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+            # score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+            ## ===== NEW SCORING =====
             # We make a series of binary images to map the extent of each layer's c factor
-            score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
-            score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
-            score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
-            score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+            score_02 = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+            score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
+            score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
-            # This layer has a score of 0-4 based on where the binaries overlap.
+            # This layer has a score of 0-3 based on where the binaries overlap.
             # This will help us to know where to apply different weights as directed by G. Senay.
-            total_score_img = ee.Image([score_coarse, score_02, score_04, score_16]) \
+            total_score_img = ee.Image([score_02, score_04, score_16]) \
                 .reduce(ee.Reducer.sum())
 
             # *WEIGHTED MEAN*
             # Use the score band to mask out the areas of overlap to weight the c factor:
-            # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
-            fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
-                                    tcorr_rn02.multiply(0.3).updateMask(1),
-                                    tcorr_rn04.multiply(0.2).updateMask(1),
-                                    tcorr_rn16.multiply(0.1).updateMask(1)]) \
-                .reduce(ee.Reducer.sum()) \
-                .updateMask(total_score_img.eq(4))
-
             # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
             # for 3:2:1 use weights (3/6, 2/6, 1/6)
-            fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
-                                    tcorr_rn04.multiply(0.33),
-                                    tcorr_rn16.multiply(0.17)]) \
+            fm_mosaic_3 = ee.Image([hotCold_rn02_mosaic.multiply(0.5).updateMask(1),
+                                    tcorr_rn04_blended.multiply(0.33).updateMask(1),
+                                    tcorr_rn16_blended.multiply(0.17).updateMask(1)]) \
                 .reduce(ee.Reducer.sum()) \
                 .updateMask(total_score_img.eq(3))
 
             # for 2:1 use weights (2/3, 1/3)
-            fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
-                                    tcorr_rn16.multiply(0.33)]) \
+            fm_mosaic_2 = ee.Image([tcorr_rn04_blended.multiply(0.67).updateMask(1),
+                                    tcorr_rn16_blended.multiply(0.33).updateMask(1)]) \
                 .reduce(ee.Reducer.sum()) \
                 .updateMask(total_score_img.eq(2))
 
             # for 1 use the value of 16
-            fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
+            fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
 
             # Combine the weighted means into a single image using first non-null
-            tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1]) \
-                .reduce(ee.Reducer.firstNonNull())
+            tcorr = ee.Image([fm_mosaic_3, fm_mosaic_2, fm_mosaic_1]) \
+                .reduce(ee.Reducer.firstNonNull()).updateMask(1)
+
+            # return hotCold_rn02_mosaic, tcorr
         else:
             # CGM - For testing only return raw gridded Tcorr values
-            tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16]) \
+            tcorr = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended]) \
                 .reduce(reducer=ee.Reducer.mean())
 
         # CGM - Test me
@@ -1356,11 +1374,12 @@ class Image():
                 .reproject(crs=self.crs, crsTransform=coarse_transform) \
                 .updateMask(1)
 
-        # TODO - the tcorr count band may want to be returned
+        # TODO - the tcorr hot and cold count band may want to be returned
         #   for further analysis of tcorr count on cfactor
         return tcorr.select([0], ['tcorr']) \
             .set(self._properties) \
-            .set({'tcorr_coarse_count': tcorr_count_cold})
+            .set({'tcorr_coarse_count_cold': tcorr_count_cold})
+
 
     @lazy_property
     def tcorr_gridded_deprecated(self):
