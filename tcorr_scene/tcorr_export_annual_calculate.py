@@ -11,6 +11,9 @@ import openet.ssebop as ssebop
 import utils
 # from . import utils
 
+ANNUAL_TCORR_INDEX = 4
+NODATA_TCORR_INDEX = 9
+
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1, reverse_flag=False):
@@ -114,10 +117,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
-                      use_cloud_api=True)
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file))
     else:
-        ee.Initialize(use_cloud_api=True)
+        ee.Initialize()
 
 
     logging.debug('\nTmax properties')
@@ -352,8 +354,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             .combine({'median': 0, 'count': 0}, overwrite=False)
         tcorr = ee.Number(tcorr_stats.get('median'))
         count = ee.Number(tcorr_stats.get('count'))
-        index = count.lt(min_scene_count).multiply(7).add(2)
-        # index = ee.Algorithms.If(count.gte(min_scene_count), 2, 9)
+        index = count.lt(min_scene_count)\
+            .multiply(NODATA_TCORR_INDEX - ANNUAL_TCORR_INDEX)\
+            .add(ANNUAL_TCORR_INDEX)
+        # index = ee.Algorithms.If(count.gte(min_scene_count), 6, 9)
 
         # Clip the mask image to the Landsat footprint
         # Change mask values to 1 if count >= threshold

@@ -12,6 +12,9 @@ import openet.ssebop as ssebop
 import utils
 # from . import utils
 
+SCENE_TCORR_INDEX = 3
+NODATA_TCORR_INDEX = 9
+
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1, cron_flag=False, reverse_flag=False, update_flag=False):
@@ -411,7 +414,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr = ee.Number(t_stats.get('tcorr_p5'))
             count = ee.Number(t_stats.get('tcorr_count'))
-            index = ee.Algorithms.If(count.gte(min_pixel_count), 0, 9)
+            index = ee.Algorithms.If(
+                count.gte(min_pixel_count), SCENE_TCORR_INDEX, NODATA_TCORR_INDEX)
 
             # Write an empty image if the pixel count is too low
             tcorr_img = ee.Algorithms.If(

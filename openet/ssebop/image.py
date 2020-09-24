@@ -557,11 +557,23 @@ class Image():
           9 - No data
 
         """
+        tcorr_indices = {
+            'gridded': 0,
+            'gridded_cold': 1,
+            'gridded_hot': 2,
+            'scene': 3,
+            'month': 4,
+            'season': 5,
+            'annual': 6,
+            'default': 7,
+            'user': 8,
+            'nodata': 9,
+        }
 
         # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
         if utils.is_number(self._tcorr_source):
             return ee.Image.constant(float(self._tcorr_source))\
-                .rename(['tcorr']).set({'tcorr_index': 4})
+                .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
         elif 'DYNAMIC' == self._tcorr_source.upper():
             # Compute Tcorr dynamically for the scene
@@ -590,7 +602,7 @@ class Image():
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
             mask_img = ee.Image(default_coll.first()).multiply(0)
             mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': 9}))
+                mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']}))
             annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
                 .select(['tcorr'])
@@ -650,7 +662,7 @@ class Image():
             #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
             # mask_img = ee.Image(default_coll.first()).multiply(0)
             # mask_coll = ee.ImageCollection(
-            #     mask_img.updateMask(0).set({'tcorr_index': 9}))
+            #     mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']}))
             # annual_coll = ee.ImageCollection(annual_dict[tmax_key]) \
             #     .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile) \
             #     .select(['tcorr'])
