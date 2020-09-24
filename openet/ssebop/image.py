@@ -564,6 +564,8 @@ class Image():
           9 - No data
 
         """
+
+        # TODO: Make this a class property or method that we can query
         tcorr_indices = {
             'gridded': 0,
             'gridded_cold': 1,
@@ -687,10 +689,7 @@ class Image():
             # else:
             #     min_pixels_per_image = 250
 
-            scene_img = self.tcorr_gridded\
-                .rename(['tcorr'])\
-                .set({'tcorr_index': 0})
-            return scene_img
+            # scene_img = self.tcorr_gridded
 
             # tcorr_coarse_count = ee.Number(scene_img.get('tcorr_coarse_count'))
 
@@ -711,11 +710,11 @@ class Image():
 
             # return tcorr_img.rename(['tcorr'])
 
+            return self.tcorr_gridded.rename(['tcorr'])
+
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
-            return self.tcorr_gridded_deprecated\
-                .rename(['tcorr'])\
-                .set({'tcorr_index': 1})\
+            return self.tcorr_gridded_cold.rename(['tcorr'])
 
         elif 'SCENE' in self._tcorr_source.upper():
             # Use a precompute Tcorr scene
@@ -979,7 +978,6 @@ class Image():
         Image
 
         """
-        print('gridded-C branch!')
         toa_image = ee.Image(toa_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
@@ -1411,11 +1409,12 @@ class Image():
         #   for further analysis of tcorr count on cfactor
         return tcorr.select([0], ['tcorr']) \
             .set(self._properties) \
-            .set({'tcorr_coarse_count_cold': tcorr_count_cold})
+            .set({'tcorr_index': 0,
+                  'tcorr_coarse_count_cold': tcorr_count_cold})
 
 
     @lazy_property
-    def tcorr_gridded_deprecated(self):
+    def tcorr_gridded_cold(self):
         """Compute a continuous gridded Tcorr for the current image
 
         Returns
@@ -1564,4 +1563,5 @@ class Image():
         #   for further analysis of tcorr count on cfactor
         return tcorr.select([0], ['tcorr'])\
             .set(self._properties)\
-            .set({'tcorr_coarse_count': tcorr_count})
+            .set({'tcorr_index': 1,
+                  'tcorr_coarse_count': tcorr_count})

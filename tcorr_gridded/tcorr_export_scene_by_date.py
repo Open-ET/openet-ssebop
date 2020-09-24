@@ -13,14 +13,25 @@ import openet.ssebop as ssebop
 import utils
 # from . import utils
 
-GRIDDED_COLD_TCORR_INDEX = 1
-NODATA_TCORR_INDEX = 9
+# TODO: This could be a property or method of SSEBop or the Image class
+TCORR_INDICES = {
+    'GRIDDED': 0,
+    'GRIDDED_COLD': 1,
+    'GRIDDED_HOT': 2,
+    'SCENE': 3,
+    'MONTH': 4,
+    'SEASON': 5,
+    'ANNUAL': 6,
+    'DEFAULT': 7,
+    'USER': 8,
+    'NODATA': 9,
+}
 EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
          max_ready=-1, cron_flag=False, reverse_flag=False, update_flag=False):
-    """Compute scene Tcorr images by date
+    """Compute gridded Tcorr images by date
 
     Parameters
     ----------
@@ -46,7 +57,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         If True, only overwrite scenes with an older model version.
 
     """
-    logging.info('\nCompute scene Tcorr images by date')
+    logging.info('\nCompute gridded Tcorr images by date')
+
+    # TODO: Move to INI or function input parameter
+    clip_ocean_flag = True
 
     ini = utils.read_ini(ini_path)
 
@@ -87,7 +101,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # min_pixel_count = float(ini['TCORR']['min_pixel_count'])
     # min_scene_count = float(ini['TCORR']['min_scene_count'])
 
-    if tcorr_source.upper() != 'GRIDDED_COLD':
+    if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED']:
         raise ValueError('unsupported tcorr_source for these tools')
 
     # For now only support reading specific Tmax sources
@@ -284,12 +298,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         logging.debug('Start Date: {} - no Landsat 5+ images before '
                       '1984-03-23'.format(start_dt.strftime('%Y-%m-%d')))
         start_dt = datetime.datetime(1984, 3, 23)
+    if start_dt > end_dt:
+        raise ValueError('Start date must be before end date')
     start_date = start_dt.strftime('%Y-%m-%d')
     end_date = end_dt.strftime('%Y-%m-%d')
     logging.debug('Start Date: {}'.format(start_date))
     logging.debug('End Date:   {}\n'.format(end_date))
-    if start_dt > end_dt:
-        raise ValueError('Start date must be before end date')
 
 
     # if update_flag:
@@ -396,12 +410,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                         continue
             elif overwrite_flag:
                 if export_id in tasks.keys():
-                    logging.debug('  Task already submitted, cancelling')
+                    logging.info('  Task already submitted, cancelling')
                     ee.data.cancelTask(tasks[export_id]['id'])
                 # This is intentionally not an "elif" so that a task can be
                 # cancelled and an existing image/file/asset can be removed
                 if asset_id in asset_list:
-                    logging.debug('  Asset already exists, removing')
+                    logging.info('  Asset already exists, removing')
                     ee.data.deleteAsset(asset_id)
             else:
                 if export_id in tasks.keys():
@@ -413,8 +427,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
             # Get the input image grid and spatial reference
             image_info = ee.Image(image_id).select(['B3']).getInfo()
-            pprint.pprint(image_info)
-            input('ENTER')
             image_geo = image_info['bands'][0]['crs_transform']
             image_crs = image_info['bands'][0]['crs']
             image_shape = image_info['bands'][0]['dimensions']
@@ -422,10 +434,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             image_extent = [
                 image_geo[2], image_geo[5] + image_shape[1] * image_geo[4],
                 image_geo[2] + image_shape[0] * image_geo[0], image_geo[5]]
-            logging.info('    Image CRS: {}'.format(image_crs))
-            logging.info('    Image Extent: {}'.format(image_extent))
-            logging.info('    Image Geo: {}'.format(image_geo))
-            logging.info('    Image Shape: {}'.format(image_shape))
+            logging.debug('    Image CRS: {}'.format(image_crs))
+            logging.debug('    Image Extent: {}'.format(image_extent))
+            logging.debug('    Image Geo: {}'.format(image_geo))
+            logging.debug('    Image Shape: {}'.format(image_shape))
 
             # Adjust the image extent to the coarse resolution grid
             # EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
@@ -445,41 +457,30 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             export_shape = [
                 int(abs(export_extent[2] - export_extent[0]) / EXPORT_GEO[0]),
                 int(abs(export_extent[3] - export_extent[1]) / EXPORT_GEO[0])]
-            logging.info('    Export CRS: {}'.format(image_crs))
-            logging.info('    Export Extent: {}'.format(export_extent))
-            logging.info('    Export Geo: {}'.format(export_geo))
-            logging.info('    Export Shape: {}'.format(export_shape))
+            logging.debug('    Export CRS: {}'.format(image_crs))
+            logging.debug('    Export Extent: {}'.format(export_extent))
+            logging.debug('    Export Geo: {}'.format(export_geo))
+            logging.debug('    Export Shape: {}'.format(export_shape))
 
             # TODO: Will need to be changed for SR or use from_image_id()
             t_obj = ssebop.Image.from_landsat_c1_toa(
                 ee.Image(image_id), **model_args)
 
-            # CGM - Calling tcorr method since tcorr_source is set to GRIDDED_COLD
-            #   and GRIDDED_COLD option does not do any compositing
-            tcorr_img = t_obj.tcorr
-            # tcorr_img = t_obj.tcorr_gridded_deprecated
 
+            # CGM - Not calling the tcorr method directly since it will
+            #   eventually handle compositing with climos or the scene average
+            if tcorr_source == 'GRIDDED':
+                tcorr_img = t_obj.tcorr_gridded
+            elif tcorr_source == 'GRIDDED_COLD':
+                tcorr_img = t_obj.tcorr_gridded_cold
+            # tcorr_img = t_obj.tcorr
 
-            # t_stats = ee.Dictionary(t_obj.tcorr_stats) \
-            #     .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            # tcorr = ee.Number(t_stats.get('tcorr_p5'))
-            # count = ee.Number(t_stats.get('tcorr_count'))
-            # index = ee.Algorithms.If(
-            #     count.gte(min_pixel_count), SCENE_TCORR_INDEX, NODATA_TCORR_INDEX)
-            #
-            # # Write an empty image if the pixel count is too low
-            # tcorr_img = ee.Algorithms.If(
-            #     count.gte(min_pixel_count),
-            #     tmax_mask.add(tcorr), tmax_mask.updateMask(0))
 
             # Clip to the Landsat image footprint
-            # output_img = ee.Image(tcorr_img).clip(image.geometry())
+            tcorr_img = ee.Image(tcorr_img).clip(ee.Image(image_id).geometry())
+            # Clear the transparency mask (from clipping)
+            tcorr_img = tcorr_img.updateMask(tcorr_img.unmask(0))
 
-            # Clear the transparency mask
-            # output_img = output_img.updateMask(output_img.unmask(0)) \
-            #     .rename(['tcorr']) \
-
-            clip_ocean_flag = True
             if clip_ocean_flag:
                 tcorr_img = tcorr_img\
                     .updateMask(ee.Image('projects/openet/ocean_mask'))
@@ -493,7 +494,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'CLOUD_COVER_LAND': image_info['properties']['CLOUD_COVER_LAND'],
                     # 'SPACECRAFT_ID': image.get('SPACECRAFT_ID'),
                     'coll_id': coll_id,
-                    # 'cycle_day': ((export_dt - cycle_base_dt).days % 8) + 1,
                     'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
                     'date': export_dt.strftime('%Y-%m-%d'),
                     'doy': int(export_dt.strftime('%j')),
@@ -502,7 +502,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'month': int(export_dt.month),
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
-                    'tcorr_index': GRIDDED_COLD_TCORR_INDEX,
+                    'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
                     'tcorr_source': tcorr_source.upper(),
                     'tmax_source': tmax_source.upper(),
                     'tmax_version': tmax_version.upper(),
@@ -535,7 +535,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Compute/export scene Tcorr images by date',
+        description='Compute/export gridded Tcorr images by date',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-i', '--ini', type=utils.arg_valid_file,
