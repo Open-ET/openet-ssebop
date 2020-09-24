@@ -641,104 +641,104 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
     # assert index == expected[1]
 
 
-# TODO: The following tests could all be combined into a single tests with
-#   parameters for the flags
-@pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, clip, xy, expected',
-    [
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9887379528208886, 0]],
-    ]
-)
-def test_Image_tcorr_gridded_weight(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
-    """Test getting the gridded weighted Tcorr values"""
-    image_crs = ee.Image(image_id).select([3]).projection().crs()
-    print(image_crs.getInfo())
-    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
-    print(point_xy)
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=True,
-        tcorr_gridded_smooth_flag=False).tcorr
-    tcorr = utils.point_image_value(tcorr_img, point_xy)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
-    # assert index == expected[1]
-
-
-@pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, clip, xy, expected',
-    [
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9913198853460529, 0]],
-    ]
-)
-def test_Image_tcorr_gridded_smooth(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
-    """Test getting the gridded weighted Tcorr values"""
-    image_crs = ee.Image(image_id).select([3]).projection().crs()
-    print(image_crs.getInfo())
-    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
-    print(point_xy)
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=False,
-        tcorr_gridded_smooth_flag=True).tcorr
-    tcorr = utils.point_image_value(tcorr_img, point_xy)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
-    # assert index == expected[1]
-
-
-@pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, clip, xy, expected',
-    [
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
-         [510000, 4440000, 560000, 4470000],
-         [515000 + 2500, 4445000 + 2500],
-         sum([0.9841927, 0.9841927, 0.9841927, 0.9823752]) * 0.25],
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
-         [510000, 4440000, 560000, 4470000],
-         [530000 + 2500, 4460000 + 2500],
-         sum([0.9850194, 0.9814665, 0.9814665, 0.9823752]) * 0.25],
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
-         [510000, 4440000, 560000, 4470000],
-         [540000 + 2500, 4460000 + 2500],
-         sum([0.9779135, 0.9814665, 0.9814665, 0.9823752]) * 0.25],
-    ]
-)
-def test_Image_tcorr_gridded_values(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
-    """Test getting the gridded Tcorr values"""
-    image_crs = ee.Image(image_id).select([3]).projection().crs()
-    print(image_crs.getInfo())
-    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
-    print(point_xy)
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=False,
-        tcorr_gridded_smooth_fla=False).tcorr
-    tcorr = utils.point_image_value(tcorr_img, point_xy)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected) <= tol
-    # CGM - Add check for tcorr_coarse_count, should be 3 for these 3 tests
+# # TODO: The following tests could all be combined into a single tests with
+# #   parameters for the flags
+# @pytest.mark.parametrize(
+#     'tcorr_source, tmax_source, image_id, clip, xy, expected',
+#     [
+#         ['GRIDDED', 'DAYMET_MEDIAN_V2',
+#          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+#          [600000, 4270000, 625000, 4285000], [612500, 4277500],
+#          [0.9887379528208886, 0]],
+#     ]
+# )
+# def test_Image_tcorr_gridded_weight(tcorr_source, tmax_source, image_id,
+#                                     clip, xy, expected, tol=0.000001):
+#     """Test getting the gridded weighted Tcorr values"""
+#     image_crs = ee.Image(image_id).select([3]).projection().crs()
+#     print(image_crs.getInfo())
+#     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+#     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+#         .coordinates().getInfo()
+#     print(point_xy)
+#     tcorr_img = ssebop.Image.from_landsat_c1_toa(
+#         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+#         tmax_source=tmax_source, tmax_resample='nearest',
+#         tcorr_gridded_weight_flag=True,
+#         tcorr_gridded_smooth_flag=False).tcorr
+#     tcorr = utils.point_image_value(tcorr_img, point_xy)
+#     index = utils.getinfo(tcorr_img.get('tcorr_index'))
+#     assert abs(tcorr['tcorr'] - expected[0]) <= tol
+#     # assert index == expected[1]
+#
+#
+# @pytest.mark.parametrize(
+#     'tcorr_source, tmax_source, image_id, clip, xy, expected',
+#     [
+#         ['GRIDDED', 'DAYMET_MEDIAN_V2',
+#          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+#          [600000, 4270000, 625000, 4285000], [612500, 4277500],
+#          [0.9913198853460529, 0]],
+#     ]
+# )
+# def test_Image_tcorr_gridded_smooth(tcorr_source, tmax_source, image_id,
+#                                     clip, xy, expected, tol=0.000001):
+#     """Test getting the gridded weighted Tcorr values"""
+#     image_crs = ee.Image(image_id).select([3]).projection().crs()
+#     print(image_crs.getInfo())
+#     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+#     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+#         .coordinates().getInfo()
+#     print(point_xy)
+#     tcorr_img = ssebop.Image.from_landsat_c1_toa(
+#         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+#         tmax_source=tmax_source, tmax_resample='nearest',
+#         tcorr_gridded_weight_flag=False,
+#         tcorr_gridded_smooth_flag=True).tcorr
+#     tcorr = utils.point_image_value(tcorr_img, point_xy)
+#     index = utils.getinfo(tcorr_img.get('tcorr_index'))
+#     assert abs(tcorr['tcorr'] - expected[0]) <= tol
+#     # assert index == expected[1]
+#
+#
+# @pytest.mark.parametrize(
+#     'tcorr_source, tmax_source, image_id, clip, xy, expected',
+#     [
+#         ['GRIDDED', 'DAYMET_MEDIAN_V2',
+#          'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
+#          [510000, 4440000, 560000, 4470000],
+#          [515000 + 2500, 4445000 + 2500],
+#          sum([0.9841927, 0.9841927, 0.9841927, 0.9823752]) * 0.25],
+#         ['GRIDDED', 'DAYMET_MEDIAN_V2',
+#          'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
+#          [510000, 4440000, 560000, 4470000],
+#          [530000 + 2500, 4460000 + 2500],
+#          sum([0.9850194, 0.9814665, 0.9814665, 0.9823752]) * 0.25],
+#         ['GRIDDED', 'DAYMET_MEDIAN_V2',
+#          'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711',
+#          [510000, 4440000, 560000, 4470000],
+#          [540000 + 2500, 4460000 + 2500],
+#          sum([0.9779135, 0.9814665, 0.9814665, 0.9823752]) * 0.25],
+#     ]
+# )
+# def test_Image_tcorr_gridded_values(tcorr_source, tmax_source, image_id,
+#                                     clip, xy, expected, tol=0.000001):
+#     """Test getting the gridded Tcorr values"""
+#     image_crs = ee.Image(image_id).select([3]).projection().crs()
+#     print(image_crs.getInfo())
+#     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+#     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+#         .coordinates().getInfo()
+#     print(point_xy)
+#     tcorr_img = ssebop.Image.from_landsat_c1_toa(
+#         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+#         tmax_source=tmax_source, tmax_resample='nearest',
+#         tcorr_gridded_weight_flag=False,
+#         tcorr_gridded_smooth_fla=False).tcorr
+#     tcorr = utils.point_image_value(tcorr_img, point_xy)
+#     index = utils.getinfo(tcorr_img.get('tcorr_index'))
+#     assert abs(tcorr['tcorr'] - expected) <= tol
+#     # CGM - Add check for tcorr_coarse_count, should be 3 for these 3 tests
 
 
 # TODO: Add check for Tcorr coarse count property
