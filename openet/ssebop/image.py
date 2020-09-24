@@ -94,6 +94,11 @@ class Image():
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
+            tcorr_gridded_weight_flag : bool
+            tcorr_gridded_smooth_flag : bool
+            min_pixels_per_image : int
+            min_pixels_per_grid_cell : int
+            min_grid_cells_per_image : int
 
         Notes
         -----
@@ -210,15 +215,18 @@ class Image():
         else:
             self.tcorr_gridded_smooth_flag = False
 
-        if 'tcorr_gridded_scene_fill_flag' in kwargs.keys():
-            self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_scene_fill_flag']
-        else:
-            self.tcorr_gridded_smooth_flag = True
+        # DEADBEEF - Not fully implemented yet
+        # if 'tcorr_gridded_scene_fill_flag' in kwargs.keys():
+        #     self.tcorr_gridded_scene_fill_flag = kwargs['tcorr_gridded_scene_fill_flag']
+        # else:
+        #     self.tcorr_gridded_scene_fill_flag = True
 
-        if 'min_pixels_per_image' in kwargs.keys():
-            self.min_pixels_per_image = kwargs['min_pixels_per_image']
-        else:
-            self.min_pixels_per_image = 250
+        # DEADBEEF - This one is checked in tcorr() since the GRIDDED and DYNAMIC
+        #   options have different defaults
+        # if 'min_pixels_per_image' in kwargs.keys():
+        #     self.min_pixels_per_image = kwargs['min_pixels_per_image']
+        # else:
+        #     self.min_pixels_per_image = 250
 
         if 'min_pixels_per_grid_cell' in kwargs.keys():
             self.min_pixels_per_grid_cell = kwargs['min_pixels_per_grid_cell']
@@ -229,7 +237,6 @@ class Image():
             self.min_grid_cells_per_image = kwargs['min_grid_cells_per_image']
         else:
             self.min_grid_cells_per_image = 5
-
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -570,7 +577,6 @@ class Image():
             'nodata': 9,
         }
 
-        # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
         if utils.is_number(self._tcorr_source):
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
@@ -611,17 +617,23 @@ class Image():
                 .filterMetadata('month', 'equals', self._month)\
                 .select(['tcorr'])
 
-            # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
-            MIN_PIXEL_COUNT = 1000
+            # Use a larger default minimum pixel count for dynamic Tcorr
+            if 'min_pixels_per_image' in self.kwargs.keys():
+                min_pixels_per_image = self.kwargs['min_pixels_per_image']
+            else:
+                min_pixels_per_image = 1000
+
             t_stats = ee.Dictionary(self.tcorr_stats)\
                 .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
             tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
             tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-            tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-            # tcorr_index = ee.Number(
-            #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
+            tcorr_index = tcorr_count.lt(min_pixels_per_image)\
+                .multiply(tcorr_indices['nodata'])
+            # tcorr_index = ee.Number(ee.Algorithms.If(
+            #     tcorr_count.gte(min_pixels_per_image),
+            #     0, tcorr_indices['nodata']))
 
-            mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
+            mask_img = mask_img.add(tcorr_count.gte(min_pixels_per_image))
             scene_img = mask_img.multiply(tcorr_value)\
                 .updateMask(mask_img.unmask(0))\
                 .rename(['tcorr'])\
@@ -644,8 +656,6 @@ class Image():
             # annual_dict = {
             #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
             # }
-            #
-            # # Adding this block into the gridded_tcorr func for now
             # default_dict = {
             #     'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
             # }
@@ -671,31 +681,41 @@ class Image():
             #     .filterMetadata('month', 'equals', self._month) \
             #     .select(['tcorr'])
 
-            scene_img = self.tcorr_gridded
+            # # Use a larger default minimum pixel count for dynamic Tcorr
+            # if 'min_pixels_per_image' in self.kwargs.keys():
+            #     min_pixels_per_image = self.kwargs['min_pixels_per_image']
+            # else:
+            #     min_pixels_per_image = 250
 
-            # TODO - create a tcorr index that allows for prioritizing dynamic gridded c factor over other options
-            tcorr_coarse_count = ee.Number(scene_img.get('tcorr_coarse_count'))
+            scene_img = self.tcorr_gridded\
+                .rename(['tcorr'])\
+                .set({'tcorr_index': 0})
+            return scene_img
 
-            # TODO - hardcoding this for now
-            tcorr_index = ee.Number(0)
-            # tcorr_index = cfactor_5km_count.lt(MIN_PIXELS_PER_IMAGE).multiply(9)
-            # mask_img = mask_img.add(cfactor_5km_count.gte(MIN_PIXEL_COUNT))
+            # tcorr_coarse_count = ee.Number(scene_img.get('tcorr_coarse_count'))
+
+            # tcorr_index = tcorr_coarse_count.lt(min_pixels_per_image)
+            #     .multiply(tcorr_indices['nodata'])
+            # mask_img = mask_img.add(tcorr_coarse_count.gte(min_pixels_per_image))
             # scene_img = mask_img.multiply(tcorr_value) \
             #     .updateMask(mask_img.unmask(0)) \
             #     .rename(['tcorr']) \
             #     .set({'tcorr_index': tcorr_index})
-            scene_img = scene_img.set({'tcorr_index': tcorr_index})
 
-            # # Building a collection of the gridded c-factor or fallback images.
+            # Building a collection of the gridded c-factor or fallback images.
             # tcorr_coll = ee.ImageCollection([scene_img])\
             #     .merge(month_coll).merge(annual_coll)\
             #     .merge(default_coll).merge(mask_coll)\
             #     .sort('tcorr_index')
-            #
-            # # TODO - .resample then .resample.reproject for bilinear.
-            # return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+            # tcorr_img = ee.Image(tcorr_coll.first())
 
-            return scene_img.rename(['tcorr'])
+            # return tcorr_img.rename(['tcorr'])
+
+        elif 'GRIDDED_COLD' == self._tcorr_source.upper():
+            # Compute gridded Tcorr for the scene
+            return self.tcorr_gridded_deprecated\
+                .rename(['tcorr'])\
+                .set({'tcorr_index': 1})\
 
         elif 'SCENE' in self._tcorr_source.upper():
             # Use a precompute Tcorr scene
@@ -1364,7 +1384,7 @@ class Image():
             tcorr = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended]) \
                 .reduce(reducer=ee.Reducer.mean())
 
-        # CGM - Test me
+        # CGM - This should probably be done in main Tcorr method with other compositing
         # # Fill missing pixels with the full image Tcorr
         # if self.tcorr_gridded_scene_fill_flag:
         #     t_stats = ee.Dictionary(self.tcorr_stats) \
@@ -1377,6 +1397,7 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
+        # CGM - This should probably be done in main Tcorr method after other compositing
         # Do one more reduce neighborhood to smooth the c factor
         if self.tcorr_gridded_smooth_flag:
             tcorr = tcorr \
@@ -1516,7 +1537,7 @@ class Image():
             tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
                 .reduce(reducer=ee.Reducer.mean())
 
-        # CGM - Test me
+        # CGM - This should probably be done in main Tcorr method with other compositing
         # # Fill missing pixels with the full image Tcorr
         # if self.tcorr_gridded_scene_fill_flag:
         #     t_stats = ee.Dictionary(self.tcorr_stats) \
@@ -1529,6 +1550,7 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
+        # CGM - This should probably be done in main Tcorr method after other compositing
         # Do one more reduce neighborhood to smooth the c factor
         if self.tcorr_gridded_smooth_flag:
             tcorr = tcorr\
