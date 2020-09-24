@@ -1,5 +1,4 @@
 import argparse
-from builtins import input
 from collections import defaultdict
 import datetime
 import logging
@@ -13,10 +12,11 @@ import ee
 import openet.ssebop as ssebop
 import utils
 # from . import utils
+# from openet.core import utils
 
 
 def main(ini_path=None, overwrite_flag=False, delay=0, key=None,
-         cron_flag=False, reverse_flag=False):
+         reverse_flag=False):
     """Compute daily dT images
 
     Parameters
@@ -274,22 +274,15 @@ def arg_parse():
         '--key', type=utils.arg_valid_file, metavar='FILE',
         help='JSON key file')
     parser.add_argument(
-        '--cron', default=False, action='store_true',
-        help='Cron mode')
-    parser.add_argument(
         '--reverse', default=False, action='store_true',
         help='Process dates in reverse order')
     parser.add_argument(
-        '-o', '--overwrite', default=False, action='store_true',
+        '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
-        '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
+        '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
-
-    # Prompt user to select an INI file if not set at command line
-    # if not args.ini:
-    #     args.ini = utils.get_ini_path(os.getcwd())
 
     return args
 
@@ -306,4 +299,4 @@ if __name__ == "__main__":
         'Script:', os.path.basename(sys.argv[0])))
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite, delay=args.delay,
-         key=args.key, cron_flag=args.cron, reverse_flag=args.reverse)
+         key=args.key, reverse_flag=args.reverse)
