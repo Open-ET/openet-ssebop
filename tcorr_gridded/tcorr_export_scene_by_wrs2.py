@@ -290,7 +290,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         raise ValueError('start date must be before end date')
     start_date = start_dt.strftime('%Y-%m-%d')
     end_date = end_dt.strftime('%Y-%m-%d')
-    next_date = (start_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    next_date = (end_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
     logging.debug('Start Date: {}'.format(start_date))
     logging.debug('End Date:   {}\n'.format(end_date))
 
