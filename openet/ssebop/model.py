@@ -40,7 +40,7 @@ def et_fraction(lst, tmax, tcorr, dt, elr_flag=False,
         '(lst * (-1) + tmax * tcorr + dt) / dt',
         {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
 
-    return et_fraction.updateMask(et_fraction.lt(1.3))\
+    return et_fraction.updateMask(et_fraction.lt(1.5))\
         .clamp(0, 1.05)\
         .rename(['et_fraction'])
 
