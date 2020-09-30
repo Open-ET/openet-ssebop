@@ -597,6 +597,7 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
+        tmax_key = self._tmax_source.upper()
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
@@ -629,7 +630,6 @@ class Image():
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
 
-            tmax_key = self._tmax_source.upper()
             default_coll = ee.ImageCollection(default_dict[tmax_key])\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
             annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
@@ -1192,7 +1192,7 @@ class Image():
             .reduceResolution(
                 reducer=ee.Reducer.percentile(percentiles=[5])
                     .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
-                bestEffort=True, maxPixels=30000) \
+                bestEffort=False, maxPixels=30000) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .select([0, 1], ['tcorr', 'count'])
 
@@ -1203,7 +1203,7 @@ class Image():
             .reduceResolution(
                 reducer=ee.Reducer.percentile(percentiles=[70])
                     .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
-                bestEffort=True, maxPixels=30000) \
+                bestEffort=False, maxPixels=30000) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .select([0, 1], ['tcorr', 'count'])
 
@@ -1215,8 +1215,8 @@ class Image():
                         .gte(self.min_pixels_per_grid_cell))
         # Count the number of coarse resolution Tcorr cells
         count_coarse_cold = tcorr_coarse_cold \
-            .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
-                          crsTransform=coarse_transform,
+            .reduceRegion(reducer=ee.Reducer.count(),
+                          crs=self.crs, crsTransform=coarse_transform,
                           bestEffort=False, maxPixels=100000)
         tcorr_count_cold = ee.Number(count_coarse_cold.get('tcorr'))
 
@@ -1230,8 +1230,8 @@ class Image():
                         .gte(self.min_pixels_per_grid_cell))
         # Count the number of coarse resolution Tcorr cells
         count_coarse_hot = tcorr_coarse_hot \
-            .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
-                          crsTransform=coarse_transform,
+            .reduceRegion(reducer=ee.Reducer.count(),
+                          crs=self.crs, crsTransform=coarse_transform,
                           bestEffort=False, maxPixels=100000)
         tcorr_count_hot = ee.Number(count_coarse_hot.get('tcorr'))
 
@@ -1255,12 +1255,16 @@ class Image():
         tcorr_rn02_cold = tcorr_coarse_cold\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
         tcorr_rn02_hot = tcorr_coarse_hot\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
@@ -1273,12 +1277,16 @@ class Image():
         tcorr_rn04_blended = hotCold_rn02_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                # optimization='boxcar',
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
         tcorr_rn16_blended = hotCold_rn02_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=16, units='pixels'),
+                                # optimization='boxcar',
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
@@ -1359,6 +1367,8 @@ class Image():
             tcorr = tcorr\
                 .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                     kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                    # kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                    # optimization='boxcar',
                                     skipMasked=False)\
                 .reproject(crs=self.crs, crsTransform=coarse_transform)\
                 .updateMask(1)

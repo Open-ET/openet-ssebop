@@ -70,7 +70,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tmax_name = ini[model_name]['tmax_source']
     tcorr_source = ini[model_name]['tcorr_source']
 
-    export_id_fmt = 'tcorr_scene_{product}_{scene_id}'
+    export_id_fmt = 'tcorr_gridded_{product}_{scene_id}'
     asset_id_fmt = '{coll_id}/{scene_id}'
 
     tcorr_scene_coll_id = '{}/{}_scene'.format(
