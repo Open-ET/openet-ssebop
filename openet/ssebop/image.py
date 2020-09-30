@@ -75,7 +75,7 @@ class Image():
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
-        tcorr_source : {'DYNAMIC', 'GRIDDED',
+        tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'DYNAMIC').
@@ -597,8 +597,15 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
-        if (('DYNAMIC' == self._tcorr_source.upper()) or
-                ('SCENE' in self._tcorr_source.upper())):
+        if 'SCENE_GRIDDED' == self._tcorr_source.upper():
+            # Use the precomputed scene monthly/annual climatologies if Tcorr
+            #   can't be computed dynamically.
+            tcorr_folder = PROJECT_FOLDER + '/tcorr_gridded'
+            scene_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
+            }
+        elif ('DYNAMIC' == self._tcorr_source.upper() or
+              'SCENE' in self._tcorr_source.upper()):
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
@@ -639,6 +646,9 @@ class Image():
             if self._tcorr_resample.lower() == 'bilinear':
                 tcorr_img = tcorr_img\
                     .resample('bilinear')\
+                    .reproject(crs=self.crs, crsTransform=self.transform)
+            else:
+                tcorr_img = tcorr_img\
                     .reproject(crs=self.crs, crsTransform=self.transform)
             return tcorr_img.rename(['tcorr'])
 
@@ -686,6 +696,16 @@ class Image():
                 .sort('tcorr_index')
 
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+
+        elif 'SCENE_GRIDDED' in self._tcorr_source.upper():
+            scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
+                .filterDate(self._start_date, self._end_date)\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            #     .filterMetadata('scene_id', 'equals', scene_id)
+            #     .filterMetadata('date', 'equals', self._date)
+
+            return ee.Image(scene_coll.first())
 
         elif 'SCENE' in self._tcorr_source.upper():
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
