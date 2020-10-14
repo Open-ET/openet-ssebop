@@ -411,6 +411,7 @@ class Image():
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
 
+    # TODO - GELP... is this currently the quality band? Don't worry about this now. Ask Charles if this should change.
     @lazy_property
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
@@ -643,6 +644,8 @@ class Image():
         if 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = self.tcorr_gridded
+            # todo - point to actual c-factor or tcorr when doing the bilinear interp .select('tcorr') or something.
+            # e.g. .select([0, 1], ['tcorr', 'count'])
             if self._tcorr_resample.lower() == 'bilinear':
                 tcorr_img = tcorr_img\
                     .resample('bilinear')\
@@ -1316,6 +1319,7 @@ class Image():
 
             # This layer has a score of 0-3 based on where the binaries overlap.
             # This will help us to know where to apply different weights as directed by G. Senay.
+            # todo - make this into a band of tcorr image!
             total_score_img = ee.Image([score_02, score_04, score_16])\
                 .reduce(ee.Reducer.sum())
 
@@ -1375,10 +1379,15 @@ class Image():
 
         # TODO - the tcorr hot and cold count band may want to be returned
         #   for further analysis of tcorr count on cfactor
-        return tcorr.select([0], ['tcorr'])\
+        return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'tcorr_quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
                   'tcorr_coarse_count_cold': tcorr_count_cold})
+
+        # return tcorr.select([0, 1], ['tcorr', 'tcorr_quality'])\
+        #     .set(self._properties)\
+        #     .set({'tcorr_index': 0,
+        #           'tcorr_coarse_count_cold': tcorr_count_cold})
 
     @lazy_property
     def tcorr_gridded_cold(self):
