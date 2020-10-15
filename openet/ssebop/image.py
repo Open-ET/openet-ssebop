@@ -1280,6 +1280,7 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
+
         # First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
         hotCold_rn02_mosaic = ee.Image([tcorr_rn02_cold, tcorr_rn02_hot]) \
             .reduce(ee.Reducer.firstNonNull())
@@ -1324,6 +1325,12 @@ class Image():
             score_02 = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
             score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
             score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
+
+            # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+            coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
+            coldscore = coldscore.multiply(3)
+            hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
+            hotscore = hotscore.multiply(2)
 
             # This layer has a score of 0-3 based on where the binaries overlap.
             # This will help us to know where to apply different weights as directed by G. Senay.
@@ -1387,7 +1394,8 @@ class Image():
 
         # TODO - the tcorr hot and cold count band may want to be returned
         #   for further analysis of tcorr count on cfactor
-        return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'tcorr_quality'])\
+        quality_score_img = ee.Image([total_score_img, hotscore, coldscore]).reduce(ee.Reducer.sum())
+        return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'tcorr_quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
                   'tcorr_coarse_count_cold': tcorr_count_cold})
