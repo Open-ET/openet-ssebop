@@ -526,7 +526,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             logging.info('  Starting export task')
             utils.ee_task_start(task)
 
-        # Pause before starting the next date (not export task)
+        # Pause before starting the next wrs2 (not export task)
         utils.delay_task(delay_time, max_ready)
         logging.debug('')
 

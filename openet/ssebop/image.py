@@ -598,7 +598,6 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
-        tmax_key = self._tmax_source.upper()
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
@@ -606,6 +605,14 @@ class Image():
             scene_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
             }
+
+            if (utils.is_number(self._tmax_source) or
+                    self._tmax_source.upper() not in scene_dict.keys()):
+                raise ValueError(
+                    '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                        self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
+
         elif ('DYNAMIC' == self._tcorr_source.upper() or
               'SCENE' in self._tcorr_source.upper()):
             # Use the precomputed scene monthly/annual climatologies if Tcorr
@@ -630,6 +637,7 @@ class Image():
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
+            tmax_key = self._tmax_source.upper()
 
             default_coll = ee.ImageCollection(default_dict[tmax_key])\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
