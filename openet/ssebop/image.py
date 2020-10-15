@@ -1328,9 +1328,9 @@ class Image():
 
             # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
             coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
-            coldscore = coldscore.multiply(3)
+            coldscore = coldscore.multiply(3).updateMask(1)
             hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
-            hotscore = hotscore.multiply(2)
+            hotscore = hotscore.multiply(2).updateMask(1)
 
             # This layer has a score of 0-3 based on where the binaries overlap.
             # This will help us to know where to apply different weights as directed by G. Senay.
@@ -1553,6 +1553,9 @@ class Image():
 
         # TODO - the tcorr count band may want to be returned
         #   for further analysis of tcorr count on cfactor
+
+
+
         return tcorr.select([0], ['tcorr'])\
             .set(self._properties)\
             .set({'tcorr_index': 1,
