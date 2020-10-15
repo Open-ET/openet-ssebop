@@ -1392,8 +1392,7 @@ class Image():
                 .reproject(crs=self.crs, crsTransform=coarse_transform)\
                 .updateMask(1)
 
-        # TODO - the tcorr hot and cold count band may want to be returned
-        #   for further analysis of tcorr count on cfactor
+
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore]).reduce(ee.Reducer.sum())
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'tcorr_quality'])\
             .set(self._properties)\
