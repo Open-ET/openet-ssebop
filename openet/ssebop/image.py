@@ -652,7 +652,7 @@ class Image():
         if 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = self.tcorr_gridded
-            # todo - point to actual c-factor or tcorr when doing the bilinear interp .select('tcorr') or something.
+            # todo - point to the correct band .select('tcorr')
             # e.g. .select([0, 1], ['tcorr', 'count'])
             if self._tcorr_resample.lower() == 'bilinear':
                 tcorr_img = tcorr_img\
@@ -1396,7 +1396,7 @@ class Image():
 
 
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore]).reduce(ee.Reducer.sum())
-        return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'tcorr_quality'])\
+        return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
                   'tcorr_coarse_count_cold': tcorr_count_cold})
