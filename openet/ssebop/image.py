@@ -661,6 +661,8 @@ class Image():
             else:
                 tcorr_img = tcorr_img\
                     .reproject(crs=self.crs, crsTransform=self.transform)
+
+            # todo - Does this no longer work now that there is a quality band? GELP 10/15/2020
             return tcorr_img.rename(['tcorr'])
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
