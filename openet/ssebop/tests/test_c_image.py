@@ -617,6 +617,7 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 
 
 # CGM - Only checking that for a small area a consistent Tcorr value is returned
+#   for each of the GRIDDED source options
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
@@ -683,6 +684,9 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
 #     assert abs(tcorr['tcorr'] - expected) <= tol
 #     # CGM - Add check for tcorr_coarse_count, should be 3 for these 3 tests
 
+# TODO: Add tests for the tcorr_gridded and tcorr_gridded_cold methods
+
+# TODO: Add test for Tcorr gridded quality band
 
 # TODO: Add check for Tcorr coarse count property
 

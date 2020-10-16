@@ -612,7 +612,6 @@ class Image():
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
             tmax_key = self._tmax_source.upper()
-
         elif ('DYNAMIC' == self._tcorr_source.upper() or
               'SCENE' in self._tcorr_source.upper()):
             # Use the precomputed scene monthly/annual climatologies if Tcorr
@@ -651,19 +650,17 @@ class Image():
 
         if 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
-            tcorr_img = self.tcorr_gridded
-            # todo - point to the correct band .select('tcorr')
+            tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
             # e.g. .select([0, 1], ['tcorr', 'count'])
             if self._tcorr_resample.lower() == 'bilinear':
                 tcorr_img = tcorr_img\
                     .resample('bilinear')\
                     .reproject(crs=self.crs, crsTransform=self.transform)
-            else:
-                tcorr_img = tcorr_img\
-                    .reproject(crs=self.crs, crsTransform=self.transform)
+            # else:
+            #     tcorr_img = tcorr_img\
+            #         .reproject(crs=self.crs, crsTransform=self.transform)
 
-            # todo - Does this no longer work now that there is a quality band? GELP 10/15/2020
-            return tcorr_img.rename(['tcorr'])
+            return tcorr_img
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
@@ -672,6 +669,10 @@ class Image():
                 tcorr_img = tcorr_img\
                     .resample('bilinear')\
                     .reproject(crs=self.crs, crsTransform=self.transform)
+            # else:
+            #     tcorr_img = tcorr_img\
+            #         .reproject(crs=self.crs, crsTransform=self.transform)
+
             return tcorr_img.rename(['tcorr'])
 
         elif 'DYNAMIC' == self._tcorr_source.upper():
