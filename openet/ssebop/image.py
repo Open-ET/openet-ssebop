@@ -95,8 +95,6 @@ class Image():
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
-            tcorr_gridded_weight_flag : bool
-            tcorr_gridded_smooth_flag : bool
             min_pixels_per_image : int
             min_pixels_per_grid_cell : int
             min_grid_cells_per_image : int
@@ -215,32 +213,6 @@ class Image():
             self._tcorr_resample = 'nearest'
 
         """Gridded Tcorr keyword arguments"""
-        # TODO: This is probably not needed anymore and the check for the False
-        #   condition can be removd from tcorr_gridded()
-        if 'tcorr_gridded_weight_flag' in kwargs.keys():
-            self.tcorr_gridded_weight_flag = kwargs['tcorr_gridded_weight_flag']
-        else:
-            self.tcorr_gridded_weight_flag = True
-
-        # TODO: This could probably be removed since it should always be True
-        if 'tcorr_gridded_smooth_flag' in kwargs.keys():
-            self.tcorr_gridded_smooth_flag = kwargs['tcorr_gridded_smooth_flag']
-        else:
-            self.tcorr_gridded_smooth_flag = True
-
-        # DEADBEEF - This can probably be removed
-        # if 'tcorr_gridded_scene_fill_flag' in kwargs.keys():
-        #     self.tcorr_gridded_scene_fill_flag = kwargs['tcorr_gridded_scene_fill_flag']
-        # else:
-        #     self.tcorr_gridded_scene_fill_flag = True
-
-        # DEADBEEF - This is checked in tcorr() since the GRIDDED and DYNAMIC
-        #   options have different defaults
-        # if 'min_pixels_per_image' in kwargs.keys():
-        #     self.min_pixels_per_image = kwargs['min_pixels_per_image']
-        # else:
-        #     self.min_pixels_per_image = 250
-
         # TODO: This should probably be moved into tcorr_gridded()
         if 'min_pixels_per_grid_cell' in kwargs.keys():
             self.min_pixels_per_grid_cell = kwargs['min_pixels_per_grid_cell']
@@ -252,6 +224,13 @@ class Image():
             self.min_grid_cells_per_image = kwargs['min_grid_cells_per_image']
         else:
             self.min_grid_cells_per_image = 5
+
+        # DEADBEEF - This is checked in tcorr() since the GRIDDED and DYNAMIC
+        #   options have different defaults
+        # if 'min_pixels_per_image' in kwargs.keys():
+        #     self.min_pixels_per_image = kwargs['min_pixels_per_image']
+        # else:
+        #     self.min_pixels_per_image = 250
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -1306,69 +1285,70 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
-        if self.tcorr_gridded_weight_flag:
-            # --- In this section we build an image to weight the cfactor
-            #   proportionally to how close it is to the original c ---
-            # todo - ^^^ tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
-            # we make the mosaic below only to use it as a template for zero_img.
-            fm_mosaic = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended])\
-                .reduce(ee.Reducer.firstNonNull())
-            # create a zero image to add binary images to, in order to weight the image.
-            zero_img = fm_mosaic.multiply(0).updateMask(1)
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        # todo - ^^^ tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
+        # we make the mosaic below only to use it as a template for zero_img.
+        fm_mosaic = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended])\
+            .reduce(ee.Reducer.firstNonNull())
+        # create a zero image to add binary images to, in order to weight the image.
+        zero_img = fm_mosaic.multiply(0).updateMask(1)
 
-            ## ===== OLD SCORING =====
-            # # We make a series of binary images to map the extent of each layer's c factor
-            # score_coarse = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
-            # score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
-            # score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
-            # score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+        ## ===== OLD SCORING =====
+        # # We make a series of binary images to map the extent of each layer's c factor
+        # score_coarse = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+        # score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        # score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        # score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
 
-            ## ===== NEW SCORING =====
-            # We make a series of binary images to map the extent of each layer's c factor
-            score_02 = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
-            score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
-            score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
+        ## ===== NEW SCORING =====
+        # 0 - Empty, there was no c factor of any interpolation that covers the cell
+        # 1 - RN 16 of blended filled the cell
+        # 2 - RN 16 and RN 4 coverage
+        # 3 - RN 16, RN4 and RN2 blended coverage
+        # 5 - 5km original HOT cfactor calculated for cell
+        # 6 - 5km original COLD cfactor calculated for cell
+        # 8 - 5km original HOT and COLD cfactor were calculated for the cell
 
-            # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
-            coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
-            coldscore = coldscore.multiply(3).updateMask(1)
-            hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
-            hotscore = hotscore.multiply(2).updateMask(1)
+        # We make a series of binary images to map the extent of each layer's c factor
+        score_02 = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
+        score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
-            # This layer has a score of 0-3 based on where the binaries overlap.
-            # This will help us to know where to apply different weights as directed by G. Senay.
-            # todo - make this into a band of tcorr image!
-            total_score_img = ee.Image([score_02, score_04, score_16])\
-                .reduce(ee.Reducer.sum())
+        # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+        coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
+        coldscore = coldscore.multiply(3).updateMask(1)
+        hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
+        hotscore = hotscore.multiply(2).updateMask(1)
 
-            # *WEIGHTED MEAN*
-            # Use the score band to mask out the areas of overlap to weight the c factor:
-            # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
-            # for 3:2:1 use weights (3/6, 2/6, 1/6)
-            fm_mosaic_3 = ee.Image([hotCold_rn02_mosaic.multiply(0.5).updateMask(1),
-                                    tcorr_rn04_blended.multiply(0.33).updateMask(1),
-                                    tcorr_rn16_blended.multiply(0.17).updateMask(1)])\
-                .reduce(ee.Reducer.sum())\
-                .updateMask(total_score_img.eq(3))
+        # This layer has a score of 0-3 based on where the binaries overlap.
+        # This will help us to know where to apply different weights as directed by G. Senay.
+        # TODO - make this into a band of tcorr image!
+        total_score_img = ee.Image([score_02, score_04, score_16])\
+            .reduce(ee.Reducer.sum())
 
-            # for 2:1 use weights (2/3, 1/3)
-            fm_mosaic_2 = ee.Image([tcorr_rn04_blended.multiply(0.67).updateMask(1),
-                                    tcorr_rn16_blended.multiply(0.33).updateMask(1)])\
-                .reduce(ee.Reducer.sum())\
-                .updateMask(total_score_img.eq(2))
+        # *WEIGHTED MEAN*
+        # Use the score band to mask out the areas of overlap to weight the c factor:
+        # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
+        fm_mosaic_3 = ee.Image([hotCold_rn02_mosaic.multiply(0.5).updateMask(1),
+                                tcorr_rn04_blended.multiply(0.33).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.17).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(3))
 
-            # for 1 use the value of 16
-            fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
+        # for 2:1 use weights (2/3, 1/3)
+        fm_mosaic_2 = ee.Image([tcorr_rn04_blended.multiply(0.67).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.33).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(2))
 
-            # Combine the weighted means into a single image using first non-null
-            tcorr = ee.Image([fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
-                .reduce(ee.Reducer.firstNonNull()).updateMask(1)
+        # for 1 use the value of 16
+        fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
 
-            # return hotCold_rn02_mosaic, tcorr
-        else:
-            # CGM - For testing only return raw gridded Tcorr values
-            tcorr = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended])\
-                .reduce(reducer=ee.Reducer.mean())
+        # Combine the weighted means into a single image using first non-null
+        tcorr = ee.Image([fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+            .reduce(ee.Reducer.firstNonNull()).updateMask(1)
 
         # CGM - This should probably be done in main Tcorr method with other compositing
         # # Fill missing pixels with the full image Tcorr
@@ -1383,20 +1363,18 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
-        # CGM - This should probably be done in main Tcorr method after other compositing
         # Do one more reduce neighborhood to smooth the c factor
-        if self.tcorr_gridded_smooth_flag:
-            tcorr = tcorr\
-                .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                    kernel=ee.Kernel.circle(radius=1, units='pixels'),
-                                    # kernel=ee.Kernel.square(radius=1, units='pixels'),
-                                    # optimization='boxcar',
-                                    skipMasked=False)\
-                .reproject(crs=self.crs, crsTransform=coarse_transform)\
-                .updateMask(1)
+        tcorr = tcorr\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
 
-
-        quality_score_img = ee.Image([total_score_img, hotscore, coldscore]).reduce(ee.Reducer.sum())
+        quality_score_img = ee.Image([total_score_img, hotscore, coldscore])\
+            .reduce(ee.Reducer.sum())
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
@@ -1477,58 +1455,53 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
-        if self.tcorr_gridded_weight_flag:
-            # --- In this section we build an image to weight the cfactor
-            #   proportionally to how close it is to the original c ---
-            fm_mosaic = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
-                .reduce(ee.Reducer.firstNonNull())
-            zero_img = fm_mosaic.multiply(0).updateMask(1)
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        fm_mosaic = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
+            .reduce(ee.Reducer.firstNonNull())
+        zero_img = fm_mosaic.multiply(0).updateMask(1)
 
-            # We make a series of binary images to map the extent of each layer's c factor
-            score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
-            score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
-            score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
-            score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+        # We make a series of binary images to map the extent of each layer's c factor
+        score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
 
-            # This layer has a score of 0-4 based on where the binaries overlap.
-            # This will help us to know where to apply different weights as directed by G. Senay.
-            total_score_img = ee.Image([score_coarse, score_02, score_04, score_16])\
-                .reduce(ee.Reducer.sum())
+        # This layer has a score of 0-4 based on where the binaries overlap.
+        # This will help us to know where to apply different weights as directed by G. Senay.
+        total_score_img = ee.Image([score_coarse, score_02, score_04, score_16])\
+            .reduce(ee.Reducer.sum())
 
-            # *WEIGHTED MEAN*
-            # Use the score band to mask out the areas of overlap to weight the c factor:
-            # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
-            fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
-                                    tcorr_rn02.multiply(0.3).updateMask(1),
-                                    tcorr_rn04.multiply(0.2).updateMask(1),
-                                    tcorr_rn16.multiply(0.1).updateMask(1)])\
-                .reduce(ee.Reducer.sum())\
-                .updateMask(total_score_img.eq(4))
+        # *WEIGHTED MEAN*
+        # Use the score band to mask out the areas of overlap to weight the c factor:
+        # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
+        fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
+                                tcorr_rn02.multiply(0.3).updateMask(1),
+                                tcorr_rn04.multiply(0.2).updateMask(1),
+                                tcorr_rn16.multiply(0.1).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(4))
 
-            # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
-            # for 3:2:1 use weights (3/6, 2/6, 1/6)
-            fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
-                                    tcorr_rn04.multiply(0.33),
-                                    tcorr_rn16.multiply(0.17)])\
-                .reduce(ee.Reducer.sum())\
-                .updateMask(total_score_img.eq(3))
+        # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
+        fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
+                                tcorr_rn04.multiply(0.33),
+                                tcorr_rn16.multiply(0.17)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(3))
 
-            # for 2:1 use weights (2/3, 1/3)
-            fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
-                                    tcorr_rn16.multiply(0.33)])\
-                .reduce(ee.Reducer.sum())\
-                .updateMask(total_score_img.eq(2))
+        # for 2:1 use weights (2/3, 1/3)
+        fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
+                                tcorr_rn16.multiply(0.33)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(2))
 
-            # for 1 use the value of 16
-            fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
+        # for 1 use the value of 16
+        fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
 
-            # Combine the weighted means into a single image using first non-null
-            tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
-                .reduce(ee.Reducer.firstNonNull())
-        else:
-            # CGM - For testing only return raw gridded Tcorr values
-            tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
-                .reduce(reducer=ee.Reducer.mean())
+        # Combine the weighted means into a single image using first non-null
+        tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+            .reduce(ee.Reducer.firstNonNull())
 
         # CGM - This should probably be done in main Tcorr method with other compositing
         # # Fill missing pixels with the full image Tcorr
@@ -1543,20 +1516,16 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
-        # CGM - This should probably be done in main Tcorr method after other compositing
         # Do one more reduce neighborhood to smooth the c factor
-        if self.tcorr_gridded_smooth_flag:
-            tcorr = tcorr\
-                .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                    kernel=ee.Kernel.circle(radius=1, units='pixels'),
-                                    skipMasked=False)\
-                .reproject(crs=self.crs, crsTransform=coarse_transform)\
-                .updateMask(1)
+        tcorr = tcorr\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
 
         # TODO - the tcorr count band may want to be returned
         #   for further analysis of tcorr count on cfactor
-
-
 
         return tcorr.select([0], ['tcorr'])\
             .set(self._properties)\

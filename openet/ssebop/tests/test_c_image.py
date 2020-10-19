@@ -636,9 +636,7 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=True,
-        tcorr_gridded_smooth_fla=True).tcorr
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -666,9 +664,7 @@ def test_Image_tcorr_gridded_blend(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=True,
-        tcorr_gridded_smooth_fla=True).tcorr_gridded
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr_gridded
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -694,9 +690,7 @@ def test_Image_tcorr_gridded_cold(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_gridded_weight_flag=True,
-        tcorr_gridded_smooth_fla=True).tcorr_gridded_cold
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr_gridded_cold
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -734,9 +728,7 @@ def test_Image_tcorr_gridded_cold(tcorr_source, tmax_source, image_id,
 #     print(point_xy)
 #     tcorr_img = ssebop.Image.from_landsat_c1_toa(
 #         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-#         tmax_source=tmax_source, tmax_resample='nearest',
-#         tcorr_gridded_weight_flag=False,
-#         tcorr_gridded_smooth_fla=False).tcorr
+#         tmax_source=tmax_source, tmax_resample='nearest').tcorr
 #     tcorr = utils.point_image_value(tcorr_img, point_xy)
 #     index = utils.getinfo(tcorr_img.get('tcorr_index'))
 #     assert abs(tcorr['tcorr'] - expected) <= tol
