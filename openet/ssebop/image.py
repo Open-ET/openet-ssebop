@@ -984,6 +984,7 @@ class Image():
         # Instantiate the class
         return cls(ee.Image(input_image), **kwargs)
 
+    #
     @classmethod
     def from_landsat_c1_sr(cls, sr_image, **kwargs):
         """Returns a SSEBop Image instance from a Landsat Collection 1 SR image
