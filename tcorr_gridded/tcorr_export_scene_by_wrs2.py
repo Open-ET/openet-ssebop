@@ -229,17 +229,24 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #     pass
 
 
+    if not ee.data.getInfo(tcorr_scene_coll_id.rsplit('/', 1)[0]):
+        logging.info('\nExport folder does not exist and will be built'
+                     '\n  {}'.format(tcorr_scene_coll_id.rsplit('/', 1)[0]))
+        input('Press ENTER to continue')
+        ee.data.createAsset({'type': 'FOLDER'}, tcorr_scene_coll_id.rsplit('/', 1)[0])
     if not ee.data.getInfo(tcorr_scene_coll_id):
         logging.info('\nExport collection does not exist and will be built'
                      '\n  {}'.format(tcorr_scene_coll_id))
         input('Press ENTER to continue')
         ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, tcorr_scene_coll_id)
 
+
     # Get current asset list
     logging.debug('\nGetting GEE asset list')
     asset_list = utils.get_ee_assets(tcorr_scene_coll_id)
     # if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
     #     pprint.pprint(asset_list[:10])
+
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -465,8 +472,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 ee.Image(image_id), **model_args)
 
 
-            # CGM - Not calling the tcorr method directly since it will
-            #   eventually handle compositing with climos or the scene average
+            # CGM - Intentionally not calling the tcorr method directly since
+            #   there may be compositing with climos or the scene average
             if tcorr_source == 'GRIDDED':
                 tcorr_img = t_obj.tcorr_gridded
             elif tcorr_source == 'GRIDDED_COLD':
