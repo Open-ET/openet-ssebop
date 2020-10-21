@@ -1329,10 +1329,14 @@ class Image():
             score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
             # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+            cold_rn02_score = zero_img.add(tcorr_rn02_cold.gt(0)).updateMask(1)
+            cold_rn02_score = cold_rn02_score.multiply(9).updateMask(1)
             coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
             coldscore = coldscore.multiply(3).updateMask(1)
             hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
             hotscore = hotscore.multiply(2).updateMask(1)
+
+
 
             # This layer has a score of 0-3 based on where the binaries overlap.
             # This will help us to know where to apply different weights as directed by G. Senay.
@@ -1395,7 +1399,7 @@ class Image():
                 .updateMask(1)
 
 
-        quality_score_img = ee.Image([total_score_img, hotscore, coldscore]).reduce(ee.Reducer.sum())
+        quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn02_score]).reduce(ee.Reducer.sum())
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
