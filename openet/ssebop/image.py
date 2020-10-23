@@ -1134,7 +1134,7 @@ class Image():
 
     @lazy_property
     def tcorr_stats(self):
-        """Compute the Tcorr 5th percentile and count statistics
+        """Compute the Tcorr 2.5 percentile and count statistics
 
         Returns
         -------
@@ -1142,7 +1142,7 @@ class Image():
 
         """
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([5])\
+            reducer=ee.Reducer.percentile([2.5])\
                 .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
@@ -1180,11 +1180,11 @@ class Image():
 
         ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
         # === Cold Tcorr ===
-        # Resample to 5km taking 5th percentile
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
         tcorr_coarse_cold_img = self.tcorr_image \
             .reproject(crs=self.crs, crsTransform=self.transform) \
             .reduceResolution(
-                reducer=ee.Reducer.percentile(percentiles=[5])
+                reducer=ee.Reducer.percentile(percentiles=[2.5])
                     .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
                 bestEffort=False, maxPixels=30000) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
@@ -1403,11 +1403,11 @@ class Image():
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
         # coarse_transform = [5000, 0, 0, 0, -5000, 0]
 
-        # Resample to 5km taking 5th percentile
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
         tcorr_coarse_img = self.tcorr_image\
             .reproject(crs=self.crs, crsTransform=self.transform)\
             .reduceResolution(
-                reducer=ee.Reducer.percentile(percentiles=[5])
+                reducer=ee.Reducer.percentile(percentiles=[2.5])
                     .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
                 bestEffort=True, maxPixels=30000)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
