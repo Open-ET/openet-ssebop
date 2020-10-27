@@ -1246,14 +1246,46 @@ class Image():
         # TODO - Do rn02 for hot and cold
         # trivial change
         # Do reduce neighborhood to interpolate c factor
-        tcorr_rn02_cold = tcorr_coarse_cold\
+        # TODO - **** Consider expanding the cold to 3 and 4 pixels and examine changes in performance. ****
+        tcorr_rn01_cold = tcorr_coarse_cold\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+        tcorr_rn02_cold = tcorr_coarse_cold \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=2, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
+        tcorr_rn03_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=3, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn04_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn05_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=5, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
         tcorr_rn02_hot = tcorr_coarse_hot\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=2, units='pixels'),
@@ -1265,11 +1297,21 @@ class Image():
 
 
         # First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
-        hotCold_rn02_mosaic = ee.Image([tcorr_rn02_cold, tcorr_rn02_hot]) \
+        hotCold_mosaic = ee.Image([tcorr_coarse_cold, tcorr_rn01_cold, tcorr_rn02_cold, tcorr_rn03_cold,
+                                        tcorr_rn04_cold, tcorr_rn05_cold, tcorr_coarse_hot, tcorr_rn02_hot]) \
             .reduce(ee.Reducer.firstNonNull())
         # TODO - ...and then the first blended
 
-        tcorr_rn04_blended = hotCold_rn02_mosaic\
+        tcorr_rn02_blended = hotCold_mosaic \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        tcorr_rn04_blended = hotCold_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=4, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=4, units='pixels'),
@@ -1277,7 +1319,7 @@ class Image():
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
-        tcorr_rn16_blended = hotCold_rn02_mosaic\
+        tcorr_rn16_blended = hotCold_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.circle(radius=16, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=16, units='pixels'),
@@ -1290,7 +1332,7 @@ class Image():
         #   proportionally to how close it is to the original c ---
         # todo - ^^^ tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
         # we make the mosaic below only to use it as a template for zero_img.
-        fm_mosaic = ee.Image([hotCold_rn02_mosaic, tcorr_rn04_blended, tcorr_rn16_blended])\
+        fm_mosaic = ee.Image([hotCold_mosaic, tcorr_rn02_cold, tcorr_rn04_blended, tcorr_rn16_blended])\
             .reduce(ee.Reducer.firstNonNull())
         # create a zero image to add binary images to, in order to weight the image.
         zero_img = fm_mosaic.multiply(0).updateMask(1)
@@ -1312,13 +1354,14 @@ class Image():
         # 8 - 5km original HOT and COLD cfactor were calculated for the cell
 
         # We make a series of binary images to map the extent of each layer's c factor
-        score_02 = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+        score_null = zero_img.add(hotCold_mosaic.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02_cold.gt(0)).updateMask(1)
         score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
         score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
         # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
-        cold_rn02_score = zero_img.add(tcorr_rn02_cold.gt(0)).updateMask(1)
-        cold_rn02_score = cold_rn02_score.multiply(9).updateMask(1)
+        cold_rn05_score = zero_img.add(tcorr_rn05_cold.gt(0)).updateMask(1)
+        cold_rn05_score = cold_rn05_score.multiply(9).updateMask(1)
         coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
         coldscore = coldscore.multiply(3).updateMask(1)
         hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
@@ -1327,17 +1370,24 @@ class Image():
         # This layer has a score of 0-3 based on where the binaries overlap.
         # This will help us to know where to apply different weights as directed by G. Senay.
         # TODO - make this into a band of tcorr image!
-        total_score_img = ee.Image([score_02, score_04, score_16])\
+        total_score_img = ee.Image([score_null, score_02, score_04, score_16])\
             .reduce(ee.Reducer.sum())
 
         # *WEIGHTED MEAN*
         # Use the score band to mask out the areas of overlap to weight the c factor:
         # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
         # for 3:2:1 use weights (3/6, 2/6, 1/6)
-        fm_mosaic_3 = ee.Image([hotCold_rn02_mosaic.multiply(0.5).updateMask(1),
-                                tcorr_rn04_blended.multiply(0.33).updateMask(1),
-                                tcorr_rn16_blended.multiply(0.17).updateMask(1)])\
+        fm_mosaic_4 = ee.Image([hotCold_mosaic.multiply(0.4).updateMask(1),
+                                tcorr_rn02_blended.multiply(0.3).updateMask(1),
+                                tcorr_rn04_blended.multiply(0.2).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.1).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(4))
+
+        fm_mosaic_3 = ee.Image([tcorr_rn02_blended.multiply(0.5).updateMask(1),
+                                tcorr_rn04_blended.multiply(0.33).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.17).updateMask(1)]) \
+            .reduce(ee.Reducer.sum()) \
             .updateMask(total_score_img.eq(3))
 
         # for 2:1 use weights (2/3, 1/3)
@@ -1350,7 +1400,7 @@ class Image():
         fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
 
         # Combine the weighted means into a single image using first non-null
-        tcorr = ee.Image([fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+        tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
             .reduce(ee.Reducer.firstNonNull()).updateMask(1)
 
         # CGM - This should probably be done in main Tcorr method with other compositing
@@ -1377,7 +1427,7 @@ class Image():
             .updateMask(1)
 
 
-        quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn02_score]).reduce(ee.Reducer.sum())
+        quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score]).reduce(ee.Reducer.sum())
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
