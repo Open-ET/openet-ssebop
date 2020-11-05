@@ -1204,6 +1204,89 @@ def test_Image_from_method_kwargs():
         elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
 
 
+def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
+                                  tol=0.0001):
+    output_img = default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+    output = utils.point_image_value(output_img, TEST_POINT)
+    assert abs(output['tcorr'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    # Note: These are made up values
+    'lst, ndvi, tmax, expected',
+    [
+        [300, 0.69, 306, None],  # NDVI < 0.7
+        [269, 0.69, 306, None],  # LST < 270
+        # TODO: Add a test for the NDVI smoothing
+    ]
+)
+def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
+    output = utils.constant_image_value(default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
+    assert output['tcorr'] is None and expected is None
+
+
+def test_Image_tcorr_image_band_name():
+    output = utils.getinfo(default_image_obj().tcorr_image)
+    assert output['bands'][0]['id'] == 'tcorr'
+
+
+def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
+                                      expected={'tmax_version': 'median_v2'}):
+    """Test if properties are set on the tcorr image"""
+    output = utils.getinfo(default_image_obj(
+        tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
+
+
+def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
+                                    tol=0.00000001):
+    output = utils.getinfo(default_image_obj(
+        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).tcorr_stats)
+    assert abs(output['tcorr_p5'] - tcorr) <= tol
+    assert output['tcorr_count'] == count
+
+
+@pytest.mark.parametrize(
+    'image_id, tmax_source, expected',
+    [
+        # TOPOWX_MEDIAN_V0
+        # Note, these values are slightly different than those in the tcorr
+        #   feature collection (commented out values), because the original
+        #   values were built with snap points of 0, 0 instead of 15, 15.
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463133}],  # 0.99255676, 971875
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
+         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514981}],   # 0.95788514, 2315630
+        # DAYMET_MEDIAN_V2
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463133}],
+        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
+        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514981}],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
+    ]
+)
+def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
+                                   tol=0.0000001):
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id), tmax_source=tmax_source,
+        tmax_resample='nearest').tcorr_stats)
+    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
+    assert output['tcorr_count'] == expected['tcorr_count']
+
+
 # def test_Image_et_fraction_properties():
 #     """Test if properties are set on the ETf image"""
 #     output = utils.getinfo(default_image_obj().et_fraction)
