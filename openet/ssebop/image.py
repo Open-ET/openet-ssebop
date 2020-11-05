@@ -667,8 +667,8 @@ class Image():
                 min_pixels_per_image = 1000
 
             t_stats = ee.Dictionary(self.tcorr_stats)\
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr_value = ee.Number(t_stats.get('tcorr_value'))
             tcorr_count = ee.Number(t_stats.get('tcorr_count'))
             tcorr_index = tcorr_count.lt(min_pixels_per_image)\
                 .multiply(tcorr_indices['nodata'])
@@ -1142,7 +1142,7 @@ class Image():
 
         """
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([2.5])\
+            reducer=ee.Reducer.percentile([2.5], outputNames=['value'])\
                 .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
@@ -1407,8 +1407,8 @@ class Image():
         # # Fill missing pixels with the full image Tcorr
         # if self.tcorr_gridded_scene_fill_flag:
         #     t_stats = ee.Dictionary(self.tcorr_stats) \
-        #         .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-        #     tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+        #         .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+        #     tcorr_value = ee.Number(t_stats.get('tcorr_value'))
         #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
         #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
         #     # tcorr_index = ee.Number(
@@ -1560,8 +1560,8 @@ class Image():
         # # Fill missing pixels with the full image Tcorr
         # if self.tcorr_gridded_scene_fill_flag:
         #     t_stats = ee.Dictionary(self.tcorr_stats) \
-        #         .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-        #     tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
+        #         .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+        #     tcorr_value = ee.Number(t_stats.get('tcorr_value'))
         #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
         #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
         #     # tcorr_index = ee.Number(

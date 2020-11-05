@@ -624,7 +624,7 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9926392753132581, 0]],
+         [0.991065976970446, 0]],
     ]
 )
 def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
@@ -649,7 +649,7 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9926392753132581, 8, 0]],
+         [0.991065976970446, 8, 0]],
     ]
 )
 def test_Image_tcorr_gridded_blend(tcorr_source, tmax_source, image_id,
@@ -1260,22 +1260,41 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
         #   feature collection (commented out values), because the original
         #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463133}],  # 0.99255676, 971875
+         {'tcorr_value': 0.9929312773213419, 'tcorr_count': 2463133}],  # 0.99255676, 971875
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
+         {'tcorr_value': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514981}],   # 0.95788514, 2315630
+         {'tcorr_value': 0.9561832021931235, 'tcorr_count': 514981}],   # 0.95788514, 2315630
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
+         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 761231}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463133}],
+         {'tcorr_value': 0.9870731706021387, 'tcorr_count': 2463133}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
+         {'tcorr_value': 0.9799146240259888, 'tcorr_count': 743774}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514981}],
+         {'tcorr_value': 0.951809413760349, 'tcorr_count': 514981}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
+         {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
+        # # Old values using 5th percentile for Tcorr
+        # # Keeping in case we make the tcorr percentile a parameter
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
+        #  {'tcorr_value': 0.9938986398112951, 'tcorr_count': 2463133}],  # 0.99255676, 971875
+        # ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
+        #  {'tcorr_value': 0.9819725106056428, 'tcorr_count': 743774}],   # 0.98302000, 1700567
+        # ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
+        #  {'tcorr_value': 0.9569143183692558, 'tcorr_count': 514981}],   # 0.95788514, 2315630
+        # # DAYMET_MEDIAN_V2
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9743747113938074, 'tcorr_count': 761231}],
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9880444668266360, 'tcorr_count': 2463133}],
+        # ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9817142973468178, 'tcorr_count': 743774}],
+        # ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9520545648466826, 'tcorr_count': 514981}],
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
@@ -1283,7 +1302,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id), tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
-    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
+    assert abs(output['tcorr_value'] - expected['tcorr_value']) <= tol
     assert output['tcorr_count'] == expected['tcorr_count']
 
 
