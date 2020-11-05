@@ -433,7 +433,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     output = utils.getinfo(default_image_obj(
         ndvi=0.8, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).tcorr_stats)
-    assert abs(output['tcorr_p5'] - tcorr) <= tol
+    assert abs(output['tcorr_value'] - tcorr) <= tol
     assert output['tcorr_count'] == count
 
 
@@ -445,22 +445,22 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     [
         # TOPOWX_MEDIAN_V0
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9938986398112951, 'tcorr_count': 2463129}], # 2463133
+         {'tcorr_value': 0.9938986398112951, 'tcorr_count': 2463129}], # 2463133
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9819725106056428, 'tcorr_count': 743774}],
+         {'tcorr_value': 0.9819725106056428, 'tcorr_count': 743774}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_p5': 0.9569143183692558, 'tcorr_count': 514997}], # 514981
+         {'tcorr_value': 0.9569143183692558, 'tcorr_count': 514997}], # 514981
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9743747113938074, 'tcorr_count': 761231}],
+         {'tcorr_value': 0.9743747113938074, 'tcorr_count': 761231}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9880444668266360, 'tcorr_count': 2463129}],
+         {'tcorr_value': 0.9880444668266360, 'tcorr_count': 2463129}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9817142973468178, 'tcorr_count': 743774}],
+         {'tcorr_value': 0.9817142973468178, 'tcorr_count': 743774}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9520545648466826, 'tcorr_count': 514997}],
+         {'tcorr_value': 0.9520545648466826, 'tcorr_count': 514997}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-         {'tcorr_p5': 0.9907451827474001, 'tcorr_count': 11}],
+         {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
@@ -468,7 +468,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id), tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
-    assert abs(output['tcorr_p5'] - expected['tcorr_p5']) <= tol
+    assert abs(output['tcorr_value'] - expected['tcorr_value']) <= tol
     assert abs(output['tcorr_count'] == expected['tcorr_count']) <= 1
     # assert (abs(output['tcorr_count'] == expected['tcorr_count']) /
     #         expected['tcorr_count']) <= 0.0000001
@@ -518,7 +518,7 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
     [
         ['DYNAMIC', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         [0.9743747113938074, 0]],
+         [0.9738927482041165, 0]],
         ['DYNAMIC', 'DAYMET_MEDIAN_V2',
         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
          [0.9798917542625591, 1]],
@@ -649,14 +649,14 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.991065976970446, 8, 0]],
+         [0.991065976970446, 18, 0]],
     ]
 )
-def test_Image_tcorr_gridded_blend(tcorr_source, tmax_source, image_id,
+def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
                                     clip, xy, expected, tol=0.000001):
     """Test the tcorr_gridded method directly
 
-    Note that this method returns a quality band along with tcorr
+    Note that this method returns separate tcorr and  quality bands
     """
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
@@ -678,11 +678,11 @@ def test_Image_tcorr_gridded_blend(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9926392753132581, 0]],
+         [0.9901338160695725, 1]],
     ]
 )
-def test_Image_tcorr_gridded_cold(tcorr_source, tmax_source, image_id,
-                                  clip, xy, expected, tol=0.000001):
+def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
+                                         clip, xy, expected, tol=0.000001):
     """Test the tcorr_gridded_cold method directly"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
@@ -1248,7 +1248,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     output = utils.getinfo(default_image_obj(
         ndvi=0.8, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).tcorr_stats)
-    assert abs(output['tcorr_p5'] - tcorr) <= tol
+    assert abs(output['tcorr_value'] - tcorr) <= tol
     assert output['tcorr_count'] == count
 
 

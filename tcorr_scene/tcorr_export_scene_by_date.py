@@ -391,8 +391,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # TODO: Will need to be changed for SR or use from_image_id()
             t_obj = ssebop.Image.from_landsat_c1_toa(image_id, **model_args)
             t_stats = ee.Dictionary(t_obj.tcorr_stats) \
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr = ee.Number(t_stats.get('tcorr_p5'))
+                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr = ee.Number(t_stats.get('tcorr_value'))
             count = ee.Number(t_stats.get('tcorr_count'))
             index = ee.Algorithms.If(
                 count.gte(min_pixel_count), SCENE_TCORR_INDEX, NODATA_TCORR_INDEX)
