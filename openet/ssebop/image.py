@@ -1160,19 +1160,41 @@ class Image():
         -------
         ee.Image of Tcorr values
 
+        Calculate cold tcorr 5km using the 2.5th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        Calculate hot tcorr 5km using the 70th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        Calculate COLD Zonal Mean (ee.ReduceNeighborhood()) at:
+            1 pixel radius
+            2 pixel radius
+            3 pixel radius
+            4 pixel radius
+            5 pixel radius
+        Calculate HOT Zonal Mean at:
+            2 pixel radius
+        Mosaic hot and cold together. Layers are listed in order of priority given in ee.Reducer.firstNonNull() call:
+            Original 5km Cold Tcorr
+            Cold Tcorr Zonal Mean 1 pixel radius
+            Cold Tcorr Zonal Mean 2 pixel radius
+            Cold Tcorr Zonal Mean 3 pixel radius
+            Cold Tcorr Zonal Mean 4 pixel radius
+            Cold Tcorr Zonal Mean 5 pixel radius
+            Original 5km Hot Tcorr
+            Hot Tcorr Zonal Mean 2 pixel radius
+        Calculate BLENDED Zonal Mean at:
+            2 pixel radius
+            4 pixel radius
+            16 pixel radius
+        Create a weighted mean from step 6 and step 5:
+            Where (and if) #5, #6.a, #6.b and #6.c are non-null, weight them 0.4, 0.3, 0.2 and 0.1 respectively & mosaic.
+            Where (and if)  #6.a, #6.b and #6.c are non-null, weight them 0.5, 0.33,and 0.17 respectively & mosaic.
+            Where (and if)  #6.b and #6.c are non-null, weight them 0.67 and 0.33 respectively & mosaic.
+
+        Combine #7.a-#7.c using firstNonNull(). This is ALMOST the final tcorr.
+
+        FINALLY: Zonal mean (1 pixel radius) of #8 to smooth and return as FINAL C FACTOR
+
         """
+
         # TODO: Define coarse cell-size or transform as a parameter
-
-        ## this is currently an experiment but the plan is...
-        ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
-        ## step 2: smooth that cold gridded cfactor by a 3x3 (2X2 in ee)
-        ## step 3: calculate the gridded cfactor for the hot filtered Tcorr
-        ## step 4: smooth that hot gridded cfactor by a 3x3
-        ## step 5: fill the missing nodata in the cold gridded c with the pixels
-        ##         from the hot gridded c making sure to keep the cold C on top (FirstNonNull()) #TODO - Make sure that one of the images is not empty.
-        ## step 6: continue with 4x4 and 16 by 16 interpolations
-        # step 7: weighted mosaic, smoothing # todo - watch out for situations of when you're missing either or both images.
-
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
@@ -1300,7 +1322,7 @@ class Image():
         hotCold_mosaic = ee.Image([tcorr_coarse_cold, tcorr_rn01_cold, tcorr_rn02_cold, tcorr_rn03_cold,
                                         tcorr_rn04_cold, tcorr_rn05_cold, tcorr_coarse_hot, tcorr_rn02_hot]) \
             .reduce(ee.Reducer.firstNonNull())
-        # TODO - ...and then the first blended
+        # # TODO - ...and then the first blended
 
         tcorr_rn02_blended = hotCold_mosaic \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
