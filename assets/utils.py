@@ -92,15 +92,13 @@ def ee_task_start(task, n=10):
     return task
 
 
-def get_ee_assets(asset_id, shell_flag=False):
+def get_ee_assets(asset_id):
     """Return Google Earth Engine assets
 
     Parameters
     ----------
     asset_id : str
         A folder or image collection ID.
-    shell_flag : bool, optional
-        If True, execute the command through the shell (the default is True).
 
     Returns
     -------
@@ -108,19 +106,18 @@ def get_ee_assets(asset_id, shell_flag=False):
 
     """
     try:
-        asset_list = subprocess.check_output(
-            ['earthengine', '--no-use_cloud_api', 'ls', asset_id],
-            universal_newlines=True, shell=shell_flag)
-        asset_list = [x.strip() for x in asset_list.split('\n') if x]
+        asset_list = ee.data.getList({'id': asset_id})
+        asset_list = [x['id'] for x in asset_list if x['type'] == 'Image']
+        # asset_list = ee.data.listImages(asset_id)
         # logging.debug(asset_list)
-    except ValueError as e:
-        logging.info('  Collection doesn\'t exist')
-        logging.debug('  {}'.format(str(e)))
-        asset_list = []
     except Exception as e:
         logging.error('\n  Unknown error, returning False')
         logging.error(e)
         sys.exit()
+    # except ValueError as e:
+    #     logging.info('  Collection doesn\'t exist')
+    #     logging.debug('  {}'.format(str(e)))
+    #     asset_list = []
     return asset_list
 
 
@@ -219,6 +216,7 @@ def parse_int_set(nputstr=""):
     # Report invalid tokens before returning valid selection
     # print "Invalid set: " + str(invalid)
     return selection
+
 
 def read_ini(ini_path):
     logging.debug('\nReading Input File')

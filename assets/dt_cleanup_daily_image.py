@@ -4,7 +4,6 @@
 #--------------------------------
 
 import argparse
-from builtins import input
 from collections import defaultdict
 import datetime
 import logging
@@ -17,6 +16,7 @@ import ee
 
 import utils
 # from . import utils
+# from openet.core import utils
 
 
 def main(ini_path=None):
@@ -57,20 +57,14 @@ def main(ini_path=None):
     logging.debug('  {}'.format(dt_daily_coll_id))
 
 
-    if os.name == 'posix':
-        shell_flag = False
-    else:
-        shell_flag = True
-
-
     logging.info('\nInitializing Earth Engine')
-    ee.Initialize(use_cloud_api=False)
+    ee.Initialize()
     ee.Number(1).getInfo()
 
 
     # Get list of existing images/files
     logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(dt_daily_coll_id, shell_flag=shell_flag)
+    asset_list = utils.get_ee_assets(dt_daily_coll_id)
     logging.debug('Displaying first 10 images in collection')
     logging.debug(asset_list[:10])
 
@@ -123,13 +117,9 @@ def arg_parse():
         '-i', '--ini', type=utils.arg_valid_file,
         help='Input file', metavar='FILE')
     parser.add_argument(
-        '-d', '--debug', default=logging.INFO, const=logging.DEBUG,
+        '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
     args = parser.parse_args()
-
-    # Prompt user to select an INI file if not set at command line
-    # if not args.ini:
-    #     args.ini = utils.get_ini_path(os.getcwd())
 
     return args
 

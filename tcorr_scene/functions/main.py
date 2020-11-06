@@ -92,8 +92,7 @@ def main(request):
 
 
     logging.debug('\nInitializing Earth Engine')
-    ee.Initialize(ee.ServiceAccountCredentials('', key_file='privatekey.json'),
-                  use_cloud_api=True)
+    ee.Initialize(ee.ServiceAccountCredentials('', key_file='privatekey.json'))
 
     if not ee.data.getInfo(tcorr_scene_coll_id):
         return abort(404, description='Export collection does not exist')
@@ -254,8 +253,8 @@ def main(request):
             # TODO: Will need to be changed for SR or use from_image_id()
             t_obj = ssebop.Image.from_landsat_c1_toa(image_id, **model_args)
             t_stats = ee.Dictionary(t_obj.tcorr_stats) \
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr = ee.Number(t_stats.get('tcorr_p5'))
+                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr = ee.Number(t_stats.get('tcorr_value'))
             count = ee.Number(t_stats.get('tcorr_count'))
             index = ee.Algorithms.If(count.gte(MIN_PIXEL_COUNT), 0, 9)
 

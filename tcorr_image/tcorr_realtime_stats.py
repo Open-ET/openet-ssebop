@@ -49,10 +49,9 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
     if key:
         logging.info('  Using service account key file: {}'.format(key))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key),
-                      use_cloud_api=False)
+        ee.Initialize(ee.ServiceAccountCredentials('deadbeef', key_file=key))
     else:
-        ee.Initialize(use_cloud_api=False)
+        ee.Initialize()
 
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
@@ -149,15 +148,15 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
             t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
-            if t_stats['tcorr_p5'] is None:
-                t_stats['tcorr_p5'] = ''
+            if t_stats['tcorr_value'] is None:
+                t_stats['tcorr_value'] = ''
             image_id = asset_id.split('/')[-1]
             tcorr_df = tcorr_df.append(
                 {'IMAGE_ID': image_id,
                  'IMAGE_DATE': datetime.datetime.strptime(image_id.split('_')[2], '%Y%m%d')
                      .strftime('%Y-%m-%d'),
                  'COLLECTION': 'RT',
-                 'TCORR': t_stats['tcorr_p5'],
+                 'TCORR': t_stats['tcorr_value'],
                  'COUNT': t_stats['tcorr_count'],
                  'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d')},
                 ignore_index=True)
@@ -169,15 +168,15 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
             t_stats = ssebop.Image.from_landsat_c1_toa(ee.Image(asset_id))\
                 .tcorr_stats\
                 .getInfo()
-            if t_stats['tcorr_p5'] is None:
-                t_stats['tcorr_p5'] = ''
+            if t_stats['tcorr_value'] is None:
+                t_stats['tcorr_value'] = ''
             image_id = asset_id.split('/')[-1]
             tcorr_df = tcorr_df.append(
                 {'IMAGE_ID': asset_id.split('/')[-1],
                  'IMAGE_DATE': datetime.datetime.strptime(image_id.split('_')[2], '%Y%m%d')
                      .strftime('%Y-%m-%d'),
                  'COLLECTION': 'C1',
-                 'TCORR': t_stats['tcorr_p5'],
+                 'TCORR': t_stats['tcorr_value'],
                  'COUNT': t_stats['tcorr_count'],
                  'EXPORT_DATE': datetime.datetime.today().strftime('%Y-%m-%d')},
                 ignore_index=True)

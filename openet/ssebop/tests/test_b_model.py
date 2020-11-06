@@ -55,7 +55,10 @@ def test_Image_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.00
 @pytest.mark.parametrize(
     'lst, dt, tcorr, tmax, expected',
     [
-        [300, 10, 0.98, 310, None],
+        # The ETf mask limit was changed from 1.3 to 1.5 for gridded Tcorr
+        [302, 10, 0.98, 310, 1.05], # 1.18 ETf should be clamped to 1.05
+        [300, 10, 0.98, 310, 1.05], # 1.38 ETf should be clamped to 1.05
+        [298, 10, 0.98, 310, None], # 1.58 ETf should be set to None (>1.5)
     ]
 )
 def test_Image_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
@@ -64,7 +67,10 @@ def test_Image_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt)
     output = utils.constant_image_value(ee.Image(output_img))
-    assert output['et_fraction'] is None and expected is None
+    if expected is None:
+        assert output['et_fraction'] is None
+    else:
+        assert output['et_fraction'] == expected
 
 
 @pytest.mark.parametrize(

@@ -43,6 +43,8 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
 
     ]
 )
+
+
 def test_date_to_time_0utc(input, expected):
     input_img = ee.Date(input)
     assert utils.getinfo(utils.date_to_time_0utc(input_img)) == expected
@@ -59,6 +61,7 @@ def test_date_to_time_0utc(input, expected):
         ['a', False],
     ]
 )
+
 def test_is_number(input, expected):
     assert utils.is_number(input) == expected
 

@@ -4,9 +4,9 @@ import pprint
 
 import ee
 
-from . import landsat
-from . import model
-from . import utils
+from openet.ssebop import landsat
+from openet.ssebop import model
+from openet.ssebop import utils
 import openet.core.common as common
 # TODO: import utils from common
 # import openet.core.utils as utils
@@ -75,7 +75,7 @@ class Image():
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is 'SRTM').
-        tcorr_source : {'DYNAMIC',
+        tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'DYNAMIC').
@@ -94,6 +94,10 @@ class Image():
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
+            tcorr_resample : {'nearest', 'bilinear'}
+            min_pixels_per_image : int
+            min_pixels_per_grid_cell : int
+            min_grid_cells_per_image : int
 
         Notes
         -----
@@ -172,6 +176,16 @@ class Image():
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
 
+        # ET fraction type
+        # CGM - Should et_fraction_type be set as a kwarg instead?
+        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
+            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
+        self.et_fraction_type = et_fraction_type.lower()
+        # if 'et_fraction_type' in kwargs.keys():
+        #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
+        # else:
+        #     self.et_fraction_type = 'alfalfa'
+
         # Image projection and geotransform
         self.crs = image.projection().crs()
         self.transform = ee.List(ee.Dictionary(
@@ -179,6 +193,11 @@ class Image():
         # self.crs = image.select([0]).projection().getInfo()['crs']
         # self.transform = image.select([0]).projection().getInfo()['transform']
 
+        """Keyword arguments"""
+        # CGM - What is the right way to process kwargs with default values?
+        self.kwargs = kwargs
+
+        # CGM - Should these be checked in the methods they are used in instead?
         # Set the resample method as properties so they can be modified
         if 'dt_resample' in kwargs.keys():
             self._dt_resample = kwargs['dt_resample'].lower()
@@ -188,15 +207,30 @@ class Image():
             self._tmax_resample = kwargs['tmax_resample'].lower()
         else:
             self._tmax_resample = 'bilinear'
+        if 'tcorr_resample' in kwargs.keys():
+            self._tcorr_resample = kwargs['tcorr_resample'].lower()
+        else:
+            self._tcorr_resample = 'nearest'
 
-        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
-            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
-        self.et_fraction_type = et_fraction_type.lower()
-        # CGM - Should et_fraction_type be set as a kwarg instead?
-        # if 'et_fraction_type' in kwargs.keys():
-        #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
+        """Gridded Tcorr keyword arguments"""
+        # TODO: This should probably be moved into tcorr_gridded()
+        if 'min_pixels_per_grid_cell' in kwargs.keys():
+            self.min_pixels_per_grid_cell = kwargs['min_pixels_per_grid_cell']
+        else:
+            self.min_pixels_per_grid_cell = 10
+
+        # TODO: This should probably be moved into tcorr_gridded()
+        if 'min_grid_cells_per_image' in kwargs.keys():
+            self.min_grid_cells_per_image = kwargs['min_grid_cells_per_image']
+        else:
+            self.min_grid_cells_per_image = 5
+
+        # DEADBEEF - This is checked in tcorr() since the GRIDDED and DYNAMIC
+        #   options have different defaults
+        # if 'min_pixels_per_image' in kwargs.keys():
+        #     self.min_pixels_per_image = kwargs['min_pixels_per_image']
         # else:
-        #     self.et_fraction_type = 'alfalfa'
+        #     self.min_pixels_per_image = 250
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -356,6 +390,7 @@ class Image():
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
 
+    # TODO - GELP... is this currently the quality band? Don't worry about this now. Ask Charles if this should change.
     @lazy_property
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
@@ -512,80 +547,54 @@ class Image():
         Notes
         -----
         Tcorr Index values indicate which level of Tcorr was used
-          0 - Scene specific Tcorr
-          1 - Mean monthly Tcorr per WRS2 tile
-          2 - Mean annual Tcorr per WRS2 tile
-          3 - Default Tcorr
-          4 - User defined Tcorr
+          0 - Gridded blended cold/hot Tcorr (*)
+          1 - Gridded cold Tcorr
+          2 - Gridded hot Tcorr (*)
+          3 - Scene specific Tcorr
+          4 - Mean monthly Tcorr per WRS2 tile
+          5 - Mean seasonal Tcorr per WRS2 tile (*)
+          6 - Mean annual Tcorr per WRS2 tile
+          7 - Default Tcorr
+          8 - User defined Tcorr
           9 - No data
 
         """
+        # TODO: Make this a class property or method that we can query
+        tcorr_indices = {
+            'gridded': 0,
+            'gridded_cold': 1,
+            'gridded_hot': 2,
+            'scene': 3,
+            'month': 4,
+            'season': 5,
+            'annual': 6,
+            'default': 7,
+            'user': 8,
+            'nodata': 9,
+        }
 
-        # month_field = ee.String('M').cat(ee.Number(self.month).format('%02d'))
         if utils.is_number(self._tcorr_source):
             return ee.Image.constant(float(self._tcorr_source))\
-                .rename(['tcorr']).set({'tcorr_index': 4})
+                .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
-        elif 'DYNAMIC' == self._tcorr_source.upper():
-            # Compute Tcorr dynamically for the scene
-            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
-            month_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
-            }
-            annual_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
-            }
-            default_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+        if 'SCENE_GRIDDED' == self._tcorr_source.upper():
+            # Use the precomputed scene monthly/annual climatologies if Tcorr
+            #   can't be computed dynamically.
+            tcorr_folder = PROJECT_FOLDER + '/tcorr_gridded'
+            scene_dict = {
+                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
             }
 
-            # Check Tmax source value
             if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_dict.keys()):
+                    self._tmax_source.upper() not in scene_dict.keys()):
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
             tmax_key = self._tmax_source.upper()
-
-            default_coll = ee.ImageCollection(default_dict[tmax_key])\
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
-            mask_img = ee.Image(default_coll.first()).multiply(0)
-
-            mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': 9}))
-            annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
-                .select(['tcorr'])
-            month_coll = ee.ImageCollection(month_dict[tmax_key])\
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
-                .filterMetadata('month', 'equals', self._month)\
-                .select(['tcorr'])
-
-            # TODO: Allow MIN_PIXEL_COUNT to be set as a parameter to the class
-            MIN_PIXEL_COUNT = 1000
-            t_stats = ee.Dictionary(self.tcorr_stats)\
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr_value = ee.Number(t_stats.get('tcorr_p5'))
-            tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-            tcorr_index = tcorr_count.lt(MIN_PIXEL_COUNT).multiply(9)
-            # tcorr_index = ee.Number(
-            #     ee.Algorithms.If(tcorr_count.gte(MIN_PIXEL_COUNT), 0, 9))
-
-            mask_img = mask_img.add(tcorr_count.gte(MIN_PIXEL_COUNT))
-            scene_img = mask_img.multiply(tcorr_value)\
-                .updateMask(mask_img.unmask(0))\
-                .rename(['tcorr'])\
-                .set({'tcorr_index': tcorr_index})
-
-            # tcorr_coll = ee.ImageCollection([scene_img])
-            tcorr_coll = ee.ImageCollection([scene_img])\
-                .merge(month_coll).merge(annual_coll)\
-                .merge(default_coll).merge(mask_coll)\
-                .sort('tcorr_index')
-
-            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
-
-        elif 'SCENE' in self._tcorr_source.upper():
+        elif ('DYNAMIC' == self._tcorr_source.upper() or
+              'SCENE' in self._tcorr_source.upper()):
+            # Use the precomputed scene monthly/annual climatologies if Tcorr
+            #   can't be computed dynamically.
             tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             scene_dict = {
                 'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
@@ -610,20 +619,94 @@ class Image():
 
             default_coll = ee.ImageCollection(default_dict[tmax_key])\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
+            annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            month_coll = ee.ImageCollection(month_dict[tmax_key])\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .filterMetadata('month', 'equals', self._month)\
+                .select(['tcorr'])
+
+        if 'GRIDDED' == self._tcorr_source.upper():
+            # Compute gridded blended Tcorr for the scene
+            tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
+            # e.g. .select([0, 1], ['tcorr', 'count'])
+            if self._tcorr_resample.lower() == 'bilinear':
+                tcorr_img = tcorr_img\
+                    .resample('bilinear')\
+                    .reproject(crs=self.crs, crsTransform=self.transform)
+            # else:
+            #     tcorr_img = tcorr_img\
+            #         .reproject(crs=self.crs, crsTransform=self.transform)
+
+            return tcorr_img
+
+        elif 'GRIDDED_COLD' == self._tcorr_source.upper():
+            # Compute gridded Tcorr for the scene
+            tcorr_img = self.tcorr_gridded_cold
+            if self._tcorr_resample.lower() == 'bilinear':
+                tcorr_img = tcorr_img\
+                    .resample('bilinear')\
+                    .reproject(crs=self.crs, crsTransform=self.transform)
+            # else:
+            #     tcorr_img = tcorr_img\
+            #         .reproject(crs=self.crs, crsTransform=self.transform)
+
+            return tcorr_img.rename(['tcorr'])
+
+        elif 'DYNAMIC' == self._tcorr_source.upper():
+            # Compute Tcorr dynamically for the scene
+            mask_img = ee.Image(default_coll.first()).multiply(0)
+            mask_coll = ee.ImageCollection(
+                mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']}))
+
+            # Use a larger default minimum pixel count for dynamic Tcorr
+            if 'min_pixels_per_image' in self.kwargs.keys():
+                min_pixels_per_image = self.kwargs['min_pixels_per_image']
+            else:
+                min_pixels_per_image = 1000
+
+            t_stats = ee.Dictionary(self.tcorr_stats)\
+                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr_value = ee.Number(t_stats.get('tcorr_value'))
+            tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+            tcorr_index = tcorr_count.lt(min_pixels_per_image)\
+                .multiply(tcorr_indices['nodata'])
+            # tcorr_index = ee.Number(ee.Algorithms.If(
+            #     tcorr_count.gte(min_pixels_per_image),
+            #     0, tcorr_indices['nodata']))
+
+            mask_img = mask_img.add(tcorr_count.gte(min_pixels_per_image))
+            scene_img = mask_img.multiply(tcorr_value)\
+                .updateMask(mask_img.unmask(0))\
+                .rename(['tcorr'])\
+                .set({'tcorr_index': tcorr_index})
+
+            # tcorr_coll = ee.ImageCollection([scene_img])
+            tcorr_coll = ee.ImageCollection([scene_img])\
+                .merge(month_coll).merge(annual_coll)\
+                .merge(default_coll).merge(mask_coll)\
+                .sort('tcorr_index')
+
+            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
+
+        elif 'SCENE_GRIDDED' in self._tcorr_source.upper():
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
                 .select(['tcorr'])
             #     .filterMetadata('scene_id', 'equals', scene_id)
             #     .filterMetadata('date', 'equals', self._date)
-            month_coll = ee.ImageCollection(month_dict[tmax_key])\
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
-                .filterMetadata('month', 'equals', self._month)\
-                .select(['tcorr'])
-            annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
-                .select(['tcorr'])
 
+            return ee.Image(scene_coll.first())
+
+        elif 'SCENE' in self._tcorr_source.upper():
+            scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
+                .filterDate(self._start_date, self._end_date)\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            #     .filterMetadata('scene_id', 'equals', scene_id)
+            #     .filterMetadata('date', 'equals', self._date)
             default_img = default_coll.first()
             mask_coll = ee.ImageCollection(
                 default_img.updateMask(0).set({'tcorr_index': 9}))
@@ -648,170 +731,6 @@ class Image():
                         self._tcorr_source, self._tmax_source))
 
             return tcorr_img.rename(['tcorr'])
-
-        # elif 'FEATURE' in self._tcorr_source.upper():
-        #     # Lookup Tcorr collections by keyword value
-        #
-        #     scene_coll_dict = {
-        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_scene',
-        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_scene',
-        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_scene',
-        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_scene',
-        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_scene',
-        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_scene',
-        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_scene',
-        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_scene',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_scene',
-        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_scene',
-        #     }
-        #     month_coll_dict = {
-        #         'CIMIS': PROJECT_FOLDER + '/tcorr/cimis_monthly',
-        #         'DAYMET': PROJECT_FOLDER + '/tcorr/daymet_monthly',
-        #         'GRIDMET': PROJECT_FOLDER + '/tcorr/gridmet_monthly',
-        #         # 'TOPOWX': PROJECT_FOLDER + '/tcorr/topowx_monthly',
-        #         'CIMIS_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/cimis_median_v1_monthly',
-        #         'DAYMET_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/daymet_median_v0_monthly',
-        #         'DAYMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/daymet_median_v1_monthly',
-        #         'GRIDMET_MEDIAN_V1': PROJECT_FOLDER + '/tcorr/gridmet_median_v1_monthly',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr/topowx_median_v0_monthly',
-        #         'TOPOWX_MEDIAN_V0B': PROJECT_FOLDER + '/tcorr/topowx_median_v0b_monthly',
-        #     }
-        #     # annual_coll_dict = {}
-        #     default_value_dict = {
-        #         'CIMIS': 0.978,
-        #         'DAYMET': 0.978,
-        #         'GRIDMET': 0.978,
-        #         'TOPOWX': 0.978,
-        #         'CIMIS_MEDIAN_V1': 0.978,
-        #         'DAYMET_MEDIAN_V0': 0.978,
-        #         'DAYMET_MEDIAN_V1': 0.978,
-        #         'GRIDMET_MEDIAN_V1': 0.978,
-        #         'TOPOWX_MEDIAN_V0': 0.978,
-        #         'TOPOWX_MEDIAN_V0B': 0.978,
-        #     }
-        #
-        #     # Check Tmax source value
-        #     if (utils.is_number(self._tmax_source) or
-        #             self._tmax_source.upper() not in default_value_dict.keys()):
-        #         raise ValueError(
-        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #     tmax_key = self._tmax_source.upper()
-        #
-        #     default_coll = ee.FeatureCollection([
-        #         ee.Feature(None, {'INDEX': 3, 'TCORR': default_value_dict[tmax_key]})])
-        #     month_coll = ee.FeatureCollection(month_coll_dict[tmax_key])\
-        #         .filterMetadata('WRS2_TILE', 'equals', self._wrs2_tile)\
-        #         .filterMetadata('MONTH', 'equals', self._month)
-        #     if self._tcorr_source.upper() in ['FEATURE', 'SCENE']:
-        #         scene_coll = ee.FeatureCollection(scene_coll_dict[tmax_key])\
-        #             .filterMetadata('SCENE_ID', 'equals', self._scene_id)
-        #         tcorr_coll = ee.FeatureCollection(
-        #             default_coll.merge(month_coll).merge(scene_coll)).sort('INDEX')
-        #     elif 'MONTH' in self._tcorr_source.upper():
-        #         tcorr_coll = ee.FeatureCollection(
-        #             default_coll.merge(month_coll)).sort('INDEX')
-        #     else:
-        #         raise ValueError(
-        #             'Invalid tcorr_source: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #
-        #     tcorr_ftr = ee.Feature(tcorr_coll.first())
-        #     tcorr = ee.Number(tcorr_ftr.get('TCORR'))
-        #     tcorr_index = ee.Number(tcorr_ftr.get('INDEX'))
-        #
-        #     return tcorr, tcorr_index
-        #
-        # elif 'IMAGE' in self._tcorr_source.upper():
-        #     # Lookup Tcorr collections by keyword value
-        #     daily_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_daily',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_daily',
-        #     }
-        #     month_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_monthly',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_monthly',
-        #     }
-        #     annual_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_annual',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_annual',
-        #     }
-        #     default_dict = {
-        #         'DAYMET_MEDIAN_V2': PROJECT_FOLDER + '/tcorr_image/daymet_median_v2_default',
-        #         'TOPOWX_MEDIAN_V0': PROJECT_FOLDER + '/tcorr_image/topowx_median_v0_default',
-        #     }
-        #
-        #     # Check Tmax source value
-        #     if (utils.is_number(self._tmax_source) or
-        #             self._tmax_source.upper() not in default_dict.keys()):
-        #         raise ValueError(
-        #             '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #     tmax_key = self._tmax_source.upper()
-        #
-        #     # The mask image will be merged into all the Tcorr image collections
-        #     #   to ensure that all collections (daily, monthly, annual) have data
-        #     #   even if the collection is empty
-        #     default_img = ee.Image(default_dict[tmax_key])
-        #     mask_img = default_img.updateMask(0)
-        #
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'DAILY' in self._tcorr_source.upper()):
-        #         daily_coll = ee.ImageCollection(daily_dict[tmax_key])\
-        #             .filterDate(self._start_date, self._end_date)\
-        #             .select(['tcorr'])
-        #         # Assume there may be multiple daily images for the same date
-        #         # Use the one with the latest EXPORT_DATE property
-        #         daily_coll = daily_coll\
-        #             .limit(1, 'date_ingested', False)\
-        #             .merge(ee.ImageCollection(mask_img))
-        #         daily_img = ee.Image(daily_coll.mosaic())
-        #         # .filterMetadata('DATE', 'equals', self._date)
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'MONTH' in self._tcorr_source.upper()):
-        #         month_coll = ee.ImageCollection(month_dict[tmax_key])\
-        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-        #             .filterMetadata('month', 'equals', self._month)\
-        #             .select(['tcorr'])
-        #         month_coll = month_coll.merge(ee.ImageCollection(mask_img))
-        #         month_img = ee.Image(month_coll.mosaic())
-        #     if (self._tcorr_source.upper() == 'IMAGE' or
-        #             'ANNUAL' in self._tcorr_source.upper()):
-        #         annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
-        #             .filterMetadata('cycle_day', 'equals', self._cycle_day)\
-        #             .select(['tcorr'])
-        #         annual_coll = annual_coll.merge(ee.ImageCollection(mask_img))
-        #         annual_img = ee.Image(annual_coll.mosaic())
-        #
-        #     if self._tcorr_source.upper() == 'IMAGE':
-        #         # Composite Tcorr images to ensure that a value is returned
-        #         #   (even if the daily image doesn't exist)
-        #         composite_coll = ee.ImageCollection([
-        #             default_img.addBands(default_img.multiply(0).add(3).uint8()),
-        #             annual_img.addBands(annual_img.multiply(0).add(2).uint8()),
-        #             month_img.addBands(month_img.multiply(0).add(1).uint8()),
-        #             daily_img.addBands(daily_img.multiply(0).uint8())])
-        #         composite_img = composite_coll.mosaic()
-        #         tcorr_img = composite_img.select([0], ['tcorr'])
-        #         index_img = composite_img.select([1], ['index'])
-        #     elif 'DAILY' in self._tcorr_source.upper():
-        #         tcorr_img = daily_img
-        #         index_img = daily_img.multiply(0).uint8()
-        #     elif 'MONTH' in self._tcorr_source.upper():
-        #         tcorr_img = month_img
-        #         index_img = month_img.multiply(0).add(1).uint8()
-        #     elif 'ANNUAL' in self._tcorr_source.upper():
-        #         tcorr_img = annual_img
-        #         index_img = annual_img.multiply(0).add(2).uint8()
-        #     elif 'DEFAULT' in self._tcorr_source.upper():
-        #         tcorr_img = default_img
-        #         index_img = default_img.multiply(0).add(3).uint8()
-        #     else:
-        #         raise ValueError(
-        #             'Invalid tcorr_source: {} / {}\n'.format(
-        #                 self._tcorr_source, self._tmax_source))
-        #
-        #     return tcorr_img, index_img.rename(['index'])
 
         else:
             raise ValueError('Unsupported tcorr_source: {}\n'.format(
@@ -1065,6 +984,7 @@ class Image():
         # Instantiate the class
         return cls(ee.Image(input_image), **kwargs)
 
+    #
     @classmethod
     def from_landsat_c1_sr(cls, sr_image, **kwargs):
         """Returns a SSEBop Image instance from a Landsat Collection 1 SR image
@@ -1140,10 +1060,9 @@ class Image():
         # Instantiate the class
         return cls(input_image, **kwargs)
 
-    # TODO: Move calculation to model.py
     @lazy_property
     def tcorr_image(self):
-        """Compute Tcorr for the current image
+        """Compute the scene wide Tcorr for the current image
 
         Returns
         -------
@@ -1174,8 +1093,48 @@ class Image():
                   'tmax_version': tmax.get('tmax_version')})
 
     @lazy_property
+    def tcorr_image_hot(self):
+        """Compute the scene wide HOT Tcorr for the current image
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+        tmax = ee.Image(self.tmax)
+        dt = ee.Image(self.dt)
+        # TODO need lc mask for barren landcover
+        lc = None
+
+        # Compute Hot Tcorr (Same as cold tcorr but you subtract dt from Land Surface Temp.)
+        hottemp = lst.subtract(dt)
+        tcorr = hottemp.divide(tmax)
+
+        # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
+        ndvi_smooth = ndvi.focal_mean(radius=120, units='meters') \
+            .reproject(crs=self.crs, crsTransform=self.transform)
+        ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(0.25))
+
+        #changed the gt and lte to be after the reduceNeighborhood() call
+        ndvi_buffer = ndvi.reduceNeighborhood(
+            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
+        ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(0.25))
+
+        # No longer worry about low LST. Filter out high NDVI vals and mask out areas that aren't 'Barren'
+        tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)
+
+        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+            .set({'system:index': self._index,
+                  'system:time_start': self._time_start,
+                  'tmax_source': tmax.get('tmax_source'),
+                  'tmax_version': tmax.get('tmax_version')})
+
+    @lazy_property
     def tcorr_stats(self):
-        """Compute the Tcorr 5th percentile and count statistics
+        """Compute the Tcorr 2.5 percentile and count statistics
 
         Returns
         -------
@@ -1183,7 +1142,7 @@ class Image():
 
         """
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([5])\
+            reducer=ee.Reducer.percentile([2.5], outputNames=['value'])\
                 .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
@@ -1192,3 +1151,483 @@ class Image():
             maxPixels=2*10000*10000,
             tileScale=1,
         )
+
+    @lazy_property
+    def tcorr_gridded(self):
+        """Compute a continuous gridded Tcorr for the current image
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        1.Calculate cold tcorr 5km using the 2.5th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        2.Calculate hot tcorr 5km using the 70th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        3.Calculate COLD Zonal Mean (ee.ReduceNeighborhood()) at:
+            a. 1 pixel radius
+            b. 2 pixel radius
+            c. 3 pixel radius
+            d. 4 pixel radius
+            e. 5 pixel radius
+        4. Calculate HOT Zonal Mean at:
+            a. 2 pixel radius
+        5. Mosaic hot and cold together. Layers are listed in order of priority given in ee.Reducer.firstNonNull() call:
+            a. Original 5km Cold Tcorr
+            b. Cold Tcorr Zonal Mean 1 pixel radius
+            c. Cold Tcorr Zonal Mean 2 pixel radius
+            d. Cold Tcorr Zonal Mean 3 pixel radius
+            e. Cold Tcorr Zonal Mean 4 pixel radius
+            f. Cold Tcorr Zonal Mean 5 pixel radius
+            g. Original 5km Hot Tcorr
+            h. Hot Tcorr Zonal Mean 2 pixel radius
+        6. Calculate BLENDED Zonal Mean at:
+            a. 2 pixel radius
+            b. 4 pixel radius
+            c. 16 pixel radius
+        7. Create a weighted mean from step 6 and step 5:
+            a. Where (and if) #5, #6.a, #6.b and #6.c are non-null, weight them 0.4, 0.3, 0.2 and 0.1 respectively
+             & mosaic.
+            b. Where (and if)  #6.a, #6.b and #6.c are non-null, weight them 0.5, 0.33,and 0.17 respectively & mosaic.
+            c. Where (and if)  #6.b and #6.c are non-null, weight them 0.67 and 0.33 respectively & mosaic.
+
+        8. Combine #7.a-#7.c using firstNonNull(). This is ALMOST the final tcorr.
+
+        9. FINALLY: Zonal mean (1 pixel radius) of #8 to smooth and return as FINAL C FACTOR
+
+        Quality Band Explanation
+
+        Score explanation (RN = ReduceNeighborhood())
+
+        0 - Empty, there was no c factor of any interpolation that covers the cell
+        1 - RN 16 of blended filled the cell
+        2 - RN 16 and RN 4 coverage
+        3 - RN 16, RN4 and RN2 blended coverage
+        ====================================================
+        5 - (2 + 3) 5km original HOT cfactor calculated for cell
+        6 - (3 + 3) 5km original COLD cfactor calculated for cell
+        ====================================================
+        8 - 5km original HOT and COLD cfactor were calculated for the cell
+        in 8, only the cold was used.
+        ====================================================
+        12 ->(9+3), 14 ->(9 + 5->[2+3]), 15->(9 + 6->[3+3]), 17->(9 + 8->[3+2+3])::::(9) RN02 Cold, which takes priority.
+
+        Questions to asnwer
+        1. When are we using a cold-based C factor? 17, 15, 14, 12,  (8 and 6 doesn't occur)
+        2. When are we using Hot-based C factor? 5
+        3. When are we using a weighted blending to gap-fill? 3-1
+        4. Where did ANY hot pixel occur? Score of 5 and 14
+        5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 17, 15 (8 won't occur)
+
+        """
+
+        # TODO: Define coarse cell-size or transform as a parameter
+        # NOTE: This transform is being snapped to the Landsat grid
+        #   but this may not be necessary
+        coarse_transform = [5000, 0, 15, 0, -5000, 15]
+        # coarse_transform = [5000, 0, 0, 0, -5000, 0]
+
+        ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
+        # === Cold Tcorr ===
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
+        tcorr_coarse_cold_img = self.tcorr_image \
+            .reproject(crs=self.crs, crsTransform=self.transform) \
+            .reduceResolution(
+                reducer=ee.Reducer.percentile(percentiles=[2.5])
+                    .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+                bestEffort=False, maxPixels=30000) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .select([0, 1], ['tcorr', 'count'])
+
+        # === Hot Tcorr ===
+        # Resample to 5km taking 70th percentile
+        tcorr_coarse_hot_img = self.tcorr_image_hot \
+            .reproject(crs=self.crs, crsTransform=self.transform) \
+            .reduceResolution(
+                reducer=ee.Reducer.percentile(percentiles=[70])
+                    .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+                bestEffort=False, maxPixels=30000) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .select([0, 1], ['tcorr', 'count'])
+
+        ### =================== Cold ===================
+        # Mask cells without enough fine resolution Tcorr cells
+        # The count band is dropped after it is used to mask
+        tcorr_coarse_cold = tcorr_coarse_cold_img.select(['tcorr']) \
+            .updateMask(tcorr_coarse_cold_img.select(['count'])
+                        .gte(self.min_pixels_per_grid_cell))
+        # Count the number of coarse resolution Tcorr cells
+        count_coarse_cold = tcorr_coarse_cold \
+            .reduceRegion(reducer=ee.Reducer.count(),
+                          crs=self.crs, crsTransform=coarse_transform,
+                          bestEffort=False, maxPixels=100000)
+        tcorr_count_cold = ee.Number(count_coarse_cold.get('tcorr'))
+
+        ### =================== HOT ===================
+        # TODO - if there is a Null Image, do we get problems
+        # TODO - test export tcorr coarse hot
+        # Mask cells without enough fine resolution Tcorr cells
+        # The count band is dropped after it is used to mask
+        tcorr_coarse_hot = tcorr_coarse_hot_img.select(['tcorr']) \
+            .updateMask(tcorr_coarse_hot_img.select(['count'])
+                        .gte(self.min_pixels_per_grid_cell))
+        # Count the number of coarse resolution Tcorr cells
+        count_coarse_hot = tcorr_coarse_hot \
+            .reduceRegion(reducer=ee.Reducer.count(),
+                          crs=self.crs, crsTransform=coarse_transform,
+                          bestEffort=False, maxPixels=100000)
+        tcorr_count_hot = ee.Number(count_coarse_hot.get('tcorr'))
+
+        # TODO: Test the reduceNeighborhood optimization parameters
+        """
+        ReduceNeighborhood Optimization
+        optimization (String, default: null):
+        Optimization strategy. Options are 'boxcar' and 'window'. 
+        The 'boxcar' method is a fast method for computing count, sum or mean. 
+        It requires a homogeneous kernel, a single-input reducer and either 
+        MASK, KERNEL or no weighting. The 'window' method uses a running window, 
+        and has the same requirements as 'boxcar', but can use any single input 
+        reducer. Both methods require considerable additional memory.
+        """
+
+        # return tcorr_coarse_hot, tcorr_coarse_cold
+
+        # TODO - Do rn02 for hot and cold
+        # trivial change
+        # Do reduce neighborhood to interpolate c factor
+        # TODO - **** Consider expanding the cold to 3 and 4 pixels and examine changes in performance. ****
+        tcorr_rn01_cold = tcorr_coarse_cold\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+        tcorr_rn02_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn03_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=3, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn04_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        tcorr_rn05_cold = tcorr_coarse_cold \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=5, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        tcorr_rn02_hot = tcorr_coarse_hot\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+
+        # First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
+        hotCold_mosaic = ee.Image([tcorr_coarse_cold, tcorr_rn01_cold, tcorr_rn02_cold, tcorr_rn03_cold,
+                                        tcorr_rn04_cold, tcorr_rn05_cold, tcorr_coarse_hot, tcorr_rn02_hot]) \
+            .reduce(ee.Reducer.firstNonNull())
+        # # TODO - ...and then the first blended
+
+        tcorr_rn02_blended = hotCold_mosaic \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        tcorr_rn04_blended = hotCold_mosaic\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+        tcorr_rn16_blended = hotCold_mosaic\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=16, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        # todo - ^^^ tcorr_rno4 and 16 are made above by blending hot and cold and smoothing...
+        # we make the mosaic below only to use it as a template for zero_img.
+        fm_mosaic = ee.Image([hotCold_mosaic, tcorr_rn02_cold, tcorr_rn04_blended, tcorr_rn16_blended])\
+            .reduce(ee.Reducer.firstNonNull())
+        # create a zero image to add binary images to, in order to weight the image.
+        zero_img = fm_mosaic.multiply(0).updateMask(1)
+
+        ## ===== OLD SCORING =====
+        # # We make a series of binary images to map the extent of each layer's c factor
+        # score_coarse = zero_img.add(hotCold_rn02_mosaic.gt(0)).updateMask(1)
+        # score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        # score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        # score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+
+        ## ===== NEW SCORING =====
+        # 0 - Empty, there was no c factor of any interpolation that covers the cell
+        # 1 - RN 16 of blended filled the cell
+        # 2 - RN 16 and RN 4 coverage
+        # 3 - RN 16, RN4 and RN2 blended coverage
+        # 5 - 5km original HOT cfactor calculated for cell
+        # 6 - 5km original COLD cfactor calculated for cell
+        # 8 - 5km original HOT and COLD cfactor were calculated for the cell
+
+        # We make a series of binary images to map the extent of each layer's c factor
+        score_null = zero_img.add(hotCold_mosaic.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02_cold.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
+        score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
+
+        # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+        cold_rn05_score = zero_img.add(tcorr_rn05_cold.gt(0)).updateMask(1)
+        cold_rn05_score = cold_rn05_score.multiply(9).updateMask(1)
+        coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
+        coldscore = coldscore.multiply(3).updateMask(1)
+        hotscore = zero_img.add(tcorr_coarse_hot.gt(0)).updateMask(1)
+        hotscore = hotscore.multiply(2).updateMask(1)
+
+        # This layer has a score of 0-3 based on where the binaries overlap.
+        # This will help us to know where to apply different weights as directed by G. Senay.
+        # TODO - make this into a band of tcorr image!
+        total_score_img = ee.Image([score_null, score_02, score_04, score_16])\
+            .reduce(ee.Reducer.sum())
+
+        # *WEIGHTED MEAN*
+        # Use the score band to mask out the areas of overlap to weight the c factor:
+        # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
+        fm_mosaic_4 = ee.Image([hotCold_mosaic.multiply(0.4).updateMask(1),
+                                tcorr_rn02_blended.multiply(0.3).updateMask(1),
+                                tcorr_rn04_blended.multiply(0.2).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.1).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(4))
+
+        fm_mosaic_3 = ee.Image([tcorr_rn02_blended.multiply(0.5).updateMask(1),
+                                tcorr_rn04_blended.multiply(0.33).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.17).updateMask(1)]) \
+            .reduce(ee.Reducer.sum()) \
+            .updateMask(total_score_img.eq(3))
+
+        # for 2:1 use weights (2/3, 1/3)
+        fm_mosaic_2 = ee.Image([tcorr_rn04_blended.multiply(0.67).updateMask(1),
+                                tcorr_rn16_blended.multiply(0.33).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(2))
+
+        # for 1 use the value of 16
+        fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
+
+        # Combine the weighted means into a single image using first non-null
+        tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+            .reduce(ee.Reducer.firstNonNull()).updateMask(1)
+
+        # CGM - This should probably be done in main Tcorr method with other compositing
+        # # Fill missing pixels with the full image Tcorr
+        # if self.tcorr_gridded_scene_fill_flag:
+        #     t_stats = ee.Dictionary(self.tcorr_stats) \
+        #         .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+        #     tcorr_value = ee.Number(t_stats.get('tcorr_value'))
+        #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+        #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
+        #     # tcorr_index = ee.Number(
+        #     #     ee.Algorithms.If(tcorr_count.gte(self.min_pixels_per_image), 0, 9))
+        #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
+        #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
+
+        # Do one more reduce neighborhood to smooth the c factor
+        tcorr = tcorr\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+
+        quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score]).reduce(ee.Reducer.sum())
+        return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
+            .set(self._properties)\
+            .set({'tcorr_index': 0,
+                  'tcorr_coarse_count_cold': tcorr_count_cold})
+
+        # return tcorr.select([0, 1], ['tcorr', 'tcorr_quality'])\
+        #     .set(self._properties)\
+        #     .set({'tcorr_index': 0,
+        #           'tcorr_coarse_count_cold': tcorr_count_cold})
+
+    @lazy_property
+    def tcorr_gridded_cold(self):
+        """Compute a continuous gridded Tcorr for the current image
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+        # TODO: Define coarse cellsize or transform as a parameter
+        # NOTE: This transform is being snapped to the Landsat grid
+        #   but this may not be necessary
+        coarse_transform = [5000, 0, 15, 0, -5000, 15]
+        # coarse_transform = [5000, 0, 0, 0, -5000, 0]
+
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
+        tcorr_coarse_img = self.tcorr_image\
+            .reproject(crs=self.crs, crsTransform=self.transform)\
+            .reduceResolution(
+                reducer=ee.Reducer.percentile(percentiles=[2.5])
+                    .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+                bestEffort=True, maxPixels=30000)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .select([0, 1], ['tcorr', 'count'])
+
+        # Mask cells without enough fine resolution Tcorr cells
+        # The count band is dropped after it is used to mask
+        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
+            .updateMask(tcorr_coarse_img.select(['count'])
+                        .gte(self.min_pixels_per_grid_cell))
+
+        # Count the number of coarse resolution Tcorr cells
+        count_coarse = tcorr_coarse\
+            .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
+                          crsTransform=coarse_transform,
+                          bestEffort=False, maxPixels=100000)
+        tcorr_count = ee.Number(count_coarse.get('tcorr'))
+
+        # TODO: Test the reduceNeighborhood optimization parameters
+        """
+        ReduceNeighborhood Optimization
+        optimization (String, default: null):
+        Optimization strategy. Options are 'boxcar' and 'window'. 
+        The 'boxcar' method is a fast method for computing count, sum or mean. 
+        It requires a homogeneous kernel, a single-input reducer and either 
+        MASK, KERNEL or no weighting. The 'window' method uses a running window, 
+        and has the same requirements as 'boxcar', but can use any single input 
+        reducer. Both methods require considerable additional memory.
+        """
+
+        # Do reduce neighborhood to interpolate c factor
+        tcorr_rn02 = tcorr_coarse\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+        tcorr_rn04 = tcorr_coarse\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+        tcorr_rn16 = tcorr_coarse\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        fm_mosaic = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16])\
+            .reduce(ee.Reducer.firstNonNull())
+        zero_img = fm_mosaic.multiply(0).updateMask(1)
+
+        # We make a series of binary images to map the extent of each layer's c factor
+        score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+
+        # This layer has a score of 0-4 based on where the binaries overlap.
+        # This will help us to know where to apply different weights as directed by G. Senay.
+        total_score_img = ee.Image([score_coarse, score_02, score_04, score_16])\
+            .reduce(ee.Reducer.sum())
+
+        # *WEIGHTED MEAN*
+        # Use the score band to mask out the areas of overlap to weight the c factor:
+        # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
+        fm_mosaic_4 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
+                                tcorr_rn02.multiply(0.3).updateMask(1),
+                                tcorr_rn04.multiply(0.2).updateMask(1),
+                                tcorr_rn16.multiply(0.1).updateMask(1)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(4))
+
+        # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
+        fm_mosaic_3 = ee.Image([tcorr_rn02.multiply(0.5),
+                                tcorr_rn04.multiply(0.33),
+                                tcorr_rn16.multiply(0.17)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(3))
+
+        # for 2:1 use weights (2/3, 1/3)
+        fm_mosaic_2 = ee.Image([tcorr_rn04.multiply(0.67),
+                                tcorr_rn16.multiply(0.33)])\
+            .reduce(ee.Reducer.sum())\
+            .updateMask(total_score_img.eq(2))
+
+        # for 1 use the value of 16
+        fm_mosaic_1 = tcorr_rn16.updateMask(total_score_img.eq(1))
+
+        # Combine the weighted means into a single image using first non-null
+        tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
+            .reduce(ee.Reducer.firstNonNull())
+
+        # CGM - This should probably be done in main Tcorr method with other compositing
+        # # Fill missing pixels with the full image Tcorr
+        # if self.tcorr_gridded_scene_fill_flag:
+        #     t_stats = ee.Dictionary(self.tcorr_stats) \
+        #         .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+        #     tcorr_value = ee.Number(t_stats.get('tcorr_value'))
+        #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
+        #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
+        #     # tcorr_index = ee.Number(
+        #     #     ee.Algorithms.If(tcorr_count.gte(self.min_pixels_per_image), 0, 9))
+        #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
+        #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
+
+        # Do one more reduce neighborhood to smooth the c factor
+        tcorr = tcorr\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+        # TODO - the tcorr count band may want to be returned
+        #   for further analysis of tcorr count on cfactor
+
+        return tcorr.select([0], ['tcorr'])\
+            .set(self._properties)\
+            .set({'tcorr_index': 1,
+                  'tcorr_coarse_count': tcorr_count})

@@ -89,10 +89,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if gee_key_file:
         logging.info('  Using service account key file: {}'.format(gee_key_file))
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file),
-                      use_cloud_api=True)
+        ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file))
     else:
-        ee.Initialize(use_cloud_api=True)
+        ee.Initialize()
 
     # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
@@ -422,8 +421,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             t_obj = ssebop.Image.from_landsat_c1_toa(
                 ee.Image(image), **model_args)
             t_stats = ee.Dictionary(t_obj.tcorr_stats) \
-                .combine({'tcorr_p5': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr = ee.Number(t_stats.get('tcorr_p5'))
+                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
+            tcorr = ee.Number(t_stats.get('tcorr_value'))
             count = ee.Number(t_stats.get('tcorr_count'))
 
             # Remove the merged collection indices from the system:index
