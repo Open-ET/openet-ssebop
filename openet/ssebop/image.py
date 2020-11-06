@@ -1160,37 +1160,38 @@ class Image():
         -------
         ee.Image of Tcorr values
 
-        Calculate cold tcorr 5km using the 2.5th percentile of temperatures in degrees K (10pixelCount/5km minimum)
-        Calculate hot tcorr 5km using the 70th percentile of temperatures in degrees K (10pixelCount/5km minimum)
-        Calculate COLD Zonal Mean (ee.ReduceNeighborhood()) at:
-            1 pixel radius
-            2 pixel radius
-            3 pixel radius
-            4 pixel radius
-            5 pixel radius
-        Calculate HOT Zonal Mean at:
-            2 pixel radius
-        Mosaic hot and cold together. Layers are listed in order of priority given in ee.Reducer.firstNonNull() call:
-            Original 5km Cold Tcorr
-            Cold Tcorr Zonal Mean 1 pixel radius
-            Cold Tcorr Zonal Mean 2 pixel radius
-            Cold Tcorr Zonal Mean 3 pixel radius
-            Cold Tcorr Zonal Mean 4 pixel radius
-            Cold Tcorr Zonal Mean 5 pixel radius
-            Original 5km Hot Tcorr
-            Hot Tcorr Zonal Mean 2 pixel radius
-        Calculate BLENDED Zonal Mean at:
-            2 pixel radius
-            4 pixel radius
-            16 pixel radius
-        Create a weighted mean from step 6 and step 5:
-            Where (and if) #5, #6.a, #6.b and #6.c are non-null, weight them 0.4, 0.3, 0.2 and 0.1 respectively & mosaic.
-            Where (and if)  #6.a, #6.b and #6.c are non-null, weight them 0.5, 0.33,and 0.17 respectively & mosaic.
-            Where (and if)  #6.b and #6.c are non-null, weight them 0.67 and 0.33 respectively & mosaic.
+        1.Calculate cold tcorr 5km using the 2.5th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        2.Calculate hot tcorr 5km using the 70th percentile of temperatures in degrees K (10pixelCount/5km minimum)
+        3.Calculate COLD Zonal Mean (ee.ReduceNeighborhood()) at:
+            a. 1 pixel radius
+            b. 2 pixel radius
+            c. 3 pixel radius
+            d. 4 pixel radius
+            e. 5 pixel radius
+        4. Calculate HOT Zonal Mean at:
+            a. 2 pixel radius
+        5. Mosaic hot and cold together. Layers are listed in order of priority given in ee.Reducer.firstNonNull() call:
+            a. Original 5km Cold Tcorr
+            b. Cold Tcorr Zonal Mean 1 pixel radius
+            c. Cold Tcorr Zonal Mean 2 pixel radius
+            d. Cold Tcorr Zonal Mean 3 pixel radius
+            e. Cold Tcorr Zonal Mean 4 pixel radius
+            f. Cold Tcorr Zonal Mean 5 pixel radius
+            g. Original 5km Hot Tcorr
+            h. Hot Tcorr Zonal Mean 2 pixel radius
+        6. Calculate BLENDED Zonal Mean at:
+            a. 2 pixel radius
+            b. 4 pixel radius
+            c. 16 pixel radius
+        7. Create a weighted mean from step 6 and step 5:
+            a. Where (and if) #5, #6.a, #6.b and #6.c are non-null, weight them 0.4, 0.3, 0.2 and 0.1 respectively
+             & mosaic.
+            b. Where (and if)  #6.a, #6.b and #6.c are non-null, weight them 0.5, 0.33,and 0.17 respectively & mosaic.
+            c. Where (and if)  #6.b and #6.c are non-null, weight them 0.67 and 0.33 respectively & mosaic.
 
-        Combine #7.a-#7.c using firstNonNull(). This is ALMOST the final tcorr.
+        8. Combine #7.a-#7.c using firstNonNull(). This is ALMOST the final tcorr.
 
-        FINALLY: Zonal mean (1 pixel radius) of #8 to smooth and return as FINAL C FACTOR
+        9. FINALLY: Zonal mean (1 pixel radius) of #8 to smooth and return as FINAL C FACTOR
 
         """
 
