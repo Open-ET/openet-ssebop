@@ -1404,7 +1404,7 @@ class Image():
 
         # We make a series of binary images to map the extent of each layer's c factor
         score_null = zero_img.add(hotCold_mosaic.gt(0)).updateMask(1)
-        score_02 = zero_img.add(tcorr_rn02_cold.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02_blended.gt(0)).updateMask(1)
         score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
         score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
