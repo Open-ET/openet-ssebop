@@ -141,12 +141,12 @@ def test_Image_init_default_parameters():
     assert m.et_reference_band == None
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
-    assert m._dt_source == 'DAYMET_MEDIAN_V0'
+    assert m._dt_source == 'DAYMET_MEDIAN_V2'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'DYNAMIC'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
-    assert m._dt_min == 6
+    assert m._dt_min == 5
     assert m._dt_max == 25
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
@@ -250,10 +250,14 @@ def test_Image_elev_band_name():
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
-        ['DAYMET_MEDIAN_V1', SCENE_DOY, TEST_POINT, 18],
+        ['DAYMET_MEDIAN_V0', SCENE_DOY, TEST_POINT, 19.4612],
         ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
+        ['DAYMET_MEDIAN_V1', SCENE_DOY, TEST_POINT, 18],
         ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
         ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
+        ['DAYMET_MEDIAN_V2', SCENE_DOY, TEST_POINT, 19.5982],
+        ['DAYMET_MEDIAN_V2', 194, [-120.113, 36.336], 19.4762],
+        ['DAYMET_MEDIAN_V2', 194, [-119.0, 37.5], 25],
     ]
 )
 def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
@@ -267,13 +271,16 @@ def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
-        ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 6],
-        ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 6],
+        ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 5],
         ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
+        ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 5],
+        # ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 25],
+        ['DAYMET_MEDIAN_V2', 1, [-96.6255, 43.7359], 5],
+        ['DAYMET_MEDIAN_V2', 194, [-119.0, 37.5], 25],
     ]
 )
 def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
-    """Check that dT values are clamped to dt_min and dt_max (6, 25)"""
+    """Check that dT values are clamped to dt_min and dt_max (5, 25)"""
     m = default_image_obj(dt_source=dt_source)
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)

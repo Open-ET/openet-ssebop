@@ -40,12 +40,12 @@ class Image():
             et_reference_band=None,
             et_reference_factor=None,
             et_reference_resample=None,
-            dt_source='DAYMET_MEDIAN_V0',
+            dt_source='DAYMET_MEDIAN_V2',
             elev_source='SRTM',
             tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
-            dt_min=6,
+            dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
             **kwargs,
@@ -390,11 +390,9 @@ class Image():
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
 
-    # TODO - GELP... is this currently the quality band? Don't worry about this now. Ask Charles if this should change.
     @lazy_property
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
-        tcorr, tcorr_index = self._tcorr
         return self.mask\
             .rename(['quality']).set(self._properties)
 
@@ -430,7 +428,10 @@ class Image():
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first())
-        # Compute dT for the target date
+        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V2':
+            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v2')\
+                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
+            dt_img = ee.Image(dt_coll.first())        # Compute dT for the target date
         elif self._dt_source.upper() == 'CIMIS':
             input_img = ee.Image(
                 ee.ImageCollection('projects/earthengine-legacy/assets/'
@@ -577,6 +578,7 @@ class Image():
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
 
+        # Set Tcorr folder and collections based on the Tmax source (if needed)
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
