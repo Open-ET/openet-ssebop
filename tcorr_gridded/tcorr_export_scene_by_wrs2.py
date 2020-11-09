@@ -7,6 +7,7 @@ import math
 import os
 import pprint
 import re
+import time
 
 import ee
 
@@ -34,7 +35,7 @@ EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=-1, reverse_flag=False, tiles=None, update_flag=False,
+         max_ready=3000, reverse_flag=False, tiles=None, update_flag=False,
          log_tasks=True, recent_days=0, start_dt=None, end_dt=None):
     """Compute gridded Tcorr images by WRS2 tile
 
@@ -52,8 +53,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     gee_key_file : str, None, optional
         Earth Engine service account JSON key file (the default is None).
     max_ready: int, optional
-        Maximum number of queued "READY" tasks.  The default is -1 which is
-        implies no limit to the number of tasks that will be submitted.
+        Maximum number of queued "READY" tasks.
     reverse_flag : bool, optional
         If True, process WRS2 tiles in reverse order (the default is False).
     tiles : str, None, optional
@@ -320,9 +320,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
+    ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
         logging.debug('  Tasks: {}\n'.format(len(tasks)))
         input('ENTER')
+    # ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
 
 
     # Get current asset list
@@ -604,11 +606,78 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             logging.info('  Starting export task')
             utils.ee_task_start(task)
 
-            logging.debug('  Done')
+            ready_task_count += 1
+            # logging.debug(f'  Ready tasks: {ready_task_count}')
 
-        # Pause before starting the next wrs2 (not export task)
-        utils.delay_task(delay_time, max_ready)
-        logging.debug('')
+            # Pause before starting the next wrs2 (not export task)
+            # utils.delay_task(delay_time, max_ready)
+            # logging.debug('')
+
+
+            # Pause before starting the next date (not export task)
+            ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
+            # utils.delay_task(delay_time, max_ready)
+            # logging.debug('')
+
+
+# CGM - This is a modified copy of openet.utils.delay_task()
+#   It was changed to take and return the number of ready tasks
+#   This change may eventually be pushed to openet.utils.delay_task()
+def delay_task(ready_task_count, delay_time=0, max_ready=3000):
+    """Delay script execution based on number of READY tasks
+
+    Parameters
+    ----------
+    ready_task_count : int
+    delay_time : float, int
+        Delay time in seconds between starting export tasks or checking the
+        number of queued tasks if "max_ready" is > 0.  The default is 0.
+        The delay time will be set to a minimum of 10 seconds if max_ready > 0.
+    max_ready : int, optional
+        Maximum number of queued "READY" tasks.
+
+    Returns
+    -------
+    ready_task_count
+
+    """
+    # Force delay time to be a positive value
+    # (since parameter used to support negative values)
+    if delay_time < 0:
+        delay_time = abs(delay_time)
+
+    if (max_ready <= 0 or max_ready >= 3000) and delay_time > 0:
+        # Assume max_ready was not set and just wait the delay time
+        logging.debug(f'  Pausing {delay_time} seconds')
+        time.sleep(delay_time)
+        ready_task_count = 0
+    elif ready_task_count < max_ready:
+        # Skip waiting if the number of ready tasks is below the max
+        logging.debug(f'  Ready tasks: {ready_task_count}')
+    else:
+        # Don't continue to the next export until the number of READY tasks
+        # is greater than or equal to "max_ready"
+
+        # Force delay_time to be at least 10 seconds if max_ready is set
+        #   to avoid excessive EE calls
+        delay_time = max(delay_time, 10)
+
+        # Make an initial pause before checking tasks lists to allow
+        #   for previous export to start up.
+        logging.debug(f'  Pausing {delay_time} seconds')
+        time.sleep(delay_time)
+
+        while True:
+            ready_task_count = len(utils.get_ee_tasks(
+                states=['READY'], verbose=False).keys())
+            logging.debug(f'  Ready tasks: {ready_task_count}')
+            if ready_task_count >= max_ready:
+                logging.debug(f'  Pausing {delay_time} seconds')
+                time.sleep(delay_time)
+            else:
+                logging.debug('  Continuing iteration')
+                break
+    return ready_task_count
 
 
 def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
@@ -749,7 +818,7 @@ def arg_parse():
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
-        '--ready', default=-1, type=int,
+        '--ready', default=3000, type=int,
         help='Maximum number of queued READY tasks')
     parser.add_argument(
         '--recent', default=0, type=int,
