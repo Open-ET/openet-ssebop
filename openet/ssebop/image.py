@@ -1196,28 +1196,28 @@ class Image():
         9. FINALLY: Zonal mean (1 pixel radius) of #8 to smooth and return as FINAL C FACTOR
 
         Quality Band Explanation
-
-        Score explanation (RN = ReduceNeighborhood())
-
+        (RN = ReduceNeighborhood())
         0 - Empty, there was no c factor of any interpolation that covers the cell
         1 - RN 16 of blended filled the cell
         2 - RN 16 and RN 4 coverage
         3 - RN 16, RN4 and RN2 blended coverage
+        4* - RN 16, RN4, RN2 and Original C factor Coverage
         ====================================================
-        5 - (2 + 3) 5km original HOT cfactor calculated for cell
-        6 - (3 + 3) 5km original COLD cfactor calculated for cell
+        6 - (2 + 4*) 5km original HOT cfactor calculated for cell
+        7 - (3 + 4*) 5km original COLD cfactor calculated for cell
         ====================================================
-        8 - 5km original HOT and COLD cfactor were calculated for the cell
-        in 8, only the cold was used.
+        9** (2 + 3 + 4*) - 5km original HOT and COLD cfactor were calculated for the cell
+        in 9**, only the cold was used.
         ====================================================
-        12 ->(9+3), 14 ->(9 + 5->[2+3]), 15->(9 + 6->[3+3]), 17->(9 + 8->[3+2+3])::::(9) RN02 Cold, which takes priority.
+        9*** We add another value of 9 for an RN05 Cold layer, which takes priority.
+        13 ->(9***+ 4*), 15 ->(9*** + 6->[2 + 4*]), 16 -> (9*** + 7->[3 + 4*]) , 18->(9*** + 9**->[2 + 3 + 4*])
 
         Questions to asnwer
-        1. When are we using a cold-based C factor? 17, 15, 14, 12,  (8 and 6 doesn't occur)
-        2. When are we using Hot-based C factor? 5
-        3. When are we using a weighted blending to gap-fill? 3-1
-        4. Where did ANY hot pixel occur? Score of 5 and 14
-        5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 17, 15 (8 won't occur)
+        1. When are we using a cold-based C factor? 18, 16, 15, 13,  (9**, 6, 7 don't occur)
+        2. When are we using Hot-based C factor? 14
+        3. When are we using a weighted blending to gap-fill? 4-1
+        4. Where did ANY hot pixel occur? Score of 14 or 18
+        5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
 
