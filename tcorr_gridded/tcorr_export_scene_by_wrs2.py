@@ -16,7 +16,7 @@ import openet.core
 import openet.core.utils as utils
 
 TOOL_NAME = 'tcorr_export_scene_by_wrs2'
-TOOL_VERSION = '0.1.0'
+TOOL_VERSION = '0.1.6'
 
 # TODO: This could be a property or method of SSEBop or the Image class
 TCORR_INDICES = {
@@ -81,18 +81,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # List of path/rows to skip
     wrs2_skip_list = [
-        'p038r038', 'p039r038', 'p040r038',  # Mexico (by CA)
-        'p042r037',  # San Nicholas Island
-        'p049r026',  # Vancouver Island
-        # 'p041r037', 'p042r037', 'p047r031',  # CA Coast
-        'p033r039', 'p032r040', # Mexico (by TX)
-        'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (by TX)
-        # 'p019r040', # Florida west
-        # 'p016r043', 'p015r043', # Florida south
-        # 'p014r041', 'p014r042', 'p014r043', # Florida east
-        # 'p013r035', 'p013r036', # NC Outer Banks
-        # 'p011r032', # RI
-        # 'p013r026', 'p012r026', # Canada (by ME)
+        'p038r038', 'p039r038', 'p040r038',  # Mexico (by California)
+        'p042r037',  # San Nicholas Island, California
+        'p049r026',  # Vancouver Island, Canada
+        # 'p041r037', 'p042r037', 'p047r031',  # California Coast
+        'p033r039', 'p032r040', # Mexico (by Texas)
+        'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (by Texas)
+        'p019r040', # Florida west
+        'p016r043', 'p015r043', # Florida south
+        'p014r041', 'p014r042', 'p014r043', # Florida east
+        'p013r035', 'p013r036', # North Carolina Outer Banks
+        'p013r026', 'p012r026', # Canada (by Maine)
+        'p011r032', # Rhode Island
     ]
     wrs2_path_skip_list = [9, 49]
     wrs2_row_skip_list = [25, 24, 43]
@@ -181,7 +181,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         mgrs_tiles = sorted([x.strip() for x in mgrs_tiles.split(',')])
         # CGM - Remove empty strings caused by trailing or extra commas
         mgrs_tiles = [x.upper() for x in mgrs_tiles if x]
-        logging.debug('  mgrs_tiles: {}'.format(mgrs_tiles))
+        logging.debug(f'  mgrs_tiles: {mgrs_tiles}')
     except KeyError:
         mgrs_tiles = []
         logging.debug('  mgrs_tiles: not set in INI, defaulting to []')
@@ -191,7 +191,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     try:
         utm_zones = str(ini['EXPORT']['utm_zones'])
         utm_zones = sorted([int(x.strip()) for x in utm_zones.split(',')])
-        logging.debug('  utm_zones: {}'.format(utm_zones))
+        logging.debug(f'  utm_zones: {utm_zones}')
     except KeyError:
         utm_zones = []
         logging.debug('  utm_zones: not set in INI, defaulting to []')
@@ -220,7 +220,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # For now only support reading specific Tmax sources
     if tmax_name.upper() not in ['DAYMET_MEDIAN_V2']:
-        raise ValueError('unsupported tmax_source: {}'.format(tmax_name))
+        raise ValueError(f'unsupported tmax_source: {tmax_name}')
     # if (tmax_name.upper() == 'CIMIS' and
     #         ini['INPUTS']['end_date'] < '2003-10-01'):
     #     raise ValueError('CIMIS is not currently available before 2003-10-01')
@@ -233,18 +233,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # If the user set the tiles argument, use these instead of the INI values
     if tiles:
         logging.info('\nOverriding INI mgrs_tiles and utm_zones parameters')
-        logging.info('  user tiles: {}'.format(tiles))
+        logging.info(f'  user tiles: {tiles}')
         mgrs_tiles = sorted([y.strip() for x in tiles for y in x.split(',')])
         mgrs_tiles = [x.upper() for x in mgrs_tiles if x]
-        logging.info('  mgrs_tiles: {}'.format(', '.join(mgrs_tiles)))
+        logging.info(f'  mgrs_tiles: {", ".join(mgrs_tiles)}')
         utm_zones = sorted(list(set([int(x[:2]) for x in mgrs_tiles])))
-        logging.info('  utm_zones:  {}'.format(', '.join(map(str, utm_zones))))
+        logging.info(f'  utm_zones:  {", ".join(map(str, utm_zones))}')
 
     today_dt = datetime.datetime.now()
     today_dt = today_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     if recent_days:
         logging.info('\nOverriding INI "start_date" and "end_date" parameters')
-        logging.info('  Recent days: {}'.format(recent_days))
+        logging.info(f'  Recent days: {recent_days}')
         end_dt = today_dt - datetime.timedelta(days=1)
         start_dt = today_dt - datetime.timedelta(days=recent_days)
         start_date = start_dt.strftime('%Y-%m-%d')
@@ -263,49 +263,50 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             end_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
         except Exception as e:
             raise e
-    logging.info('  Start: {}'.format(start_date))
-    logging.info('  End:   {}'.format(end_date))
+    logging.info(f'  Start: {start_date}')
+    logging.info(f'  End:   {end_date}')
 
     # TODO: Add a few more checks on the dates
     if end_dt < start_dt:
         raise ValueError('end date can not be before start date')
 
-    logging.info('\nIteration date range')
-    iter_start_dt = start_dt
-    iter_end_dt = end_dt + datetime.timedelta(days=1)
+    # logging.debug('\nInterpolation date range')
+    # iter_start_dt = start_dt
+    # iter_end_dt = end_dt + datetime.timedelta(days=1)
     # iter_start_dt = start_dt - datetime.timedelta(days=interp_days)
     # iter_end_dt = end_dt + datetime.timedelta(days=interp_days+1)
-    logging.info('  Start: {}'.format(iter_start_dt.strftime('%Y-%m-%d')))
-    logging.info('  End:   {}'.format(iter_end_dt.strftime('%Y-%m-%d')))
+    # logging.debug('  Start: {}'.format(iter_start_dt.strftime('%Y-%m-%d')))
+    # logging.debug('  End:   {}'.format(iter_end_dt.strftime('%Y-%m-%d')))
 
 
     logging.info('\nInitializing Earth Engine')
     if gee_key_file:
-        logging.info('  Using service account key file: {}'.format(gee_key_file))
+        logging.info(f'  Using service account key file: {gee_key_file}')
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
         ee.Initialize(ee.ServiceAccountCredentials('x', key_file=gee_key_file))
     else:
         ee.Initialize()
 
 
-    # Get a Tmax image to set the Tcorr values to
     logging.debug('\nTmax properties')
     tmax_source = tmax_name.split('_', 1)[0]
     tmax_version = tmax_name.split('_', 1)[1]
-    if 'MEDIAN' in tmax_name.upper():
-        tmax_coll_id = 'projects/earthengine-legacy/assets/' \
-                       'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
-        tmax_coll = ee.ImageCollection(tmax_coll_id)
-        tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
-    # else:
-    #     raise ValueError('unsupported tmax_source: {}'.format(tmax_name))
-    logging.debug('  Collection: {}'.format(tmax_coll_id))
-    logging.debug('  Source:  {}'.format(tmax_source))
-    logging.debug('  Version: {}'.format(tmax_version))
+    logging.debug(f'  Source:  {tmax_source}')
+    logging.debug(f'  Version: {tmax_version}')
+    # # DEADBEEF - Not needed with gridded Tcorr
+    # # Get a Tmax image to set the Tcorr values to
+    # if 'MEDIAN' in tmax_name.upper():
+    #     tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+    #                    'projects/usgs-ssebop/tmax/{}'.format(tmax_name.lower())
+    #     tmax_coll = ee.ImageCollection(tmax_coll_id)
+    #     tmax_mask = ee.Image(tmax_coll.first()).select([0]).multiply(0)
+    # # else:
+    # #     raise ValueError(f'unsupported tmax_source: {tmax_name}')
+    # logging.debug(f'  Collection: {tmax_coll_id}')
 
 
     # Build output collection and folder if necessary
-    logging.debug('\nExport Collection: {}'.format(tcorr_scene_coll_id))
+    logging.debug(f'\nExport Collection: {tcorr_scene_coll_id}')
     if not ee.data.getInfo(tcorr_scene_coll_id.rsplit('/', 1)[0]):
         logging.info('\nExport folder does not exist and will be built'
                      '\n  {}'.format(tcorr_scene_coll_id.rsplit('/', 1)[0]))
@@ -321,15 +322,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     # Get current running tasks
     tasks = utils.get_ee_tasks()
     ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
-    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        logging.debug('  Tasks: {}\n'.format(len(tasks)))
-        input('ENTER')
     # ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
+    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+        logging.debug(f'  Tasks: {len(tasks)}\n')
+        input('ENTER')
 
 
+    # DEADBEEF - The asset list will be retrieved before each WRS2 tile is processed
     # Get current asset list
-    logging.debug('\nGetting GEE asset list')
-    asset_list = utils.get_ee_assets(tcorr_scene_coll_id)
+    # logging.debug('\nGetting GEE asset list')
+    # asset_list = utils.get_ee_assets(tcorr_scene_coll_id)
     # if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
     #     pprint.pprint(asset_list[:10])
 
@@ -380,13 +382,13 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             filter_args[coll_id] = [
                 {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': wrs2_path},
                 {'type': 'equals', 'leftField': 'WRS_ROW', 'rightValue': wrs2_row}]
-        # logging.debug('  Filter Args: {}'.format(filter_args))
+        # logging.debug(f'  Filter Args: {filter_args}')
 
         # Build and merge the Landsat collections
         model_obj = ssebop.Collection(
             collections=collections,
-            start_date=iter_start_dt.strftime('%Y-%m-%d'),
-            end_date=iter_end_dt.strftime('%Y-%m-%d'),
+            start_date=start_dt.strftime('%Y-%m-%d'),
+            end_date=(end_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d'),
             cloud_cover_max=cloud_cover,
             geometry=ee.Geometry.Point(openet.core.wrs2.centroids[wrs2_tile]),
             model_args=model_args,
@@ -406,22 +408,19 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         # Get list of existing images for the target tile
         logging.debug('  Getting GEE asset list')
         asset_coll = ee.ImageCollection(tcorr_scene_coll_id) \
-            .filterDate(iter_start_dt.strftime('%Y-%m-%d'),
-                        iter_end_dt.strftime('%Y-%m-%d')) \
+            .filterDate(start_dt.strftime('%Y-%m-%d'),
+                        (end_dt + datetime.timedelta(days=1)).strftime('%Y-%m-%d')) \
             .filterMetadata('wrs2_tile', 'equals',
                             wrs2_tile_fmt.format(wrs2_path, wrs2_row))
         asset_props = {f'{tcorr_scene_coll_id}/{x["properties"]["system:index"]}':
                            x['properties']
                        for x in utils.get_info(asset_coll)['features']}
-        # asset_props = {x['id']: x['properties']
-        #                for x in assets_info['features']}
+        # asset_props = {x['id']: x['properties'] for x in assets_info['features']}
 
         # Sort image ID list by date
         image_id_list = sorted(
             image_id_list, key=lambda k: k.split('/')[-1].split('_')[-1],
             reverse=reverse_flag)
-        # pprint.pprint(image_id_list)
-        # input('ENTER')
 
         # Sort by date
         for image_id in image_id_list:
@@ -455,26 +454,25 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                         asset_props[asset_id]['model_version'])
 
                     if asset_ver < model_ver:
-                        logging.info('    Existing asset model version is old, '
+                        logging.info('  Existing asset model version is old, '
                                      'removing')
                         logging.debug(f'    asset: {asset_ver}\n'
                                       f'    model: {model_ver}')
                         try:
                             ee.data.deleteAsset(asset_id)
                         except:
-                            logging.info('    Error removing asset, skipping')
+                            logging.info('  Error removing asset, skipping')
                             continue
-                    # elif ((('T1_RT_TOA' in asset_props[asset_id]['coll_id']) and
-                    #            ('T1_RT_TOA' not in image_id)) or
-                    #           (('T1_RT' in asset_props[asset_id]['coll_id']) and
-                    #            ('T1_RT' not in image_id))):
+                    # TODO: Add support for updating RT based assets
+                    # elif (('T1_RT_TOA' in asset_props[asset_id]['coll_id']) and
+                    #            ('T1_RT_TOA' not in image_id)):
                     #         logging.info(
                     #             '    Existing asset is from realtime Landsat '
                     #             'collection, removing')
                     #         try:
                     #             ee.data.deleteAsset(asset_id)
                     #         except:
-                    #             logging.info('    Error removing asset, skipping')
+                    #             logging.info('  Error removing asset, skipping')
                     #             continue
                     else:
                         logging.info('  Asset is up to date, skipping')
@@ -492,7 +490,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 if export_id in tasks.keys():
                     logging.debug('  Task already submitted, exiting')
                     continue
-                if asset_props and asset_id in asset_props.keys():
+                elif asset_props and asset_id in asset_props.keys():
                     logging.debug('  Asset already exists, skipping')
                     continue
 
@@ -505,10 +503,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             image_extent = [
                 image_geo[2], image_geo[5] + image_shape[1] * image_geo[4],
                 image_geo[2] + image_shape[0] * image_geo[0], image_geo[5]]
-            logging.debug('    Image CRS: {}'.format(image_crs))
-            logging.debug('    Image Geo: {}'.format(image_geo))
-            logging.debug('    Image Extent: {}'.format(image_extent))
-            logging.debug('    Image Shape: {}'.format(image_shape))
+            logging.debug(f'    Image CRS: {image_crs}')
+            logging.debug(f'    Image Geo: {image_geo}')
+            logging.debug(f'    Image Extent: {image_extent}')
+            logging.debug(f'    Image Shape:  {image_shape}')
 
             # Adjust the image extent to the coarse resolution grid
             # EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
@@ -528,10 +526,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             export_shape = [
                 int(abs(export_extent[2] - export_extent[0]) / EXPORT_GEO[0]),
                 int(abs(export_extent[3] - export_extent[1]) / EXPORT_GEO[0])]
-            logging.debug('    Export CRS: {}'.format(image_crs))
-            logging.debug('    Export Geo: {}'.format(export_geo))
-            logging.debug('    Export Extent: {}'.format(export_extent))
-            logging.debug('    Export Shape: {}'.format(export_shape))
+            logging.debug(f'    Export CRS: {image_crs}')
+            logging.debug(f'    Export Geo: {export_geo}')
+            logging.debug(f'    Export Extent: {export_extent}')
+            logging.debug(f'    Export Shape:  {export_shape}')
 
             # CGM - Why are we not using the from_image_id() method?
             # t_obj = ssebop.Image.from_image_id(ee.Image(image_id), **model_args)
@@ -722,7 +720,7 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
     """
     # Build and filter the study area feature collection
     logging.debug('Building study area collection')
-    logging.debug('  {}'.format(study_area_coll_id))
+    logging.debug(f'  {study_area_coll_id}')
     study_area_coll = ee.FeatureCollection(study_area_coll_id)
     if (study_area_property == 'STUSPS' and
             'CONUS' in [x.upper() for x in study_area_features]):
@@ -741,8 +739,8 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
 
     if study_area_property and study_area_features:
         logging.debug('  Filtering study area collection')
-        logging.debug('  Property: {}'.format(study_area_property))
-        logging.debug('  Features: {}'.format(','.join(study_area_features)))
+        logging.debug(f'  Property: {study_area_property}')
+        logging.debug(f'  Features: {",".join(study_area_features)}')
         study_area_coll = study_area_coll.filter(
             ee.Filter.inList(study_area_property, study_area_features))
 
@@ -752,14 +750,14 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
 
     # Filter collection by user defined lists
     if utm_zones:
-        logging.debug('  Filter user UTM Zones:    {}'.format(utm_zones))
+        logging.debug(f'  Filter user UTM Zones:    {utm_zones}')
         tiles_coll = tiles_coll.filter(ee.Filter.inList(utm_property, utm_zones))
     if mgrs_skip_list:
-        logging.debug('  Filter MGRS skip list:    {}'.format(mgrs_skip_list))
+        logging.debug(f'  Filter MGRS skip list:    {mgrs_skip_list}')
         tiles_coll = tiles_coll.filter(
             ee.Filter.inList(mgrs_property, mgrs_skip_list).Not())
     if mgrs_tiles:
-        logging.debug('  Filter MGRS tiles/zones:  {}'.format(mgrs_tiles))
+        logging.debug(f'  Filter MGRS tiles/zones:  {mgrs_tiles}')
         # Allow MGRS tiles to be subsets of the full tile code
         #   i.e. mgrs_tiles = 10TE, 10TF
         mgrs_filters = [
@@ -784,7 +782,7 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
 
     # Apply the user defined WRS2 tile list
     if wrs2_tiles:
-        logging.debug('  Filter WRS2 tiles: {}'.format(wrs2_tiles))
+        logging.debug(f'  Filter WRS2 tiles: {wrs2_tiles}')
         for tile in tiles_list:
             tile['wrs2_tiles'] = sorted(list(
                 set(tile['wrs2_tiles']) & set(wrs2_tiles)))
