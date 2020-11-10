@@ -362,12 +362,12 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     if wrs2_skip_list:
         wrs2_tile_list = [wrs2 for wrs2 in wrs2_tile_list
                           if wrs2 not in wrs2_skip_list]
-    if wrs2_row_skip_list:
-        wrs2_tile_list = [wrs2 for wrs2 in wrs2_tile_list
-                          if wrs2 not in wrs2_row_skip_list]
     if wrs2_path_skip_list:
         wrs2_tile_list = [wrs2 for wrs2 in wrs2_tile_list
-                          if wrs2 not in wrs2_path_skip_list]
+                          if int(wrs2[1:4]) not in wrs2_path_skip_list]
+    if wrs2_row_skip_list:
+        wrs2_tile_list = [wrs2 for wrs2 in wrs2_tile_list
+                          if int(wrs2[5:8]) not in wrs2_row_skip_list]
     wrs2_tile_list = sorted(wrs2_tile_list, reverse=not(reverse_flag))
     wrs2_tile_count = len(wrs2_tile_list)
 
