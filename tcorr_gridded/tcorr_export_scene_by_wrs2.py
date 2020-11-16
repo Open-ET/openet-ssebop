@@ -81,18 +81,21 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # List of path/rows to skip
     wrs2_skip_list = [
-        'p038r038', 'p039r038', 'p040r038',  # Mexico (by California)
-        'p042r037',  # San Nicholas Island, California
         'p049r026',  # Vancouver Island, Canada
-        # 'p041r037', 'p042r037', 'p047r031',  # California Coast
-        'p033r039', 'p032r040', # Mexico (by Texas)
-        'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (by Texas)
-        'p019r040', # Florida west
-        'p016r043', 'p015r043', # Florida south
-        'p014r041', 'p014r042', 'p014r043', # Florida east
+        # 'p047r031', # North California coast
+        'p042r037',  # San Nicholas Island, California
+        # 'p041r037', # South California coast
+        'p040r038', 'p039r038', 'p038r038', # Mexico (by California)
+        'p037r039', 'p036r039', 'p035r039', # Mexico (by Arizona)
+        'p034r039', 'p033r039', # Mexico (by New Mexico)
+        'p032r040',  # Mexico (West Texas)
+        'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (South Texas)
+        'p019r040', # West Florida coast
+        'p016r043', 'p015r043', # South Florida coast
+        'p014r041', 'p014r042', 'p014r043', # East Florida coast
         'p013r035', 'p013r036', # North Carolina Outer Banks
         'p013r026', 'p012r026', # Canada (by Maine)
-        'p011r032', # Rhode Island
+        'p011r032', # Rhode Island coast
     ]
     wrs2_path_skip_list = [9, 49]
     wrs2_row_skip_list = [25, 24, 43]
