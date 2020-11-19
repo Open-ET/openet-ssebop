@@ -462,19 +462,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                         except:
                             logging.info('  Error removing asset, skipping')
                             continue
-                    # TODO: Add support for updating RT based assets
                     # elif (('T1_RT_TOA' in asset_props[asset_id]['coll_id']) and
                     #            ('T1_RT_TOA' not in image_id)):
-                    #         logging.info(
-                    #             '    Existing asset is from realtime Landsat '
-                    #             'collection, removing')
+                    #         logging.info('  Existing asset is from realtime '
+                    #                      'Landsat collection, removing')
                     #         try:
                     #             ee.data.deleteAsset(asset_id)
                     #         except:
                     #             logging.info('  Error removing asset, skipping')
                     #             continue
                     else:
-                        logging.info('  Asset is up to date, skipping')
+                        logging.debug('  Asset is up to date, skipping')
                         continue
             elif overwrite_flag:
                 if export_id in tasks.keys():
@@ -573,6 +571,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'model_name': model_name,
                     'model_version': ssebop.__version__,
                     'month': int(export_dt.month),
+                    'realtime': 'true' if '/T1_RT' in coll_id else 'false',
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
                     'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
