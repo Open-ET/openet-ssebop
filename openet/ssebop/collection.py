@@ -258,7 +258,8 @@ class Collection():
                     .filterBounds(self.geometry)\
                     .filterMetadata('DATA_TYPE', 'equals', 'L1TP')\
                     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                                    self.cloud_cover_max)
+                                    self.cloud_cover_max)\
+                    .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
 
                 # TODO: Need to come up with a system for applying
                 #   generic filter arguments to the collections
@@ -292,7 +293,8 @@ class Collection():
                     .filterDate(start_date, end_date)\
                     .filterBounds(self.geometry)\
                     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
-                                    self.cloud_cover_max)
+                                    self.cloud_cover_max)\
+                    .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
 
                 # TODO: Need to come up with a system for applying
                 #   generic filter arguments to the collections
