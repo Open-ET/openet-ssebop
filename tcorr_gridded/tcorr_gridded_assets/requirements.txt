@@ -1,0 +1,5 @@
+earthengine-api>=0.1.232
+flask
+google-cloud-tasks
+openet-core
+openet-ssebop
