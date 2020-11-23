@@ -813,7 +813,7 @@ def arg_parse():
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
-        '--ready', default=3000, type=int,
+        '--ready', default=100, type=int,
         help='Maximum number of queued READY tasks')
     parser.add_argument(
         '--recent', default=0, type=int,
