@@ -5,6 +5,7 @@
 
 import argparse
 from collections import defaultdict
+import configparser
 import datetime
 import logging
 import os
@@ -14,9 +15,7 @@ import sys
 
 import ee
 
-import utils
-# from . import utils
-# from openet.core import utils
+import openet.core.utils as utils
 
 
 def main(ini_path=None):
@@ -30,7 +29,7 @@ def main(ini_path=None):
     """
     logging.info('\nRemove earlier versions of daily dT images')
 
-    ini = utils.read_ini(ini_path)
+    ini = read_ini(ini_path)
 
     model_name = 'SSEBOP'
     # model_name = ini['INPUTS']['et_model'].upper()
@@ -108,6 +107,28 @@ def main(ini_path=None):
                     continue
 
 
+def read_ini(ini_path):
+    logging.debug('\nReading Input File')
+    # Open config file
+    config = configparser.ConfigParser()
+    try:
+        config.read(ini_path)
+    except Exception as e:
+        logging.error(
+            '\nERROR: Input file could not be read, '
+            'is not an input file, or does not exist\n'
+            '  ini_path={}\n\nException: {}'.format(ini_path, e))
+        sys.exit()
+
+    # Force conversion of unicode to strings
+    ini = dict()
+    for section in config.keys():
+        ini[str(section)] = {}
+        for k, v in config[section].items():
+            ini[str(section)][str(k)] = v
+    return ini
+
+
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
@@ -126,13 +147,6 @@ def arg_parse():
 
 if __name__ == "__main__":
     args = arg_parse()
-
     logging.basicConfig(level=args.loglevel, format='%(message)s')
-    logging.info('\n{0}'.format('#' * 80))
-    logging.info('{0:<20s} {1}'.format(
-        'Run Time Stamp:', datetime.datetime.now().isoformat(' ')))
-    logging.info('{0:<20s} {1}'.format('Current Directory:', os.getcwd()))
-    logging.info('{0:<20s} {1}'.format(
-        'Script:', os.path.basename(sys.argv[0])))
 
     main(ini_path=args.ini)

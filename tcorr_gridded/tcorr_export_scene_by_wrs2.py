@@ -171,8 +171,11 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         raise e
 
     try:
-        wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])
+        wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])\
+            .replace('"', '').replace("'", '')
         wrs2_tiles = sorted([x.strip() for x in wrs2_tiles.split(',')])
+        print(wrs2_tiles)
+        input('ENTER')
     except KeyError:
         wrs2_tiles = []
         logging.debug('  wrs2_tiles: not set in INI, defaulting to []')
@@ -327,7 +330,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
     # ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
     if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        logging.debug(f'  Tasks: {len(tasks)}\n')
+        utils.print_ee_tasks(tasks)
         input('ENTER')
 
 
@@ -610,7 +613,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # logging.debug(f'  Ready tasks: {ready_task_count}')
 
             # Pause before starting the next date (not export task)
-            ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
+            ready_task_count = delay_task(delay_time, max_ready, ready_task_count)
             # utils.delay_task(delay_time, max_ready)
             # logging.debug('')
 
@@ -618,35 +621,38 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 # CGM - This is a modified copy of openet.utils.delay_task()
 #   It was changed to take and return the number of ready tasks
 #   This change may eventually be pushed to openet.utils.delay_task()
-def delay_task(ready_task_count, delay_time=0, max_ready=3000):
+def delay_task(delay_time=0, ready_task_max=100, ready_task_count=0):
     """Delay script execution based on number of READY tasks
 
     Parameters
     ----------
-    ready_task_count : int
     delay_time : float, int
         Delay time in seconds between starting export tasks or checking the
         number of queued tasks if "max_ready" is > 0.  The default is 0.
         The delay time will be set to a minimum of 10 seconds if max_ready > 0.
-    max_ready : int, optional
-        Maximum number of queued "READY" tasks.
+    ready_task_max : int, optional
+        Maximum number of queued "READY" tasks.  The default is 100.
+    ready_task_count : int
+        The current/previous/assumed number of ready tasks.
+        Value will only be updated if it is greater than or equal to max_ready.
+        The default is 0.
 
     Returns
     -------
-    ready_task_count
+    int : ready_task_count
 
     """
-    # Force delay time to be a positive value
-    # (since parameter used to support negative values)
+    # Force delay time to be a positive value since the parameter used to
+    #   support negative values
     if delay_time < 0:
         delay_time = abs(delay_time)
 
-    if (max_ready <= 0 or max_ready >= 3000) and delay_time > 0:
+    if (ready_task_max <= 0 or ready_task_max >= 3000) and delay_time > 0:
         # Assume max_ready was not set and just wait the delay time
-        logging.debug(f'  Pausing {delay_time} seconds')
+        logging.debug(f'  Pausing {delay_time} seconds, not checking task list')
         time.sleep(delay_time)
         ready_task_count = 0
-    elif ready_task_count < max_ready:
+    elif ready_task_count < ready_task_max:
         # Skip waiting if the number of ready tasks is below the max
         logging.debug(f'  Ready tasks: {ready_task_count}')
     else:
@@ -666,12 +672,14 @@ def delay_task(ready_task_count, delay_time=0, max_ready=3000):
             ready_task_count = len(utils.get_ee_tasks(
                 states=['READY'], verbose=False).keys())
             logging.debug(f'  Ready tasks: {ready_task_count}')
-            if ready_task_count >= max_ready:
+            if ready_task_count >= ready_task_max:
                 logging.debug(f'  Pausing {delay_time} seconds')
                 time.sleep(delay_time)
             else:
-                logging.debug('  Continuing iteration')
+                logging.debug(f'  {ready_task_max-ready_task_count} open task '
+                              f'slots, continuing processing')
                 break
+
     return ready_task_count
 
 

@@ -440,7 +440,7 @@ def tcorr_gridded_images(start_dt, end_dt, overwrite_flag=False,
 
     # Get current running tasks
     logging.debug('\nRequesting task list')
-    tasks = utils.get_ee_tasks(verbose=False)
+    tasks = utils.get_ee_tasks()
 
     # Skip image IDs that are already in the task queue
     image_id_list = [

@@ -89,7 +89,7 @@ def delay_task(delay_time=0, max_ready=-1):
         time.sleep(delay_time)
 
         while True:
-            ready_tasks = get_ee_tasks(states=['READY'], verbose=True)
+            ready_tasks = get_ee_tasks(states=['READY'])
             ready_task_count = len(ready_tasks.keys())
             # logging.debug('  Ready tasks: {}'.format(
             #     ', '.join(sorted(ready_tasks.keys()))))
