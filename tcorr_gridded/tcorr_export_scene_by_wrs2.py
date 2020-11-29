@@ -35,7 +35,7 @@ EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=3000, reverse_flag=False, tiles=None, update_flag=False,
+         ready_task_max=-1, reverse_flag=False, tiles=None, update_flag=False,
          log_tasks=True, recent_days=0, start_dt=None, end_dt=None):
     """Compute gridded Tcorr images by WRS2 tile
 
@@ -52,7 +52,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         number of queued tasks, see "max_ready" parameter).  The default is 0.
     gee_key_file : str, None, optional
         Earth Engine service account JSON key file (the default is None).
-    max_ready: int, optional
+    ready_task_max: int, optional
         Maximum number of queued "READY" tasks.
     reverse_flag : bool, optional
         If True, process WRS2 tiles in reverse order (the default is False).
@@ -174,8 +174,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         wrs2_tiles = str(ini['INPUTS']['wrs2_tiles'])\
             .replace('"', '').replace("'", '')
         wrs2_tiles = sorted([x.strip() for x in wrs2_tiles.split(',')])
-        print(wrs2_tiles)
-        input('ENTER')
     except KeyError:
         wrs2_tiles = []
         logging.debug('  wrs2_tiles: not set in INI, defaulting to []')
@@ -613,7 +611,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # logging.debug(f'  Ready tasks: {ready_task_count}')
 
             # Pause before starting the next date (not export task)
-            ready_task_count = delay_task(delay_time, max_ready, ready_task_count)
+            ready_task_count = delay_task(
+                delay_time=delay_time, task_max=ready_task_max,
+                task_count=ready_task_count)
             # utils.delay_task(delay_time, max_ready)
             # logging.debug('')
 
@@ -621,66 +621,72 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 # CGM - This is a modified copy of openet.utils.delay_task()
 #   It was changed to take and return the number of ready tasks
 #   This change may eventually be pushed to openet.utils.delay_task()
-def delay_task(delay_time=0, ready_task_max=100, ready_task_count=0):
+def delay_task(delay_time=0, task_max=-1, task_count=0):
     """Delay script execution based on number of READY tasks
 
     Parameters
     ----------
     delay_time : float, int
         Delay time in seconds between starting export tasks or checking the
-        number of queued tasks if "max_ready" is > 0.  The default is 0.
-        The delay time will be set to a minimum of 10 seconds if max_ready > 0.
-    ready_task_max : int, optional
-        Maximum number of queued "READY" tasks.  The default is 100.
-    ready_task_count : int
+        number of queued tasks if "ready_task_max" is > 0.  The default is 0.
+        The delay time will be set to a minimum of 10 seconds if
+        ready_task_max > 0.
+    task_max : int, optional
+        Maximum number of queued "READY" tasks.
+    task_count : int
         The current/previous/assumed number of ready tasks.
-        Value will only be updated if it is greater than or equal to max_ready.
-        The default is 0.
+        Value will only be updated if greater than or equal to ready_task_max.
 
     Returns
     -------
     int : ready_task_count
 
     """
+    if task_max > 3000:
+        raise ValueError('The maximum number of queued tasks must be less than 3000')
+
     # Force delay time to be a positive value since the parameter used to
     #   support negative values
     if delay_time < 0:
         delay_time = abs(delay_time)
 
-    if (ready_task_max <= 0 or ready_task_max >= 3000) and delay_time > 0:
-        # Assume max_ready was not set and just wait the delay time
+    if ((task_max is None or task_max <= 0) and (delay_time >= 0)):
+        # Assume task_max was not set and just wait the delay time
         logging.debug(f'  Pausing {delay_time} seconds, not checking task list')
         time.sleep(delay_time)
-        ready_task_count = 0
-    elif ready_task_count < ready_task_max:
-        # Skip waiting if the number of ready tasks is below the max
+        return 0
+    elif task_max and (task_count < task_max):
+        # Skip waiting or checking tasks if a maximum number of tasks was set
+        #   and the current task count is below the max
+        logging.debug(f'  Ready tasks: {task_count}')
+        return task_count
+
+    # If checking tasks, force delay_time to be at least 10 seconds if
+    #   ready_task_max is set to avoid excessive EE calls
+    delay_time = max(delay_time, 10)
+
+    # Make an initial pause before checking tasks lists to allow
+    #   for previous export to start up
+    # CGM - I'm not sure what a good default first pause time should be,
+    #   but capping it at 30 seconds is probably fine for now
+    logging.debug(f'  Pausing {min(delay_time, 30)} seconds for tasks to start')
+    time.sleep(delay_time)
+
+    # If checking tasks, don't continue to the next export until the number
+    #   of READY tasks is greater than or equal to "ready_task_max"
+    while True:
+        ready_task_count = len(utils.get_ee_tasks(states=['READY']).keys())
         logging.debug(f'  Ready tasks: {ready_task_count}')
-    else:
-        # Don't continue to the next export until the number of READY tasks
-        # is greater than or equal to "max_ready"
-
-        # Force delay_time to be at least 10 seconds if max_ready is set
-        #   to avoid excessive EE calls
-        delay_time = max(delay_time, 10)
-
-        # Make an initial pause before checking tasks lists to allow
-        #   for previous export to start up.
-        logging.debug(f'  Pausing {delay_time} seconds')
-        time.sleep(delay_time)
-
-        while True:
-            ready_task_count = len(utils.get_ee_tasks(
-                states=['READY'], verbose=False).keys())
-            logging.debug(f'  Ready tasks: {ready_task_count}')
-            if ready_task_count >= ready_task_max:
-                logging.debug(f'  Pausing {delay_time} seconds')
-                time.sleep(delay_time)
-            else:
-                logging.debug(f'  {ready_task_max-ready_task_count} open task '
-                              f'slots, continuing processing')
-                break
+        if ready_task_count >= task_max:
+            logging.debug(f'  Pausing {delay_time} seconds')
+            time.sleep(delay_time)
+        else:
+            logging.debug(f'  {task_max - ready_task_count} open task '
+                          f'slots, continuing processing')
+            break
 
     return ready_task_count
+
 
 
 def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
@@ -821,7 +827,7 @@ def arg_parse():
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
-        '--ready', default=100, type=int,
+        '--ready', default=-1, type=int,
         help='Maximum number of queued READY tasks')
     parser.add_argument(
         '--recent', default=0, type=int,
@@ -854,7 +860,7 @@ if __name__ == "__main__":
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite,
-         delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready,
+         delay_time=args.delay, gee_key_file=args.key, ready_task_max=args.ready,
          reverse_flag=args.reverse, tiles=args.tiles, update_flag=args.update,
          recent_days=args.recent, start_dt=args.start, end_dt=args.end,
     )

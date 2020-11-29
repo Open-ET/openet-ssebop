@@ -35,7 +35,7 @@ EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
-         max_ready=3000, reverse_flag=False, tiles=None, update_flag=False,
+         ready_task_max=-1, reverse_flag=False, tiles=None, update_flag=False,
          log_tasks=True, recent_days=0, start_dt=None, end_dt=None):
     """Compute gridded Tcorr images by date
 
@@ -52,7 +52,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         number of queued tasks, see "max_ready" parameter).  The default is 0.
     gee_key_file : str, None, optional
         Earth Engine service account JSON key file (the default is None).
-    max_ready: int, optional
+    ready_task_max: int, optional
         Maximum number of queued "READY" tasks.
     reverse_flag : bool, optional
         If True, process WRS2 tiles in reverse order (the default is False).
@@ -606,7 +606,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # logging.debug(f'  Ready tasks: {ready_task_count}')
 
             # Pause before starting the next date (not export task)
-            ready_task_count = delay_task(delay_time, max_ready, ready_task_count)
+            ready_task_count = delay_task(
+                delay_time=delay_time, task_max=ready_task_max,
+                task_count=ready_task_count)
             # utils.delay_task(delay_time, max_ready)
             # logging.debug('')
 
@@ -614,7 +616,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 # CGM - This is a modified copy of openet.utils.delay_task()
 #   It was changed to take and return the number of ready tasks
 #   This change may eventually be pushed to openet.utils.delay_task()
-def delay_task(delay_time=0, ready_task_max=100, ready_task_count=0):
+def delay_task(delay_time=0, ready_task_max=-1, ready_task_count=0):
     """Delay script execution based on number of READY tasks
 
     Parameters
@@ -624,7 +626,7 @@ def delay_task(delay_time=0, ready_task_max=100, ready_task_count=0):
         number of queued tasks if "max_ready" is > 0.  The default is 0.
         The delay time will be set to a minimum of 10 seconds if max_ready > 0.
     ready_task_max : int, optional
-        Maximum number of queued "READY" tasks.  The default is 100.
+        Maximum number of queued "READY" tasks.
     ready_task_count : int
         The current/previous/assumed number of ready tasks.
         Value will only be updated if it is greater than or equal to max_ready.
@@ -640,7 +642,7 @@ def delay_task(delay_time=0, ready_task_max=100, ready_task_count=0):
     if delay_time < 0:
         delay_time = abs(delay_time)
 
-    if (ready_task_max <= 0 or ready_task_max >= 3000) and delay_time > 0:
+    if ((task_max is None or task_max <= 0) and (delay_time >= 0)):
         # Assume max_ready was not set and just wait the delay time
         logging.debug(f'  Pausing {delay_time} seconds, not checking task list')
         time.sleep(delay_time)
@@ -814,7 +816,7 @@ def arg_parse():
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
-        '--ready', default=100, type=int,
+        '--ready', default=-1, type=int,
         help='Maximum number of queued READY tasks')
     parser.add_argument(
         '--recent', default=0, type=int,
@@ -847,7 +849,7 @@ if __name__ == "__main__":
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
     main(ini_path=args.ini, overwrite_flag=args.overwrite,
-         delay_time=args.delay, gee_key_file=args.key, max_ready=args.ready,
+         delay_time=args.delay, gee_key_file=args.key, ready_task_max=args.ready,
          reverse_flag=args.reverse, tiles=args.tiles, update_flag=args.update,
          recent_days=args.recent, start_dt=args.start, end_dt=args.end,
     )
