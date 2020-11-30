@@ -616,64 +616,69 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 # CGM - This is a modified copy of openet.utils.delay_task()
 #   It was changed to take and return the number of ready tasks
 #   This change may eventually be pushed to openet.utils.delay_task()
-def delay_task(delay_time=0, ready_task_max=-1, ready_task_count=0):
+def delay_task(delay_time=0, task_max=-1, task_count=0):
     """Delay script execution based on number of READY tasks
 
     Parameters
     ----------
     delay_time : float, int
         Delay time in seconds between starting export tasks or checking the
-        number of queued tasks if "max_ready" is > 0.  The default is 0.
-        The delay time will be set to a minimum of 10 seconds if max_ready > 0.
-    ready_task_max : int, optional
+        number of queued tasks if "ready_task_max" is > 0.  The default is 0.
+        The delay time will be set to a minimum of 10 seconds if
+        ready_task_max > 0.
+    task_max : int, optional
         Maximum number of queued "READY" tasks.
-    ready_task_count : int
+    task_count : int
         The current/previous/assumed number of ready tasks.
-        Value will only be updated if it is greater than or equal to max_ready.
-        The default is 0.
+        Value will only be updated if greater than or equal to ready_task_max.
 
     Returns
     -------
     int : ready_task_count
 
     """
+    if task_max > 3000:
+        raise ValueError('The maximum number of queued tasks must be less than 3000')
+
     # Force delay time to be a positive value since the parameter used to
     #   support negative values
     if delay_time < 0:
         delay_time = abs(delay_time)
 
     if ((task_max is None or task_max <= 0) and (delay_time >= 0)):
-        # Assume max_ready was not set and just wait the delay time
+        # Assume task_max was not set and just wait the delay time
         logging.debug(f'  Pausing {delay_time} seconds, not checking task list')
         time.sleep(delay_time)
-        ready_task_count = 0
-    elif ready_task_count < ready_task_max:
-        # Skip waiting if the number of ready tasks is below the max
+        return 0
+    elif task_max and (task_count < task_max):
+        # Skip waiting or checking tasks if a maximum number of tasks was set
+        #   and the current task count is below the max
+        logging.debug(f'  Ready tasks: {task_count}')
+        return task_count
+
+    # If checking tasks, force delay_time to be at least 10 seconds if
+    #   ready_task_max is set to avoid excessive EE calls
+    delay_time = max(delay_time, 10)
+
+    # Make an initial pause before checking tasks lists to allow
+    #   for previous export to start up
+    # CGM - I'm not sure what a good default first pause time should be,
+    #   but capping it at 30 seconds is probably fine for now
+    logging.debug(f'  Pausing {min(delay_time, 30)} seconds for tasks to start')
+    time.sleep(delay_time)
+
+    # If checking tasks, don't continue to the next export until the number
+    #   of READY tasks is greater than or equal to "ready_task_max"
+    while True:
+        ready_task_count = len(utils.get_ee_tasks(states=['READY']).keys())
         logging.debug(f'  Ready tasks: {ready_task_count}')
-    else:
-        # Don't continue to the next export until the number of READY tasks
-        # is greater than or equal to "max_ready"
-
-        # Force delay_time to be at least 10 seconds if max_ready is set
-        #   to avoid excessive EE calls
-        delay_time = max(delay_time, 10)
-
-        # Make an initial pause before checking tasks lists to allow
-        #   for previous export to start up.
-        logging.debug(f'  Pausing {delay_time} seconds')
-        time.sleep(delay_time)
-
-        while True:
-            ready_task_count = len(utils.get_ee_tasks(
-                states=['READY'], verbose=False).keys())
-            logging.debug(f'  Ready tasks: {ready_task_count}')
-            if ready_task_count >= ready_task_max:
-                logging.debug(f'  Pausing {delay_time} seconds')
-                time.sleep(delay_time)
-            else:
-                logging.debug(f'  {ready_task_max-ready_task_count} open task '
-                              f'slots, continuing processing')
-                break
+        if ready_task_count >= task_max:
+            logging.debug(f'  Pausing {delay_time} seconds')
+            time.sleep(delay_time)
+        else:
+            logging.debug(f'  {task_max - ready_task_count} open task '
+                          f'slots, continuing processing')
+            break
 
     return ready_task_count
 
