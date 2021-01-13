@@ -73,7 +73,7 @@ WRS2_SKIP_LIST = [
     'p034r039', 'p033r039', # Mexico (by New Mexico)
     'p032r040',  # Mexico (West Texas)
     'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (South Texas)
-    'p019r040', # West Florida coast
+    'p019r040', 'p018r040', # West Florida coast
     'p016r043', 'p015r043', # South Florida coast
     'p014r041', 'p014r042', 'p014r043', # East Florida coast
     'p013r035', 'p013r036', # North Carolina Outer Banks

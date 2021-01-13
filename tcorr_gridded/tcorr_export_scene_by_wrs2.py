@@ -90,7 +90,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         'p034r039', 'p033r039', # Mexico (by New Mexico)
         'p032r040',  # Mexico (West Texas)
         'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (South Texas)
-        'p019r040', # West Florida coast
+        'p019r040', 'p018r040', # West Florida coast
         'p016r043', 'p015r043', # South Florida coast
         'p014r041', 'p014r042', 'p014r043', # East Florida coast
         'p013r035', 'p013r036', # North Carolina Outer Banks
@@ -467,15 +467,15 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                         except:
                             logging.info('  Error removing asset, skipping')
                             continue
-                    # elif (('T1_RT_TOA' in asset_props[asset_id]['coll_id']) and
-                    #            ('T1_RT_TOA' not in image_id)):
-                    #         logging.info('  Existing asset is from realtime '
-                    #                      'Landsat collection, removing')
-                    #         try:
-                    #             ee.data.deleteAsset(asset_id)
-                    #         except:
-                    #             logging.info('  Error removing asset, skipping')
-                    #             continue
+                    elif (('T1_RT_TOA' in asset_props[asset_id]['coll_id']) and
+                               ('T1_RT_TOA' not in image_id)):
+                            logging.info('  Existing asset is from realtime '
+                                         'Landsat collection, removing')
+                            try:
+                                ee.data.deleteAsset(asset_id)
+                            except:
+                                logging.info('  Error removing asset, skipping')
+                                continue
                     else:
                         logging.debug('  Asset is up to date, skipping')
                         continue
