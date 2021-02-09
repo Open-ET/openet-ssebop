@@ -176,7 +176,7 @@ def test_Collection_build_dates():
     assert parse_scene_id(output) == ['LC08_044033_20170716']
 
 
-def test_Collection_build_landsat_toa():
+def test_Collection_build_landsat_c1_toa():
     """Test if the Landsat TOA (non RT) collections can be built"""
     coll_obj = default_coll_obj(
         collections=['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA'])
@@ -185,13 +185,22 @@ def test_Collection_build_landsat_toa():
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
-def test_Collection_build_landsat_sr():
+def test_Collection_build_landsat_c1_sr():
     """Test if the Landsat SR collections can be built"""
     coll_obj = default_coll_obj(
         collections=['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR'])
     output = utils.getinfo(coll_obj._build())
     assert parse_scene_id(output) == SCENE_ID_LIST
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
+
+
+# def test_Collection_build_landsat_c2_sr():
+#     """Test if the Landsat SR collections can be built"""
+#     coll_obj = default_coll_obj(
+#         collections=['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2'])
+#     output = utils.getinfo(coll_obj._build())
+#     assert parse_scene_id(output) == SCENE_ID_LIST
+#     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
 def test_Collection_build_exclusive_enddate():

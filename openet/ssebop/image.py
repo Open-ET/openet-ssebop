@@ -900,6 +900,10 @@ class Image():
             'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
             'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
             'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
+            'LANDSAT/LC08/C02/T1_L2': 'from_landsat_c2_sr',
+            'LANDSAT/LE07/C02/T1_L2': 'from_landsat_c2_sr',
+            'LANDSAT/LT05/C02/T1_L2': 'from_landsat_c2_sr',
+            'LANDSAT/LT04/C02/T1_L2': 'from_landsat_c2_sr',
         }
 
         try:
@@ -1054,6 +1058,64 @@ class Image():
         # Apply the cloud mask and add properties
         input_image = input_image\
             .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
+            .set({'system:index': sr_image.get('system:index'),
+                  'system:time_start': sr_image.get('system:time_start'),
+                  'system:id': sr_image.get('system:id'),
+            })
+
+        # Instantiate the class
+        return cls(input_image, **kwargs)
+
+    @classmethod
+    def from_landsat_c2_sr(cls, sr_image, **kwargs):
+        """Returns a SSEBop Image instance from a Landsat Collection 2 SR image
+
+        Parameters
+        ----------
+        sr_image : ee.Image, str
+            A raw Landsat Collection 2 SR image or image ID.
+
+        Returns
+        -------
+        Image
+
+        """
+        sr_image = ee.Image(sr_image)
+
+        # Use the SPACECRAFT_ID property identify each Landsat type
+        spacecraft_id = ee.String(sr_image.get('SPACECRAFT_ID'))
+
+        # Rename bands to generic names
+        input_bands = ee.Dictionary({
+            'LANDSAT_4': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
+                          'ST_B6', 'QA_PIXEL'],
+            'LANDSAT_5': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
+                          'ST_B6', 'QA_PIXEL'],
+            'LANDSAT_7': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
+                          'ST_B6', 'QA_PIXEL'],
+            'LANDSAT_8': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
+                          'ST_B10', 'QA_PIXEL'],
+        })
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
+                        'tir', 'QA_PIXEL']
+
+        prep_image = sr_image \
+            .select(input_bands.get(spacecraft_id), output_bands) \
+            .multiply([0.0000275, 0.0000275, 0.0000275, 0.0000275,
+                       0.0000275, 0.0000275, 0.00341802, 1])\
+            .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 1])\
+
+        # Build the input image
+        input_image = ee.Image([
+            # CGM - Don't compute LST since it is being provided
+            prep_image.select(['tir'], ['lst']),
+            # landsat.lst(prep_image),
+            landsat.ndvi(prep_image),
+        ])
+
+        # Apply the cloud mask and add properties
+        input_image = input_image\
+            .updateMask(common.landsat_c2_sr_cloud_mask(sr_image))\
             .set({'system:index': sr_image.get('system:index'),
                   'system:time_start': sr_image.get('system:time_start'),
                   'system:id': sr_image.get('system:id'),
