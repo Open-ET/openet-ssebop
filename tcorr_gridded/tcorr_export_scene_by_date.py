@@ -493,7 +493,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     continue
 
             # Get the input image grid and spatial reference
-            image_info = ee.Image(image_id).select(['B3']).getInfo()
+            image_info = ee.Image(image_id).select([3]).getInfo()
             image_geo = image_info['bands'][0]['crs_transform']
             image_crs = image_info['bands'][0]['crs']
             image_shape = image_info['bands'][0]['dimensions']
@@ -531,7 +531,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
             # CGM - Why are we not using the from_image_id() method?
             # t_obj = ssebop.Image.from_image_id(ee.Image(image_id), **model_args)
-            if coll_id.endswith('_SR'):
+            if coll_id.endswith('_L2'):
+                t_obj = ssebop.Image.from_landsat_c2_sr(
+                    ee.Image(image_id), **model_args)
+            elif coll_id.endswith('_SR'):
                 t_obj = ssebop.Image.from_landsat_c1_sr(
                     ee.Image(image_id), **model_args)
             elif coll_id.endswith('_TOA'):
