@@ -4,14 +4,14 @@ import pprint
 
 from dateutil.relativedelta import *
 import ee
+import openet.core.interpolate
+# TODO: import utils from openet.core
+# import openet.core.utils as utils
 
 from . import utils
 from .image import Image
 # Importing to get version number, is there a better way?
 import openet.ssebop
-import openet.core.interpolate
-# TODO: import utils from openet.core
-# import openet.core.utils as utils
 
 
 def lazy_property(fn):
@@ -258,7 +258,7 @@ class Collection():
         # Build the variable image collection
         variable_coll = ee.ImageCollection([])
         for coll_id in self.collections:
-            # TODO: Move to separate methods/functions for each type
+            # TODO: Move to separate methods/functions for each collection type
             if coll_id in self._landsat_c2_sr_collections:
                 input_coll = ee.ImageCollection(coll_id)\
                     .filterDate(start_date, end_date)\
@@ -266,6 +266,8 @@ class Collection():
                     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                                     self.cloud_cover_max)\
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
+                # TODO: Check if PROCESSING_LEVEL needs to be filtered on
+                #     .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
 
                 # TODO: Need to come up with a system for applying
                 #   generic filter arguments to the collections
@@ -315,6 +317,7 @@ class Collection():
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
 
+                # TODO: Check if these bad images are in collection 1 SR
                 # Time filters are to remove bad (L5) and pre-op (L8) images
                 if 'LT05' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.lt(

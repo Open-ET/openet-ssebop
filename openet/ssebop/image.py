@@ -3,13 +3,13 @@ import math
 import pprint
 
 import ee
+import openet.core.common
+# TODO: import utils from common
+# import openet.core.utils as utils
 
 from openet.ssebop import landsat
 from openet.ssebop import model
 from openet.ssebop import utils
-import openet.core.common as common
-# TODO: import utils from common
-# import openet.core.utils as utils
 
 
 PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
@@ -968,8 +968,10 @@ class Image():
             .set({
                 'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
                 'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id))),
-                'SATELLITE': spacecraft_id,
             })
+
+        cloud_mask = openet.core.common.landsat_c1_toa_cloud_mask(
+            toa_image, **cloudmask_args)
 
         # Build the input image
         input_image = ee.Image([
@@ -979,8 +981,7 @@ class Image():
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(common.landsat_c1_toa_cloud_mask(
-                toa_image, **cloudmask_args))\
+            .updateMask(cloud_mask)\
             .set({
                 'system:index': toa_image.get('system:index'),
                 'system:time_start': toa_image.get('system:time_start'),
@@ -990,15 +991,18 @@ class Image():
         # Instantiate the class
         return cls(ee.Image(input_image), **kwargs)
 
-    #
     @classmethod
-    def from_landsat_c1_sr(cls, sr_image, **kwargs):
+    def from_landsat_c1_sr(cls, sr_image, cloudmask_args={}, **kwargs):
         """Returns a SSEBop Image instance from a Landsat Collection 1 SR image
 
         Parameters
         ----------
         sr_image : ee.Image, str
             A raw Landsat Collection 1 SR image or image ID.
+        cloudmask_args : dict
+            keyword arguments to pass through to cloud mask function
+        kwargs : dict
+            Keyword arguments to pass through to Image init function
 
         Returns
         -------
@@ -1049,6 +1053,9 @@ class Image():
         #     .set({'k1_constant': ee.Number(sr_image.get(k1.get(spacecraft_id))),
         #           'k2_constant': ee.Number(sr_image.get(k2.get(spacecraft_id)))})
 
+        cloud_mask = openet.core.common.landsat_c1_sr_cloud_mask(
+            sr_image, **cloudmask_args)
+
         # Build the input image
         input_image = ee.Image([
             landsat.lst(prep_image),
@@ -1057,7 +1064,7 @@ class Image():
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(common.landsat_c1_sr_cloud_mask(sr_image))\
+            .updateMask(cloud_mask)\
             .set({'system:index': sr_image.get('system:index'),
                   'system:time_start': sr_image.get('system:time_start'),
                   'system:id': sr_image.get('system:id'),
@@ -1067,13 +1074,17 @@ class Image():
         return cls(input_image, **kwargs)
 
     @classmethod
-    def from_landsat_c2_sr(cls, sr_image, **kwargs):
+    def from_landsat_c2_sr(cls, sr_image, cloudmask_args={}, **kwargs):
         """Returns a SSEBop Image instance from a Landsat Collection 2 SR image
 
         Parameters
         ----------
         sr_image : ee.Image, str
             A raw Landsat Collection 2 SR image or image ID.
+        cloudmask_args : dict
+            keyword arguments to pass through to cloud mask function
+        kwargs : dict
+            Keyword arguments to pass through to Image init function
 
         Returns
         -------
@@ -1105,9 +1116,12 @@ class Image():
                        0.0000275, 0.0000275, 0.00341802, 1])\
             .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 1])\
 
+        cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(
+            sr_image, **cloudmask_args)
+
         # Build the input image
+        # Don't compute LST since it is being provided
         input_image = ee.Image([
-            # CGM - Don't compute LST since it is being provided
             prep_image.select(['tir'], ['lst']),
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
@@ -1115,7 +1129,7 @@ class Image():
 
         # Apply the cloud mask and add properties
         input_image = input_image\
-            .updateMask(common.landsat_c2_sr_cloud_mask(sr_image))\
+            .updateMask(cloud_mask)\
             .set({'system:index': sr_image.get('system:index'),
                   'system:time_start': sr_image.get('system:time_start'),
                   'system:id': sr_image.get('system:id'),

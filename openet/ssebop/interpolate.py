@@ -2,14 +2,13 @@ import datetime
 import logging
 import pprint
 
-import ee
 from dateutil.relativedelta import *
-
-from . import utils
-
+import ee
 import openet.core.interpolate
 # TODO: import utils from openet.core
 # import openet.core.utils as utils
+
+from . import utils
 
 
 def from_scene_et_fraction(scene_coll, start_date, end_date, variables,

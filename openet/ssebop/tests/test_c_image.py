@@ -1196,9 +1196,8 @@ def test_Image_from_landsat_c2_sr_default_image():
 @pytest.mark.parametrize(
     'image_id',
     [
-        'LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828',
-        # 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
-        # 'LANDSAT/LE07/C02/T1_L2/LE07_044033_20170708',
+        'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        'LANDSAT/LE07/C02/T1_L2/LE07_044033_20170708',
         # 'LANDSAT/LT05/C02/T1_L2/LT05_044033_20110716',
     ]
 )
@@ -1210,7 +1209,7 @@ def test_Image_from_landsat_c2_sr_image_id(image_id):
 
 def test_Image_from_landsat_c2_sr_image():
     """Test instantiating the class from a Landsat SR ee.Image"""
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
@@ -1218,7 +1217,7 @@ def test_Image_from_landsat_c2_sr_image():
 
 def test_Image_from_landsat_c2_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
         image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
@@ -1226,7 +1225,7 @@ def test_Image_from_landsat_c2_sr_et_fraction():
 
 def test_Image_from_landsat_c2_sr_et():
     """Test if ET can be built for a Landsat image"""
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
     output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
         image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_band='etr').et)
@@ -1242,7 +1241,7 @@ def test_Image_from_landsat_c2_sr_exception():
 
 def test_Image_from_landsat_c2_sr_scaling():
     """Test if Landsat SR images images are being scaled"""
-    sr_img = ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828')
+    sr_img = ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
     # CGM - These reflectances should correspond to 0.1 for RED and 0.2 for NIR
     input_img = ee.Image.constant([10909, 10909, 10909, 14545, 10909, 10909,
                                    44177.6, 322]) \
@@ -1263,12 +1262,20 @@ def test_Image_from_landsat_c2_sr_scaling():
     assert abs(output['lst'] - 300) <= 0.1
 
 
+def test_Image_from_landsat_c2_sr_cloud_mask_args():
+    """Test if the cloud_mask_args parameter can be set (not if it works)"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    output = ssebop.Image.from_landsat_c2_sr(
+        image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
+    assert type(output) == type(default_image_obj())
+
+
 @pytest.mark.parametrize(
     'image_id',
     [
-        # 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-        # 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
-        'LANDSAT/LC08/C02/T1_L2/LC08_038031_20130828',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
+        'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
     ]
 )
 def test_Image_from_image_id(image_id):
