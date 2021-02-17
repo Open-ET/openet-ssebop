@@ -105,6 +105,8 @@ class Image():
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """
+        self.salutations = 'hello world'
+        print(self.salutations)
         self.image = ee.Image(image)
 
         # Set as "lazy_property" below in order to return custom properties
@@ -931,6 +933,7 @@ class Image():
         Image
 
         """
+        print('new version my guy')
         toa_image = ee.Image(toa_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
@@ -1029,6 +1032,7 @@ class Image():
             .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
             .set({'k1_constant': ee.Number(k1.get(spacecraft_id)),
                   'k2_constant': ee.Number(k2.get(spacecraft_id))})
+
         # k1 = ee.Dictionary({
         #     'LANDSAT_4': 'K1_CONSTANT_BAND_6',
         #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
@@ -1071,6 +1075,8 @@ class Image():
         ee.Image of Tcorr values
 
         """
+        self.salutations = 'You have the local image class here on Master branch'
+        print(self.salutations)
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
@@ -1220,8 +1226,9 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
+        print('new tcorr happening')
 
-        # TODO: Define coarse cell-size or transform as a parameter
+        # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
@@ -1230,6 +1237,7 @@ class Image():
         ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
         # === Cold Tcorr ===
         # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
+
         tcorr_coarse_cold_img = self.tcorr_image \
             .reproject(crs=self.crs, crsTransform=self.transform) \
             .reduceResolution(
@@ -1240,7 +1248,7 @@ class Image():
             .select([0, 1], ['tcorr', 'count'])
 
         # === Hot Tcorr ===
-        # Resample to 5km taking 70th percentile
+        # Resample to 5km taking 70th percentile # todo - consider toggling up and down.
         tcorr_coarse_hot_img = self.tcorr_image_hot \
             .reproject(crs=self.crs, crsTransform=self.transform) \
             .reduceResolution(
@@ -1251,11 +1259,15 @@ class Image():
             .select([0, 1], ['tcorr', 'count'])
 
         ### =================== Cold ===================
-        # Mask cells without enough fine resolution Tcorr cells
-        # The count band is dropped after it is used to mask
-        tcorr_coarse_cold = tcorr_coarse_cold_img.select(['tcorr']) \
-            .updateMask(tcorr_coarse_cold_img.select(['count'])
-                        .gte(self.min_pixels_per_grid_cell))
+        # # Deadbeef
+        # # Mask cells without enough fine resolution Tcorr cells
+        # # The count band is dropped after it is used to mask
+        # tcorr_coarse_cold = tcorr_coarse_cold_img.select(['tcorr']) \
+        #     .updateMask(tcorr_coarse_cold_img.select(['count'])
+        #                 .gte(self.min_pixels_per_grid_cell))
+        # change variable names in order to keep same naming conventions lower down.
+        tcorr_coarse_cold = tcorr_coarse_cold_img
+
         # Count the number of coarse resolution Tcorr cells
         count_coarse_cold = tcorr_coarse_cold \
             .reduceRegion(reducer=ee.Reducer.count(),
@@ -1268,9 +1280,12 @@ class Image():
         # TODO - test export tcorr coarse hot
         # Mask cells without enough fine resolution Tcorr cells
         # The count band is dropped after it is used to mask
+        # # Minimum pixel count could be important (to ignore that is...)
+        # tcorr_coarse_hot = tcorr_coarse_hot_img.select(['tcorr']) \
+        #     .updateMask(tcorr_coarse_hot_img.select(['count'])
+        #                 .gte(self.min_pixels_per_grid_cell))
         tcorr_coarse_hot = tcorr_coarse_hot_img.select(['tcorr']) \
-            .updateMask(tcorr_coarse_hot_img.select(['count'])
-                        .gte(self.min_pixels_per_grid_cell))
+            .updateMask(tcorr_coarse_hot_img.select(['count']))
         # Count the number of coarse resolution Tcorr cells
         count_coarse_hot = tcorr_coarse_hot \
             .reduceRegion(reducer=ee.Reducer.count(),
@@ -1278,33 +1293,18 @@ class Image():
                           bestEffort=False, maxPixels=100000)
         tcorr_count_hot = ee.Number(count_coarse_hot.get('tcorr'))
 
-        # TODO: Test the reduceNeighborhood optimization parameters
-        """
-        ReduceNeighborhood Optimization
-        optimization (String, default: null):
-        Optimization strategy. Options are 'boxcar' and 'window'. 
-        The 'boxcar' method is a fast method for computing count, sum or mean. 
-        It requires a homogeneous kernel, a single-input reducer and either 
-        MASK, KERNEL or no weighting. The 'window' method uses a running window, 
-        and has the same requirements as 'boxcar', but can use any single input 
-        reducer. Both methods require considerable additional memory.
-        """
-
         # return tcorr_coarse_hot, tcorr_coarse_cold
-
-        # TODO - Do rn02 for hot and cold
-        # trivial change
         # Do reduce neighborhood to interpolate c factor
-        # TODO - **** Consider expanding the cold to 3 and 4 pixels and examine changes in performance. ****
+        # TODO - Change to square kernel
         tcorr_rn01_cold = tcorr_coarse_cold\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
         tcorr_rn02_cold = tcorr_coarse_cold \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False) \
@@ -1312,7 +1312,7 @@ class Image():
             .updateMask(1)
         tcorr_rn03_cold = tcorr_coarse_cold \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=3, units='pixels'),
+                                kernel=ee.Kernel.square(radius=3, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False) \
@@ -1320,7 +1320,7 @@ class Image():
             .updateMask(1)
         tcorr_rn04_cold = tcorr_coarse_cold \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False) \
@@ -1328,7 +1328,7 @@ class Image():
             .updateMask(1)
         tcorr_rn05_cold = tcorr_coarse_cold \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=5, units='pixels'),
+                                kernel=ee.Kernel.square(radius=5, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False) \
@@ -1337,7 +1337,7 @@ class Image():
 
         tcorr_rn02_hot = tcorr_coarse_hot\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False)\
@@ -1351,9 +1351,10 @@ class Image():
             .reduce(ee.Reducer.firstNonNull())
         # # TODO - ...and then the first blended
 
+        # TODO - Try SQUARE Kernel
         tcorr_rn02_blended = hotCold_mosaic \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False) \
@@ -1362,7 +1363,7 @@ class Image():
 
         tcorr_rn04_blended = hotCold_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False)\
@@ -1370,7 +1371,7 @@ class Image():
             .updateMask(1)
         tcorr_rn16_blended = hotCold_mosaic\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                kernel=ee.Kernel.square(radius=16, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=16, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False)\
@@ -1424,27 +1425,24 @@ class Image():
 
         # *WEIGHTED MEAN*
         # Use the score band to mask out the areas of overlap to weight the c factor:
-        # CM - Why does the previous mosaic have .updateMask(1) calls but not these?
-        # for 3:2:1 use weights (3/6, 2/6, 1/6)
+        # for 4:3:2:1
         fm_mosaic_4 = ee.Image([hotCold_mosaic.multiply(0.4).updateMask(1),
                                 tcorr_rn02_blended.multiply(0.3).updateMask(1),
                                 tcorr_rn04_blended.multiply(0.2).updateMask(1),
                                 tcorr_rn16_blended.multiply(0.1).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(4))
-
+        # for 3:2:1 use weights (3/6, 2/6, 1/6)
         fm_mosaic_3 = ee.Image([tcorr_rn02_blended.multiply(0.5).updateMask(1),
                                 tcorr_rn04_blended.multiply(0.33).updateMask(1),
                                 tcorr_rn16_blended.multiply(0.17).updateMask(1)]) \
             .reduce(ee.Reducer.sum()) \
             .updateMask(total_score_img.eq(3))
-
         # for 2:1 use weights (2/3, 1/3)
         fm_mosaic_2 = ee.Image([tcorr_rn04_blended.multiply(0.67).updateMask(1),
                                 tcorr_rn16_blended.multiply(0.33).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(2))
-
         # for 1 use the value of 16
         fm_mosaic_1 = tcorr_rn16_blended.updateMask(total_score_img.eq(1))
 
@@ -1465,15 +1463,19 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
+        # TODO - GELP vs MattS 2/4/2021 smooth bilinear to 100m
         # Do one more reduce neighborhood to smooth the c factor
         tcorr = tcorr\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
                                 # kernel=ee.Kernel.square(radius=1, units='pixels'),
                                 # optimization='boxcar',
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
+
+        # todo - OUTSIDE this function, we'll downscale to
+        #  100m bilinearly (.resample() in GEE)
 
 
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score]).reduce(ee.Reducer.sum())
@@ -1540,19 +1542,19 @@ class Image():
         # Do reduce neighborhood to interpolate c factor
         tcorr_rn02 = tcorr_coarse\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=2, units='pixels'),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
         tcorr_rn04 = tcorr_coarse\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=4, units='pixels'),
+                                kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
         tcorr_rn16 = tcorr_coarse\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=16, units='pixels'),
+                                kernel=ee.Kernel.square(radius=16, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
@@ -1621,7 +1623,7 @@ class Image():
         # Do one more reduce neighborhood to smooth the c factor
         tcorr = tcorr\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
