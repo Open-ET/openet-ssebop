@@ -1232,6 +1232,8 @@ class Image():
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
+        # final_transform is for a final bilinear smoothing.
+        final_transform = [100, 0, 15, 0, -100, 15]
         # coarse_transform = [5000, 0, 0, 0, -5000, 0]
 
         ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
@@ -1463,16 +1465,22 @@ class Image():
         #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
         #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
 
-        # TODO - GELP vs MattS 2/4/2021 smooth bilinear to 100m
-        # Do one more reduce neighborhood to smooth the c factor
-        tcorr = tcorr\
-            .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.square(radius=1, units='pixels'),
-                                # kernel=ee.Kernel.square(radius=1, units='pixels'),
-                                # optimization='boxcar',
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+        # From MattS, changes on 2/4/2021, smooth bilinearly to 100m
+        # Do one more smoothing for c factor (re-project to the 'final_transform')
+        # TODO: Check w charles
+        tcorr = tcorr.reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .resample(mode='bilinear')\
+            .reproject(crs=self.crs, crsTransform=final_transform) \
             .updateMask(1)
+        # # OLD
+        # tcorr = tcorr\
+        #     .reduceNeighborhood(reducer=ee.Reducer.mean(),
+        #                         kernel=ee.Kernel.square(radius=1, units='pixels'),
+        #                         # kernel=ee.Kernel.square(radius=1, units='pixels'),
+        #                         # optimization='boxcar',
+        #                         skipMasked=False)\
+        #     .reproject(crs=self.crs, crsTransform=final_transform)\
+        #     .updateMask(1)
 
         # todo - OUTSIDE this function, we'll downscale to
         #  100m bilinearly (.resample() in GEE)
