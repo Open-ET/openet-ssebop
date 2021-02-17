@@ -537,7 +537,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # t_obj = ssebop.Image.from_image_id(ee.Image(image_id), **model_args)
             if coll_id.endswith('_L2'):
                 t_obj = ssebop.Image.from_landsat_c2_sr(
-                    sr_image=ee.Image(image_id), cloudmask_args={}, **model_args)
+                    sr_image=ee.Image(image_id),
+                    cloudmask_args={'cirrus_flag': True, 'dilate_flag': True,
+                                    'shadow_flag': True, 'snow_flag': True},
+                    **model_args)
             elif coll_id.endswith('_SR'):
                 t_obj = ssebop.Image.from_landsat_c1_sr(
                     ee.Image(image_id), **model_args)
