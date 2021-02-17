@@ -635,6 +635,7 @@ class Image():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
             # e.g. .select([0, 1], ['tcorr', 'count'])
+            # TODO - Bilinear will be set in ini - but DEFAULT should be bilinear.
             if self._tcorr_resample.lower() == 'bilinear':
                 tcorr_img = tcorr_img\
                     .resample('bilinear')\
@@ -1226,7 +1227,7 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
-        print('new tcorr happening')
+        print('Very new tcorr happening')
 
         # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
@@ -1452,50 +1453,11 @@ class Image():
         tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
             .reduce(ee.Reducer.firstNonNull()).updateMask(1)
 
-        # CGM - This should probably be done in main Tcorr method with other compositing
-        # # Fill missing pixels with the full image Tcorr
-        # if self.tcorr_gridded_scene_fill_flag:
-        #     t_stats = ee.Dictionary(self.tcorr_stats) \
-        #         .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
-        #     tcorr_value = ee.Number(t_stats.get('tcorr_value'))
-        #     # tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-        #     # tcorr_index = tcorr_count.lt(self.min_pixels_per_image).multiply(9)
-        #     # tcorr_index = ee.Number(
-        #     #     ee.Algorithms.If(tcorr_count.gte(self.min_pixels_per_image), 0, 9))
-        #     # mask_img = mask_img.add(tcorr_count.gte(self.min_pixels_per_image))
-        #     tcorr = tcorr.where(tcorr.mask(), tcorr_value)
-
-        # From MattS, changes on 2/4/2021, smooth bilinearly to 100m
-        # Do one more smoothing for c factor (re-project to the 'final_transform')
-        # TODO: Check w charles
-        tcorr = tcorr.reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .resample(mode='bilinear')\
-            .reproject(crs=self.crs, crsTransform=final_transform) \
-            .updateMask(1)
-        # # OLD
-        # tcorr = tcorr\
-        #     .reduceNeighborhood(reducer=ee.Reducer.mean(),
-        #                         kernel=ee.Kernel.square(radius=1, units='pixels'),
-        #                         # kernel=ee.Kernel.square(radius=1, units='pixels'),
-        #                         # optimization='boxcar',
-        #                         skipMasked=False)\
-        #     .reproject(crs=self.crs, crsTransform=final_transform)\
-        #     .updateMask(1)
-
-        # todo - OUTSIDE this function, we'll downscale to
-        #  100m bilinearly (.resample() in GEE)
-
-
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score]).reduce(ee.Reducer.sum())
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
             .set({'tcorr_index': 0,
                   'tcorr_coarse_count_cold': tcorr_count_cold})
-
-        # return tcorr.select([0, 1], ['tcorr', 'tcorr_quality'])\
-        #     .set(self._properties)\
-        #     .set({'tcorr_index': 0,
-        #           'tcorr_coarse_count_cold': tcorr_count_cold})
 
     @lazy_property
     def tcorr_gridded_cold(self):
