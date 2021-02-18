@@ -48,6 +48,7 @@ class Image():
             dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
+            reflectance_type='TOA',
             **kwargs,
         ):
         """Construct a generic SSEBop Image
@@ -91,6 +92,8 @@ class Image():
             Maximum allowable dT [K] (the default is 25).
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction  (the default is 'alfalfa').
+        reflectance_type : {'SR', 'TOA'}, optional
+            Used to select the fractional cover equation (the default is 'TOA').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -185,6 +188,8 @@ class Image():
         #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
         # else:
         #     self.et_fraction_type = 'alfalfa'
+
+        self.reflectance_type = reflectance_type
 
         # Image projection and geotransform
         self.crs = image.projection().crs()
@@ -984,7 +989,7 @@ class Image():
             })
 
         # Instantiate the class
-        return cls(ee.Image(input_image), **kwargs)
+        return cls(input_image, reflectance_type='TOA', **kwargs)
 
     #
     @classmethod
@@ -1060,7 +1065,7 @@ class Image():
             })
 
         # Instantiate the class
-        return cls(input_image, **kwargs)
+        return cls(input_image, reflectance_type='SR', **kwargs)
 
     @lazy_property
     def tcorr_image(self):

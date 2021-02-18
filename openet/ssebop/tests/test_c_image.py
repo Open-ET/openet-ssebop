@@ -82,6 +82,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        tmax_resample='nearest',
                        tcorr_resample='nearest',
                        et_fraction_type='alfalfa',
+                       # reflectance_type='TOA',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -98,6 +99,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'tmax_resample': tmax_resample,
         'tcorr_resample': tcorr_resample,
         'et_fraction_type': et_fraction_type,
+        # 'reflectance_type': reflectance_type,
     }
 
 
@@ -116,6 +118,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       tmax_resample='nearest',
                       tcorr_resample='nearest',
                       et_fraction_type='alfalfa',
+                      # reflectance_type='TOA',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -132,6 +135,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         tmax_resample=tmax_resample,
         tcorr_resample=tcorr_resample,
         et_fraction_type=et_fraction_type,
+        # reflectance_type=reflectance_type,
     ))
 
 
@@ -151,6 +155,7 @@ def test_Image_init_default_parameters():
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'nearest'
+    assert m.reflectance_type == 'TOA'
 
 
 # Todo: Break these up into separate functions?
@@ -1120,6 +1125,12 @@ def test_Image_from_landsat_c1_toa_exception():
         ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi.getInfo()
 
 
+def test_Image_from_landsat_c1_toa_reflectance_type():
+    """Test if reflectance_type property is being set"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
+    assert ssebop.Image.from_landsat_c1_toa(image_id).reflectance_type == 'TOA'
+
+
 def test_Image_from_landsat_c1_sr_default_image():
     """Test that the classmethod is returning a class object"""
     output = ssebop.Image.from_landsat_c1_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
@@ -1170,6 +1181,12 @@ def test_Image_from_landsat_c1_sr_exception():
     with pytest.raises(Exception):
         # Intentionally using .getInfo()
         ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi.getInfo()
+
+
+def test_Image_from_landsat_c1_sr_reflectance_type():
+    """Test if reflectance_type property is being set"""
+    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
+    assert ssebop.Image.from_landsat_c1_sr(image_id).reflectance_type == 'SR'
 
 
 def test_Image_from_landsat_c1_sr_scaling():
