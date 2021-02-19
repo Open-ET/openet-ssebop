@@ -1079,7 +1079,7 @@ class Image():
             })
 
         # Instantiate the class
-        return cls(input_image, **kwargs)
+        return cls(input_image, reflectance_type='SR', **kwargs)
 
     @classmethod
     def from_landsat_c2_sr(cls, sr_image, cloudmask_args={}, **kwargs):
