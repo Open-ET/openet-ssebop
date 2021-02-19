@@ -82,6 +82,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        tmax_resample='nearest',
                        tcorr_resample='nearest',
                        et_fraction_type='alfalfa',
+                       # reflectance_type='TOA',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -98,6 +99,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'tmax_resample': tmax_resample,
         'tcorr_resample': tcorr_resample,
         'et_fraction_type': et_fraction_type,
+        # 'reflectance_type': reflectance_type,
     }
 
 
@@ -116,6 +118,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       tmax_resample='nearest',
                       tcorr_resample='nearest',
                       et_fraction_type='alfalfa',
+                      # reflectance_type='TOA',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -132,6 +135,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         tmax_resample=tmax_resample,
         tcorr_resample=tcorr_resample,
         et_fraction_type=et_fraction_type,
+        # reflectance_type=reflectance_type,
     ))
 
 
@@ -150,7 +154,8 @@ def test_Image_init_default_parameters():
     assert m._dt_max == 25
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
-    assert m._tcorr_resample == 'nearest'
+    assert m._tcorr_resample == 'bilinear'
+    assert m.reflectance_type == 'TOA'
 
 
 # Todo: Break these up into separate functions?
@@ -642,7 +647,8 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr
+        tmax_source=tmax_source, tmax_resample='nearest',
+        tcorr_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -670,7 +676,8 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr_gridded
+        tmax_source=tmax_source, tmax_resample='nearest',
+        tcorr_resample='nearest').tcorr_gridded
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -696,7 +703,8 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
         .coordinates().getInfo()
     tcorr_img = ssebop.Image.from_landsat_c1_toa(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr_gridded_cold
+        tmax_source=tmax_source, tmax_resample='nearest',
+        tcorr_resample='nearest').tcorr_gridded_cold
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
@@ -727,11 +735,9 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
 #                                     clip, xy, expected, tol=0.000001):
 #     """Test getting the gridded Tcorr values"""
 #     image_crs = ee.Image(image_id).select([3]).projection().crs()
-#     print(image_crs.getInfo())
 #     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
 #     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
 #         .coordinates().getInfo()
-#     print(point_xy)
 #     tcorr_img = ssebop.Image.from_landsat_c1_toa(
 #         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
 #         tmax_source=tmax_source, tmax_resample='nearest').tcorr
@@ -739,6 +745,53 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
 #     index = utils.getinfo(tcorr_img.get('tcorr_index'))
 #     assert abs(tcorr['tcorr'] - expected) <= tol
 #     # CGM - Add check for tcorr_coarse_count, should be 3 for these 3 tests
+
+
+@pytest.mark.parametrize(
+    'tcorr_resample, tcorr_source, tmax_source, image_id, clip, xy, expected',
+    [
+        ['NEAREST', 'GRIDDED', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.991065976970446],
+        ['BILINEAR', 'GRIDDED', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.9910738104157728],
+        ['NEAREST', 'GRIDDED_COLD', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.9901338160695725],
+        ['BILINEAR', 'GRIDDED_COLD', 'DAYMET_MEDIAN_V2',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.9901404144505479],
+    ]
+)
+def test_Image_tcorr_gridded_method(tcorr_resample, tcorr_source, tmax_source,
+                                    image_id, clip, xy, expected, tol=0.000001):
+    """Test that tcorr_resample with bilinear is different than with nearest"""
+    image_crs = ee.Image(image_id).select([3]).projection().crs()
+    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+        .coordinates().getInfo()
+    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest',
+        tcorr_resample=tcorr_resample).tcorr
+    tcorr = utils.point_image_value(tcorr_img, point_xy)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected) <= tol
+
+
+@pytest.mark.parametrize('tcorr_source', ['GRIDDED', 'GRIDDED_COLD'])
+def test_Image_tcorr_gridded_resample_exception(tcorr_source):
+    # """Test that an exception is raised for unsupported tcorr_resample values"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711'
+    with pytest.raises(ValueError):
+        tcorr_img = ssebop.Image.from_landsat_c1_toa(
+            ee.Image(image_id), tcorr_source=tcorr_source,
+            tmax_source='DAYMET_MEDIAN_V2', tcorr_resample='deadbeef').tcorr
 
 
 # TODO: Add check for Tcorr coarse count property
@@ -1118,6 +1171,12 @@ def test_Image_from_landsat_c1_toa_exception():
         ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi.getInfo()
 
 
+def test_Image_from_landsat_c1_toa_reflectance_type():
+    """Test if reflectance_type property is being set"""
+    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
+    assert ssebop.Image.from_landsat_c1_toa(image_id).reflectance_type == 'TOA'
+
+
 def test_Image_from_landsat_c1_sr_default_image():
     """Test that the classmethod is returning a class object"""
     output = ssebop.Image.from_landsat_c1_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
@@ -1168,6 +1227,12 @@ def test_Image_from_landsat_c1_sr_exception():
     with pytest.raises(Exception):
         # Intentionally using .getInfo()
         ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi.getInfo()
+
+
+def test_Image_from_landsat_c1_sr_reflectance_type():
+    """Test if reflectance_type property is being set"""
+    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
+    assert ssebop.Image.from_landsat_c1_sr(image_id).reflectance_type == 'SR'
 
 
 def test_Image_from_landsat_c1_sr_scaling():

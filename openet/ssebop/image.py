@@ -48,6 +48,7 @@ class Image():
             dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
+            reflectance_type='TOA',
             **kwargs,
         ):
         """Construct a generic SSEBop Image
@@ -91,6 +92,8 @@ class Image():
             Maximum allowable dT [K] (the default is 25).
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction  (the default is 'alfalfa').
+        reflectance_type : {'SR', 'TOA'}, optional
+            Used to select the fractional cover equation (the default is 'TOA').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -186,6 +189,8 @@ class Image():
         # else:
         #     self.et_fraction_type = 'alfalfa'
 
+        self.reflectance_type = reflectance_type
+
         # Image projection and geotransform
         self.crs = image.projection().crs()
         self.transform = ee.List(ee.Dictionary(
@@ -210,7 +215,7 @@ class Image():
         if 'tcorr_resample' in kwargs.keys():
             self._tcorr_resample = kwargs['tcorr_resample'].lower()
         else:
-            self._tcorr_resample = 'nearest'
+            self._tcorr_resample = 'bilinear'
 
         """Gridded Tcorr keyword arguments"""
         # TODO: This should probably be moved into tcorr_gridded()
@@ -633,27 +638,29 @@ class Image():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
             # e.g. .select([0, 1], ['tcorr', 'count'])
-            # TODO - Bilinear will be set in ini - but DEFAULT should be bilinear.
-            if self._tcorr_resample.lower() == 'bilinear':
+            if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
-                    .resample('bilinear')\
+                    .resample(self._tcorr_resample.lower())\
                     .reproject(crs=self.crs, crsTransform=self.transform)
-            # else:
-            #     tcorr_img = tcorr_img\
-            #         .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                # EE will resample using nearest neighbor by default
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
 
             return tcorr_img
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
             tcorr_img = self.tcorr_gridded_cold
-            if self._tcorr_resample.lower() == 'bilinear':
+
+            # EE will resample using nearest neighbor by default
+            if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
-                    .resample('bilinear')\
+                    .resample(self._tcorr_resample.lower())\
                     .reproject(crs=self.crs, crsTransform=self.transform)
-            # else:
-            #     tcorr_img = tcorr_img\
-            #         .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
 
             return tcorr_img.rename(['tcorr'])
 
@@ -985,7 +992,7 @@ class Image():
             })
 
         # Instantiate the class
-        return cls(ee.Image(input_image), **kwargs)
+        return cls(input_image, reflectance_type='TOA', **kwargs)
 
     #
     @classmethod
@@ -1062,7 +1069,7 @@ class Image():
             })
 
         # Instantiate the class
-        return cls(input_image, **kwargs)
+        return cls(input_image, reflectance_type='SR', **kwargs)
 
     @lazy_property
     def tcorr_image(self):
