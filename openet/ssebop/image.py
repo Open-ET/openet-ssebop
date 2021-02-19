@@ -215,7 +215,7 @@ class Image():
         if 'tcorr_resample' in kwargs.keys():
             self._tcorr_resample = kwargs['tcorr_resample'].lower()
         else:
-            self._tcorr_resample = 'nearest'
+            self._tcorr_resample = 'bilinear'
 
         """Gridded Tcorr keyword arguments"""
         # TODO: This should probably be moved into tcorr_gridded()
@@ -638,26 +638,29 @@ class Image():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
             # e.g. .select([0, 1], ['tcorr', 'count'])
-            if self._tcorr_resample.lower() == 'bilinear':
+            if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
-                    .resample('bilinear')\
+                    .resample(self._tcorr_resample.lower())\
                     .reproject(crs=self.crs, crsTransform=self.transform)
-            # else:
-            #     tcorr_img = tcorr_img\
-            #         .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                # EE will resample using nearest neighbor by default
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
 
             return tcorr_img
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
             tcorr_img = self.tcorr_gridded_cold
-            if self._tcorr_resample.lower() == 'bilinear':
+
+            # EE will resample using nearest neighbor by default
+            if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
-                    .resample('bilinear')\
+                    .resample(self._tcorr_resample.lower())\
                     .reproject(crs=self.crs, crsTransform=self.transform)
-            # else:
-            #     tcorr_img = tcorr_img\
-            #         .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
 
             return tcorr_img.rename(['tcorr'])
 
