@@ -1233,9 +1233,6 @@ class Image():
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
-        # final_transform is for a final bilinear smoothing.
-        final_transform = [100, 0, 15, 0, -100, 15]
-        # coarse_transform = [5000, 0, 0, 0, -5000, 0]
 
         ## step 1: calculate the gridded cfactor for the cold filtered Tcorr
         # === Cold Tcorr ===
@@ -1297,8 +1294,7 @@ class Image():
         tcorr_count_hot = ee.Number(count_coarse_hot.get('tcorr'))
 
         # return tcorr_coarse_hot, tcorr_coarse_cold
-        # Do reduce neighborhood to interpolate c factor
-        # TODO - Change to square kernel
+        # Do reduce neighborhood to interpolate c factor using a square kernel
         tcorr_rn01_cold = tcorr_coarse_cold\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.square(radius=1, units='pixels'),

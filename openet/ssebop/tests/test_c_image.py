@@ -622,7 +622,6 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 #     assert abs(tcorr['tcorr'] - expected[0]) <= tol
 #     assert index['index'] == expected[1]
 
-
 # CGM - Only checking that for a small area a consistent Tcorr value is returned
 #   for each of the GRIDDED source options
 @pytest.mark.parametrize(
@@ -1058,7 +1057,6 @@ def test_Image_calculate_values(tol=0.0001):
     assert abs(output['et'] - 5.8) <= tol
     assert abs(output['et_reference'] - 10) <= tol
     assert abs(output['et_fraction'] - 0.58) <= tol
-
 
 def test_Image_calculate_variables_valueerror():
     """Test if calculate method raises a valueerror for invalid variables"""
