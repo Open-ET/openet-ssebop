@@ -105,8 +105,6 @@ class Image():
         lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
 
         """
-        self.salutations = 'hello world'
-        print(self.salutations)
         self.image = ee.Image(image)
 
         # Set as "lazy_property" below in order to return custom properties
@@ -934,7 +932,6 @@ class Image():
         Image
 
         """
-        print('new version my guy')
         toa_image = ee.Image(toa_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
@@ -1076,8 +1073,6 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        self.salutations = 'You have the local image class here on Master branch'
-        print(self.salutations)
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
@@ -1227,7 +1222,6 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
-        print('Very new tcorr happening')
 
         # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
