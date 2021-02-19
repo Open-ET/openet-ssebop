@@ -627,7 +627,6 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 #     assert abs(tcorr['tcorr'] - expected[0]) <= tol
 #     assert index['index'] == expected[1]
 
-
 # CGM - Only checking that for a small area a consistent Tcorr value is returned
 #   for each of the GRIDDED source options
 @pytest.mark.parametrize(
@@ -636,7 +635,7 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.991065976970446, 0]],
+         [0.9898163060618426, 0]],
     ]
 )
 def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
@@ -692,7 +691,7 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9901338160695725, 1]],
+         [0.991009147396023, 1]],
     ]
 )
 def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
@@ -754,19 +753,19 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
         ['NEAREST', 'GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.991065976970446],
+         0.9898163060618426],
         ['BILINEAR', 'GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9910738104157728],
+         0.9898355607549338],
         ['NEAREST', 'GRIDDED_COLD', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9901338160695725],
+         0.991009147396023],
         ['BILINEAR', 'GRIDDED_COLD', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9901404144505479],
+         0.9910111874257315],
     ]
 )
 def test_Image_tcorr_gridded_method(tcorr_resample, tcorr_source, tmax_source,
@@ -1111,7 +1110,6 @@ def test_Image_calculate_values(tol=0.0001):
     assert abs(output['et'] - 5.8) <= tol
     assert abs(output['et_reference'] - 10) <= tol
     assert abs(output['et_fraction'] - 0.58) <= tol
-
 
 def test_Image_calculate_variables_valueerror():
     """Test if calculate method raises a valueerror for invalid variables"""
