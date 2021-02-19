@@ -1,5 +1,5 @@
 earthengine-api>=0.1.232
 flask
 google-cloud-tasks
-openet-core>=0.0.22
+openet-core>=0.0.25
 openet-ssebop

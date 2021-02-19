@@ -207,7 +207,13 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
 
     # CGM - Why are we not using the from_image_id() method?
     # t_obj = ssebop.Image.from_image_id(ee.Image(image_id), **model_args)
-    if coll_id.endswith('_SR'):
+    if coll_id.endswith('_L2'):
+        t_obj = ssebop.Image.from_landsat_c2_sr(
+            sr_image=ee.Image(image_id),
+            cloudmask_args={'cirrus_flag': True, 'dilate_flag': True,
+                            'shadow_flag': True, 'snow_flag': True},
+            **model_args)
+    elif coll_id.endswith('_SR'):
         t_obj = ssebop.Image.from_landsat_c1_sr(ee.Image(image_id), **model_args)
     elif coll_id.endswith('_TOA'):
         t_obj = ssebop.Image.from_landsat_c1_toa(ee.Image(image_id), **model_args)
