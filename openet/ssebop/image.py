@@ -1163,12 +1163,20 @@ class Image():
         # Compute Tcorr
         tcorr = lst.divide(tmax)
 
+        # Adjust NDVI
+        if self.reflectance_type.upper() == 'SR':
+            ndvi_threshold = 0.75
+        # elif self.reflectance_type.upper() == 'TOA':
+        else:
+            ndvi_threshold = 0.7
+
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters')\
-          .reproject(crs=self.crs, crsTransform=self.transform)\
-          .gt(0.7)
-        ndvi_buffer_mask = ndvi.gt(0.7).reduceNeighborhood(
-            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
+            .reproject(crs=self.crs, crsTransform=self.transform)\
+            .gt(ndvi_threshold)
+        ndvi_buffer_mask = ndvi.gt(ndvi_threshold)\
+            .reduceNeighborhood(reducer=ee.Reducer.min(),
+                                kernel=ee.Kernel.square(radius=60, units='meters'))
 
         # Remove low LST and low NDVI
         tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
@@ -1200,15 +1208,22 @@ class Image():
         hottemp = lst.subtract(dt)
         tcorr = hottemp.divide(tmax)
 
+        # Adjust NDVI thresholds based on reflectance type
+        if self.reflectance_type.upper() == 'SR':
+            ndvi_threshold = 0.3
+        # elif self.reflectance_type.upper() == 'TOA':
+        else:
+            ndvi_threshold = 0.25
+
         # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
         ndvi_smooth = ndvi.focal_mean(radius=120, units='meters') \
             .reproject(crs=self.crs, crsTransform=self.transform)
-        ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(0.25))
+        ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
 
         #changed the gt and lte to be after the reduceNeighborhood() call
         ndvi_buffer = ndvi.reduceNeighborhood(
             ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-        ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(0.25))
+        ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(ndvi_threshold))
 
         # No longer worry about low LST. Filter out high NDVI vals and mask out areas that aren't 'Barren'
         tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)

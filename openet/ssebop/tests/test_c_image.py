@@ -82,7 +82,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        tmax_resample='nearest',
                        tcorr_resample='nearest',
                        et_fraction_type='alfalfa',
-                       # reflectance_type='TOA',
+                       reflectance_type='TOA',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -99,7 +99,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'tmax_resample': tmax_resample,
         'tcorr_resample': tcorr_resample,
         'et_fraction_type': et_fraction_type,
-        # 'reflectance_type': reflectance_type,
+        'reflectance_type': reflectance_type,
     }
 
 
@@ -118,7 +118,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       tmax_resample='nearest',
                       tcorr_resample='nearest',
                       et_fraction_type='alfalfa',
-                      # reflectance_type='TOA',
+                      reflectance_type='TOA',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -135,7 +135,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         tmax_resample=tmax_resample,
         tcorr_resample=tcorr_resample,
         et_fraction_type=et_fraction_type,
-        # reflectance_type=reflectance_type,
+        reflectance_type=reflectance_type,
     ))
 
 
@@ -1368,16 +1368,18 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
 
 @pytest.mark.parametrize(
     # Note: These are made up values
-    'lst, ndvi, tmax, expected',
+    'lst, ndvi, tmax, refl_type, expected',
     [
-        [300, 0.69, 306, None],  # NDVI < 0.7
-        [269, 0.69, 306, None],  # LST < 270
+        [300, 0.69, 306, 'TOA', None],  # NDVI < 0.7
+        [300, 0.72, 306, 'SR', None],  # NDVI < 0.75
+        [269, 0.69, 306, 'TOA', None],  # LST < 270
         # TODO: Add a test for the NDVI smoothing
     ]
 )
-def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
+def test_Image_tcorr_image_nodata(lst, ndvi, tmax, refl_type, expected):
     output = utils.constant_image_value(default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
+        lst=lst, ndvi=ndvi, tmax_source=tmax,
+        reflectance_type=refl_type).tcorr_image)
     assert output['tcorr'] is None and expected is None
 
 
@@ -1391,6 +1393,46 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj(
         tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['tmax_source'] == tmax_source
+    assert output['properties']['tmax_version'] == expected['tmax_version']
+
+
+def test_Image_tcorr_image_hot_values(lst=300, ndvi=0.2, tmax=306,
+                                      expected=0.92157, tol=0.0001):
+    output_img = default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image_hot
+    output = utils.point_image_value(output_img, TEST_POINT)
+    assert abs(output['tcorr'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    # Note: These are made up values
+    'lst, ndvi, tmax, refl_type, expected',
+    [
+        [300, 0.22, 306, 'TOA', None],  # NDVI > 0.2
+        [300, 0.28, 306, 'SR', None],  # NDVI > 0.25
+        # TODO: Add a test for the NDVI smoothing
+    ]
+)
+def test_Image_tcorr_image_hot_nodata(lst, ndvi, tmax, refl_type, expected):
+    output = utils.constant_image_value(default_image_obj(
+        lst=lst, ndvi=ndvi, tmax_source=tmax,
+        reflectance_type=refl_type).tcorr_image_hot)
+    assert output['tcorr'] is None and expected is None
+
+
+def test_Image_tcorr_image_hot_band_name():
+    output = utils.getinfo(default_image_obj().tcorr_image_hot)
+    assert output['bands'][0]['id'] == 'tcorr'
+
+
+def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2',
+                                          expected={'tmax_version': 'median_v2'}):
+    """Test if properties are set on the tcorr image"""
+    output = utils.getinfo(default_image_obj(
+        tmax_source='DAYMET_MEDIAN_V2').tcorr_image_hot)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
