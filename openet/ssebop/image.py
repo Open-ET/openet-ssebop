@@ -1173,8 +1173,8 @@ class Image():
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters')\
             .reproject(crs=self.crs, crsTransform=self.transform)\
-            .gt(ndvi_threshold)
-        ndvi_buffer_mask = ndvi.gt(ndvi_threshold)\
+            .gte(ndvi_threshold)
+        ndvi_buffer_mask = ndvi.gte(ndvi_threshold)\
             .reduceNeighborhood(reducer=ee.Reducer.min(),
                                 kernel=ee.Kernel.square(radius=60, units='meters'))
 

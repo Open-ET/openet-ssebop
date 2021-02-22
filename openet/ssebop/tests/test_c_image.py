@@ -1371,7 +1371,7 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
     'lst, ndvi, tmax, refl_type, expected',
     [
         [300, 0.69, 306, 'TOA', None],  # NDVI < 0.7
-        [300, 0.72, 306, 'SR', None],  # NDVI < 0.75
+        [300, 0.74, 306, 'SR', None],  # NDVI < 0.75
         [269, 0.69, 306, 'TOA', None],  # LST < 270
         # TODO: Add a test for the NDVI smoothing
     ]
