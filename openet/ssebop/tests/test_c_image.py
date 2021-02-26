@@ -148,7 +148,9 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'DAYMET_MEDIAN_V2'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'DYNAMIC'
-    assert m._tmax_source == 'DAYMET_MEDIAN_V2'
+    # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019'
+    assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
+    # assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
@@ -360,9 +362,16 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 @pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
+        ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', TEST_POINT, 310.15],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+         TEST_POINT, 310.15],
+        #['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', TEST_POINT, 310.15],
+        ['DAYMET_V3', TEST_POINT, 307.65],
+        # ['DAYMET_V4', TEST_POINT, 307.65],
         ['DAYMET_MEDIAN_V2', TEST_POINT, 310.15],
         ['CIMIS', [-120.113, 36.336], 307.725],
-        ['DAYMET', [-120.113, 36.336], 308.150],
+        ['DAYMET_V3', [-120.113, 36.336], 308.150],
+        # ['DAYMET_V4', [-120.113, 36.336], 308.150],
         ['GRIDMET', [-120.113, 36.336], 306.969],
         # ['TOPOWX', [-120.113, 36.336], 301.67],
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
@@ -393,51 +402,35 @@ def test_Image_tmax_sources_exception():
         utils.getinfo(default_image_obj(tmax_source='').tmax)
 
 
-@pytest.mark.parametrize(
-    'tmax_source, xy, expected',
-    [
-        ['CIMIS', [-120.113, 36.336], 308.946],
-        ['DAYMET', [-120.113, 36.336], 310.150],
-        ['GRIDMET', [-120.113, 36.336], 310.436],
-        # ['TOPOWX', [-106.03249, 37.17777], 298.91],
-    ]
-)
-def test_Image_tmax_fallback(tmax_source, xy, expected, tol=0.001):
-    """Test getting Tmax median value when daily doesn't exist
-
-    To test this, move the test date into the future
-    Tmax collections are filtered based on start_date and end_date
-    """
-    m = default_image_obj(tmax_source=tmax_source)
-    m._start_date = ee.Date.fromYMD(2099, 7, 1)
-    m._end_date = ee.Date.fromYMD(2099, 7, 2)
-    output = utils.point_image_value(ee.Image(m.tmax), xy)
-    assert abs(output['tmax'] - expected) <= tol
-
-
 today_dt = datetime.datetime.today()
 @pytest.mark.parametrize(
     'tmax_source, expected',
     [
-        ['CIMIS', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['DAYMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['GRIDMET', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        # ['TOPOWX', {'tmax_version': '{}'.format(today_dt.strftime('%Y-%m-%d'))}],
-        ['CIMIS_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        ['DAYMET_MEDIAN_V0', {'tmax_version': 'median_v0'}],
-        ['DAYMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        ['DAYMET_MEDIAN_V2', {'tmax_version': 'median_v2'}],
-        ['GRIDMET_MEDIAN_V1', {'tmax_version': 'median_v1'}],
-        ['TOPOWX_MEDIAN_V0', {'tmax_version': 'median_v0'}],
-        ['305', {'tmax_version': 'custom_305'}],
-        [305, {'tmax_version': 'custom_305'}],
+        ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', {}],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', {}],
+        # ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', {}],
+        ['CIMIS', {}],
+        ['DAYMET_V3', {}],
+        # ['DAYMET_V4', {}],
+        ['GRIDMET', {}],
+        # ['TOPOWX', {}],
+        ['CIMIS_MEDIAN_V1', {}],
+        ['DAYMET_MEDIAN_V0', {}],
+        ['DAYMET_MEDIAN_V1', {}],
+        ['DAYMET_MEDIAN_V2', {}],
+        ['GRIDMET_MEDIAN_V1', {}],
+        ['TOPOWX_MEDIAN_V0', {}],
+        ['305', {'tmax_source': 'custom_305'}],
+        [305, {'tmax_source': 'custom_305'}],
     ]
 )
 def test_Image_tmax_properties(tmax_source, expected):
     """Test if properties are set on the Tmax image"""
     output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tmax)
-    assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
+    if expected:
+        assert output['properties']['tmax_source'] == expected['tmax_source']
+    else:
+        assert output['properties']['tmax_source'] == tmax_source
 
 
 def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
@@ -473,6 +466,10 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
          {'tcorr_value': 0.9520545648466826, 'tcorr_count': 514997}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
          {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
+        # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+         {'tcorr_value': 0.9743747113938074, 'tcorr_count': 761231}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
@@ -514,23 +511,28 @@ def test_Image_tcorr_image_band_name():
     assert output['bands'][0]['id'] == 'tcorr'
 
 
-def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
-                                      expected={'tmax_version': 'median_v2'}):
+def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj(
         tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, expected',
     [
-        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+        ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
          [0.9738927482041165, 0]],
+        ['DYNAMIC',
+         'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+         [0.9738927482041165, 0]],
+        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         [0.9798917542625591, 1]],
         ['DYNAMIC', 'DAYMET_MEDIAN_V2',
         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
          [0.9798917542625591, 1]],
@@ -632,6 +634,10 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9898163060618426, 0]],
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
@@ -658,6 +664,10 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.991065976970446, 18, 0]],
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
@@ -1174,7 +1184,7 @@ def test_Image_from_landsat_c1_toa_exception():
 def test_Image_from_landsat_c1_toa_reflectance_type():
     """Test if reflectance_type property is being set"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    assert ssebop.Image.from_landsat_c1_toa(image_id).reflectance_type == 'TOA'
+    assert ssebop.Image.from_landsat_c1_toa(image_id).reflectance_type.upper() == 'TOA'
 
 
 def test_Image_from_landsat_c1_sr_default_image():
@@ -1232,7 +1242,7 @@ def test_Image_from_landsat_c1_sr_exception():
 def test_Image_from_landsat_c1_sr_reflectance_type():
     """Test if reflectance_type property is being set"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    assert ssebop.Image.from_landsat_c1_sr(image_id).reflectance_type == 'SR'
+    assert ssebop.Image.from_landsat_c1_sr(image_id).reflectance_type.upper() == 'SR'
 
 
 def test_Image_from_landsat_c1_sr_scaling():
@@ -1396,7 +1406,6 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 def test_Image_tcorr_image_hot_values(lst=300, ndvi=0.2, tmax=306,
@@ -1428,15 +1437,13 @@ def test_Image_tcorr_image_hot_band_name():
     assert output['bands'][0]['id'] == 'tcorr'
 
 
-def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2',
-                                          expected={'tmax_version': 'median_v2'}):
+def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2'):
     """Test if properties are set on the tcorr image"""
     output = utils.getinfo(default_image_obj(
         tmax_source='DAYMET_MEDIAN_V2').tcorr_image_hot)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
-    assert output['properties']['tmax_version'] == expected['tmax_version']
 
 
 def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,

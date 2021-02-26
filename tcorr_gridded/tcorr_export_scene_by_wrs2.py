@@ -216,8 +216,9 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tmax_name = ini[model_name]['tmax_source']
     tcorr_source = ini[model_name]['tcorr_source']
 
-    tcorr_scene_coll_id = '{}/{}_scene'.format(
-        ini['EXPORT']['export_coll'], tmax_name.lower())
+    tcorr_scene_coll_id = '{}'.format(ini['EXPORT']['export_coll'])
+    # tcorr_scene_coll_id = '{}/{}_scene'.format(
+    #     ini['EXPORT']['export_coll'], tmax_name.lower())
 
     if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED']:
         raise ValueError('unsupported tcorr_source for these tools')

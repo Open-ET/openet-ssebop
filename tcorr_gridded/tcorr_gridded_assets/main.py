@@ -35,10 +35,13 @@ STUDY_AREA_COLL_ID = 'TIGER/2018/States'
 STUDY_AREA_PROPERTY = 'STUSPS'
 STUDY_AREA_FEATURES = ['CONUS']
 MGRS_FTR_COLL_ID = 'projects/earthengine-legacy/assets/projects/openet/mgrs/conus_gridmet/zones'
+# COLLECTIONS = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
 COLLECTIONS = ['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA']
 COLLECTIONS_RT = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
 CLOUD_COVER = 70
-TMAX_SOURCE = 'DAYMET_MEDIAN_V2'
+# TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019'
+TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
+# TMAX_SOURCE = 'DAYMET_MEDIAN_V2'
 TCORR_SOURCE = 'GRIDDED'
 CLIP_OCEAN_FLAG = True
 # MGRS_TILES = []
@@ -47,8 +50,8 @@ CLIP_OCEAN_FLAG = True
 # STUDY_AREA_EXTENT = [-125, 25, -65, 49]
 
 ASSET_ID_FMT = '{coll_id}/{scene_id}'
-ASSET_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tcorr_gridded'
-ASSET_COLL_ID = f'{ASSET_FOLDER}/{TMAX_SOURCE.lower()}_scene'
+ASSET_COLL_ID = f'projects/earthengine-legacy/assets/' \
+                f'projects/usgs-ssebop/tcorr_gridded/{TMAX_SOURCE.split("/")[-1]}'
 EXPORT_ID_FMT = 'tcorr_gridded_{product}_{scene_id}'
 EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 TCORR_INDICES = {
