@@ -1125,6 +1125,17 @@ class Image():
                        0.0000275, 0.0000275, 0.00341802, 1])\
             .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 1])\
 
+        # Default the cloudmask flags to True if they were not
+        # Eventually these will probably all default to True in openet.core
+        if 'cirrus_flag' not in cloudmask_args.keys():
+            cloudmask_args['cirrus_flag'] = True
+        if 'dilate_flag' not in cloudmask_args.keys():
+            cloudmask_args['dilate_flag'] = True
+        if 'shadow_flag' not in cloudmask_args.keys():
+            cloudmask_args['shadow_flag'] = True
+        if 'snow_flag' not in cloudmask_args.keys():
+            cloudmask_args['snow_flag'] = True
+
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(
             sr_image, **cloudmask_args)
 
