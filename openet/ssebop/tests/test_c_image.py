@@ -646,7 +646,7 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
         ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9898163060618426, 0]],
+         [0.9864148894471184, 0]],
         ['GRIDDED', 'DAYMET_MEDIAN_V2',
          'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
@@ -691,7 +691,7 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
                                     clip, xy, expected, tol=0.000001):
     """Test the tcorr_gridded method directly
 
-    Note that this method returns separate tcorr and  quality bands
+    Note that this method returns separate tcorr and quality bands
     """
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
