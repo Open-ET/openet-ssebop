@@ -600,15 +600,17 @@ class Image():
         # Set Tcorr folder and collections based on the Tmax source (if needed)
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Check that there is a tcorr_gridded collection corresponding to the tmax
+            # TODO: We should probably also check if the Landsat Collection numbers
+            #   match but this is probably good enough for now
             scene_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
-                f'daymet_v3_median_1980_2018':
-                    f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
                 # f'daymet_v3_median_1980_2018':
-                #     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_v3_median_1980_2018',
-                # f'daymet_v4_median_1980_2019':
-                #     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_v4_median_1980_2019',
+                #     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c01/daymet_v3_median_1980_2018',
+                f'daymet_v4_median_1980_2019':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1980_2019',
             }
 
             if self._tmax_source.upper() in scene_dict.keys():
