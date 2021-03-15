@@ -55,8 +55,9 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     """
     logging.info('\nGenerating {} median asset'.format(tmax_source))
 
-    tmax_folder = 'projects/usgs-ssebop/tmax'
-    # tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
+    # get_ee_assets returns the full legacy ID
+    tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
+    # tmax_folder = 'projects/usgs-ssebop/tmax'
 
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980

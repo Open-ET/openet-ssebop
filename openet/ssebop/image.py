@@ -1359,7 +1359,7 @@ class Image():
         #     .updateMask(tcorr_coarse_cold_img.select(['count'])
         #                 .gte(self.min_pixels_per_grid_cell))
         # change variable names in order to keep same naming conventions lower down.
-        tcorr_coarse_cold = tcorr_coarse_cold_img
+        tcorr_coarse_cold = tcorr_coarse_cold_img.select(['tcorr'])
 
         # Count the number of coarse resolution Tcorr cells
         count_coarse_cold = tcorr_coarse_cold \
@@ -1379,6 +1379,7 @@ class Image():
         #                 .gte(self.min_pixels_per_grid_cell))
         tcorr_coarse_hot = tcorr_coarse_hot_img.select(['tcorr']) \
             .updateMask(tcorr_coarse_hot_img.select(['count']))
+
         # Count the number of coarse resolution Tcorr cells
         count_coarse_hot = tcorr_coarse_hot \
             .reduceRegion(reducer=ee.Reducer.count(),
@@ -1501,7 +1502,9 @@ class Image():
         score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
         score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
-        # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+        # cold and hot scores
+        # These scores are just to help the end user see areas where either
+        #   hot or cold images to begin with
         cold_rn05_score = zero_img.add(tcorr_rn05_cold.gt(0)).updateMask(1)
         cold_rn05_score = cold_rn05_score.multiply(9).updateMask(1)
         coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
