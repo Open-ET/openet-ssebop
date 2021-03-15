@@ -52,6 +52,8 @@ CLIP_OCEAN_FLAG = True
 ASSET_ID_FMT = '{coll_id}/{scene_id}'
 ASSET_COLL_ID = f'projects/earthengine-legacy/assets/' \
                 f'projects/usgs-ssebop/tcorr_gridded/{TMAX_SOURCE.split("/")[-1]}'
+# ASSET_COLL_ID = f'projects/earthengine-legacy/assets/' \
+#                 f'projects/usgs-ssebop/tcorr_gridded/c02/{TMAX_SOURCE.split("/")[-1]}'
 EXPORT_ID_FMT = 'tcorr_gridded_{product}_{scene_id}'
 EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 TCORR_INDICES = {
@@ -122,7 +124,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     logging.debug(f'  Date: {export_dt.strftime("%Y-%m-%d")}')
 
     export_id = EXPORT_ID_FMT.format(
-        product=TMAX_SOURCE.lower(), scene_id=scene_id)
+        product=TMAX_SOURCE.split("/")[-1].lower(), scene_id=scene_id)
     logging.debug(f'  Export ID: {export_id}')
 
     asset_id = f'{ASSET_COLL_ID}/{scene_id}'
@@ -149,11 +151,14 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
 
     # CGM - These checks are probably not necessary since they are hardcoded above
     if TCORR_SOURCE.upper() not in ['GRIDDED']:
-        logging.error(f'Unsupported tcorr_source: {TMAX_SOURCE}')
-        return f'{export_id} - Unsupported tcorr_source: {TMAX_SOURCE}'
-    if TMAX_SOURCE.upper() not in ['DAYMET_MEDIAN_V2']:
+        logging.error(f'Unsupported tcorr_source: {TCORR_SOURCE}')
+        return f'{export_id} - Unsupported tcorr_source: {TCORR_SOURCE}'
+
+    if (TMAX_SOURCE.upper() not in ['DAYMET_MEDIAN_V2'] and
+            not re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', TCORR_SOURCE)):
         logging.error(f'Unsupported tmax_source: {TMAX_SOURCE}')
         return f'{export_id} - Unsupported tmax_source: {TMAX_SOURCE}'
+    logging.debug(f'  Tmax Source:  {TMAX_SOURCE}')
 
     # Get a Tmax image to set the Tcorr values to
     # logging.debug('  Tmax')
@@ -166,11 +171,6 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     #     # TODO: Add support for other tmax sources
     #     logging.error(f'Unsupported tmax_source: {TMAX_SOURCE}')
     #     return f'{export_id} - Unsupported tmax_source: {TMAX_SOURCE}'
-    tmax_source = TMAX_SOURCE.split('_', 1)[0]
-    tmax_version = TMAX_SOURCE.split('_', 1)[1]
-    # logging.debug(f'    Collection: {tmax_coll_id}')
-    logging.debug(f'  Tmax Source:  {tmax_source}')
-    logging.debug(f'  Tmax Version: {tmax_version}')
 
     # Get the input image grid and spatial reference
     image_info = ee.Image(image_id).select(['B3']).getInfo()
@@ -257,9 +257,8 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             'scene_id': scene_id,
             'system:time_start': image_info['properties']['system:time_start'],
             'tcorr_index': TCORR_INDICES[TCORR_SOURCE.upper()],
-            'tcorr_source': TCORR_SOURCE.upper(),
-            'tmax_source': tmax_source.upper(),
-            'tmax_version': tmax_version.upper(),
+            'tcorr_source': TCORR_SOURCE,
+            'tmax_source': TMAX_SOURCE,
             'tool_name': TOOL_NAME,
             'tool_version': TOOL_VERSION,
             'wrs2_path': wrs2_path,
@@ -454,7 +453,7 @@ def tcorr_gridded_images(start_dt, end_dt, overwrite_flag=False,
     # Skip image IDs that are already in the task queue
     image_id_list = [
         image_id for image_id in image_id_list
-        if EXPORT_ID_FMT.format(product=TMAX_SOURCE.lower(),
+        if EXPORT_ID_FMT.format(product=TMAX_SOURCE.split('/')[-1].lower(),
                                 scene_id=image_id.split('/')[-1])
            not in tasks.keys()
     ]

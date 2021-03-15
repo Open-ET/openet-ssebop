@@ -224,7 +224,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         raise ValueError('unsupported tcorr_source for these tools')
 
     # For now only support reading specific Tmax sources
-    if tmax_name.upper() not in ['DAYMET_MEDIAN_V2']:
+    if (tmax_name.upper() not in ['DAYMET_MEDIAN_V2'] and
+            not re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', tmax_name)):
         raise ValueError(f'unsupported tmax_source: {tmax_name}')
     # if (tmax_name.upper() == 'CIMIS' and
     #         ini['INPUTS']['end_date'] < '2003-10-01'):
@@ -437,7 +438,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             logging.debug(f'  Date: {export_date}')
 
             export_id = export_id_fmt.format(
-                product=tmax_name.lower(), scene_id=scene_id)
+                product=tmax_name.split('/')[-1].lower(), scene_id=scene_id)
             logging.debug(f'  Export ID: {export_id}')
 
             asset_id = asset_id_fmt.format(
@@ -588,9 +589,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
                     'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
-                    'tcorr_source': tcorr_source.upper(),
-                    'tmax_source': tmax_source.upper(),
-                    'tmax_version': tmax_version.upper(),
+                    'tcorr_source': tcorr_source,
+                    'tmax_source': tmax_source,
                     'tool_name': TOOL_NAME,
                     'tool_version': TOOL_VERSION,
                     'wrs2_path': wrs2_path,
