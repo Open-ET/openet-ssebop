@@ -1,6 +1,6 @@
 import datetime
-import math
 import pprint
+import re
 
 import ee
 import openet.core.common
@@ -43,7 +43,9 @@ class Image():
             dt_source='DAYMET_MEDIAN_V2',
             elev_source='SRTM',
             tcorr_source='DYNAMIC',
-            tmax_source='DAYMET_MEDIAN_V2',
+            # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+            tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+            # tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=5,
             dt_max=25,
@@ -80,9 +82,11 @@ class Image():
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'DYNAMIC').
-        tmax_source : {'CIMIS', 'DAYMET', 'GRIDMET', 'DAYMET_MEDIAN_V2',
-                       'TOPOWX_MEDIAN_V0', or float}, optional
-            Maximum air temperature source (the default is 'TOPOWX_MEDIAN_V0').
+        tmax_source : {'CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET',
+                       'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
+                       collection ID, or float}, optional
+            Maximum air temperature source.  The default is
+            'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'.
         elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
@@ -93,7 +97,8 @@ class Image():
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction  (the default is 'alfalfa').
         reflectance_type : {'SR', 'TOA'}, optional
-            Used to select the fractional cover equation (the default is 'TOA').
+            Used to select the set the Tcorr NDVI thresholds
+            (the default is 'TOA').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -579,51 +584,86 @@ class Image():
             'nodata': 9,
         }
 
+        # First check if Tcorr is a number, and if so return
         if utils.is_number(self._tcorr_source):
             return ee.Image.constant(float(self._tcorr_source))\
                 .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
+        # Then check if Tmax source is a number but Tcorr is a spatial calculation
+        elif (utils.is_number(self._tmax_source) and
+              (self._tcorr_source.upper() in ['DYNAMIC', 'SCENE_GRIDDED'] or
+               'SCENE' in self._tcorr_source.upper())):
+            raise ValueError(
+                '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                    self._tcorr_source, self._tmax_source))
+
 
         # Set Tcorr folder and collections based on the Tmax source (if needed)
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
-            # Use the precomputed scene monthly/annual climatologies if Tcorr
-            #   can't be computed dynamically.
-            tcorr_folder = PROJECT_FOLDER + '/tcorr_gridded'
+            # Check that there is a tcorr_gridded collection corresponding to the tmax
+            # TODO: We should probably also check if the Landsat Collection numbers
+            #   match but this is probably good enough for now
             scene_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
+                'DAYMET_MEDIAN_V2':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
+                # f'daymet_v3_median_1980_2018':
+                #     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c01/daymet_v3_median_1980_2018',
+                f'daymet_v4_median_1980_2019':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1980_2019',
             }
 
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in scene_dict.keys()):
+            if self._tmax_source.upper() in scene_dict.keys():
+                tmax_key = self._tmax_source.upper()
+            elif (self._tmax_source.startswith('projects/') and
+                    self._tmax_source.split('/')[-1] in scene_dict.keys()):
+                tmax_key = self._tmax_source.split('/')[-1]
+            else:
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
+
         elif ('DYNAMIC' == self._tcorr_source.upper() or
               'SCENE' in self._tcorr_source.upper()):
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
-            tcorr_folder = PROJECT_FOLDER + '/tcorr_scene'
             scene_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_scene',
+                'DAYMET_MEDIAN_V2':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_scene',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_scene',
             }
             month_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_monthly',
+                'DAYMET_MEDIAN_V2':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_monthly',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_monthly',
             }
             annual_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_annual',
+                'DAYMET_MEDIAN_V2':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_annual',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_annual',
             }
             default_dict = {
-                'DAYMET_MEDIAN_V2': tcorr_folder + '/daymet_median_v2_default',
+                'DAYMET_MEDIAN_V2':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_default',
+                f'daymet_v3_median_1980_2018':
+                    f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_default',
             }
 
             # Check Tmax source value
-            if (utils.is_number(self._tmax_source) or
-                    self._tmax_source.upper() not in default_dict.keys()):
+            if self._tmax_source.upper() in scene_dict.keys():
+                tmax_key = self._tmax_source.upper()
+            elif (self._tmax_source.lower().startswith('projects/') and
+                    self._tmax_source.split('/')[-1] in scene_dict.keys()):
+                tmax_key = self._tmax_source.split('/')[-1]
+            else:
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                         self._tcorr_source, self._tmax_source))
-            tmax_key = self._tmax_source.upper()
 
+            # Build the Tcorr scene and fallback collections
             default_coll = ee.ImageCollection(default_dict[tmax_key])\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)
             annual_coll = ee.ImageCollection(annual_dict[tmax_key])\
@@ -634,6 +674,8 @@ class Image():
                 .filterMetadata('month', 'equals', self._month)\
                 .select(['tcorr'])
 
+
+        # Load the Tcorr image
         if 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
@@ -701,6 +743,7 @@ class Image():
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
         elif 'SCENE_GRIDDED' in self._tcorr_source.upper():
+            # Load precomputed gridded Tcorr images
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
@@ -711,6 +754,7 @@ class Image():
             return ee.Image(scene_coll.first())
 
         elif 'SCENE' in self._tcorr_source.upper():
+            # Load Tcorr from precomputed scene images with monthly/annual fallbacks
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
                 .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
@@ -748,7 +792,7 @@ class Image():
 
     @lazy_property
     def tmax(self):
-        """Fall back on median Tmax if daily image does not exist
+        """Get Tmax image from precomputed median collections or dynamically
 
         Returns
         -------
@@ -760,112 +804,58 @@ class Image():
             If `self._tmax_source` is not supported.
 
         """
-        doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
         date_today = datetime.datetime.today().strftime('%Y-%m-%d')
 
         if utils.is_number(self._tmax_source):
+            # Allow Tmax source to be set as a number for testing
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
-                .set('tmax_version', 'custom_{}'.format(self._tmax_source))
-        elif self._tmax_source.upper() == 'CIMIS':
-            daily_coll_id = 'projects/earthengine-legacy/assets/' \
-                            'projects/climate-engine/cimis/daily'
-            daily_coll = ee.ImageCollection(daily_coll_id)\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['Tx'], ['tmax']).map(utils.c_to_k)
-            daily_image = ee.Image(daily_coll.first())\
-                .set('tmax_version', date_today)
-            median_version = 'median_v1'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
-            median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-            tmax_image = ee.Image(ee.Algorithms.If(
-                daily_coll.size().gt(0), daily_image, median_image))
-        elif self._tmax_source.upper() == 'DAYMET':
+                .set('tmax_source', 'custom_{}'.format(self._tmax_source))
+        elif re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
+            # Process Tmax source as a collection ID
+            # The new Tmax collections do not have a time_start so filter using
+            #   the "doy" property instead
+            tmax_coll = ee.ImageCollection(self._tmax_source)\
+                .filterMetadata('doy', 'equals', self._doy.format('%03d'))
+            tmax_image = ee.Image(tmax_coll.first())\
+                .set('tmax_source', self._tmax_source)
+        elif 'median' in self._tmax_source.lower():
+            # Process the existing keyword median sources
+            doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
+            tmax_coll = ee.ImageCollection(
+                PROJECT_FOLDER + '/tmax/' + self._tmax_source.lower())
+            tmax_image = ee.Image(tmax_coll.filter(doy_filter).first())\
+                .set('tmax_source', self._tmax_source)
+        elif self._tmax_source.upper() in ['DAYMET_V3', 'DAYMET_V4']:
             # DAYMET does not include Dec 31st on leap years
-            # Adding one extra date to end date to avoid errors
-            daily_coll = ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
+            # Adding one extra date to end date to avoid errors here
+            # This image be slightly different than the median collection for
+            #   Dec 31st on leap years (DOY 366).
+            tmax_coll = ee.ImageCollection(f'NASA/ORNL/{self._tmax_source.upper()}')\
                 .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
                 .select(['tmax']).map(utils.c_to_k)
-            daily_image = ee.Image(daily_coll.first())\
-                .set('tmax_version', date_today)
-            median_version = 'median_v2'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
-            median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-            tmax_image = ee.Image(ee.Algorithms.If(
-                daily_coll.size().gt(0), daily_image, median_image))
+            tmax_image = ee.Image(tmax_coll.first())\
+                .set('tmax_source', self._tmax_source)
+        elif self._tmax_source.upper() == 'CIMIS':
+            tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+                           'projects/climate-engine/cimis/daily'
+            tmax_coll = ee.ImageCollection(tmax_coll_id)\
+                .filterDate(self._start_date, self._end_date)\
+                .select(['Tx'], ['tmax']).map(utils.c_to_k)
+            tmax_image = ee.Image(tmax_coll.first())\
+                .set('tmax_source', self._tmax_source)
         elif self._tmax_source.upper() == 'GRIDMET':
-            daily_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+            tmax_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
-            daily_image = ee.Image(daily_coll.first())\
-                .set('tmax_version', date_today)
-            median_version = 'median_v1'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
-            median_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-            tmax_image = ee.Image(ee.Algorithms.If(
-                daily_coll.size().gt(0), daily_image, median_image))
+            tmax_image = ee.Image(tmax_coll.first())\
+                .set('tmax_source', self._tmax_source)
         # elif self.tmax_source.upper() == 'TOPOWX':
-        #     daily_coll = ee.ImageCollection('X')\
+        #     tmax_coll = ee.ImageCollection('X')\
         #         .filterDate(self.start_date, self.end_date)\
         #         .select(['tmmx'], ['tmax'])
-        #     daily_image = ee.Image(daily_coll.first())\
-        #         .set('tmax_version', date_today)
-        #
-        #     median_version = 'median_v1'
-        #     median_coll = ee.ImageCollection(
-        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
-        #     median_image = ee.Image(median_coll.filter(doy_filter).first())\
-        #         .set('tmax_version', median_version)
-        #
-        #     tmax_image = ee.Image(ee.Algorithms.If(
-        #         daily_coll.size().gt(0), daily_image, median_image))
-        elif self._tmax_source.upper() == 'CIMIS_MEDIAN_V1':
-            median_version = 'median_v1'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/cimis_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V0':
-            median_version = 'median_v0'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V1':
-            median_version = 'median_v1'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-        elif self._tmax_source.upper() == 'DAYMET_MEDIAN_V2':
-            median_version = 'median_v2'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/daymet_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first()) \
-                .set('tmax_version', median_version)
-        elif self._tmax_source.upper() == 'GRIDMET_MEDIAN_V1':
-            median_version = 'median_v1'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/gridmet_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-        elif self._tmax_source.upper() == 'TOPOWX_MEDIAN_V0':
-            median_version = 'median_v0'
-            median_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
-            tmax_image = ee.Image(median_coll.filter(doy_filter).first())\
-                .set('tmax_version', median_version)
-        # elif self.tmax_source.upper() == 'TOPOWX_MEDIAN_V1':
-        #     median_version = 'median_v1'
-        #     median_coll = ee.ImageCollection(
-        #         PROJECT_FOLDER + '/tmax/topowx_{}'.format(median_version))
-        #     tmax_image = ee.Image(median_coll.filter(doy_filter).first())
+        #     tmax_image = ee.Image(tmax_coll.first())\
+        #         .set('tmax_source', self._tmax_source)
         else:
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
@@ -876,7 +866,7 @@ class Image():
         # TODO: A reproject call may be needed here also
         # tmax_image = tmax_image.reproject(self.crs, self.transform)
 
-        return tmax_image.set('tmax_source', self._tmax_source)
+        return tmax_image
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):
@@ -1369,7 +1359,7 @@ class Image():
         #     .updateMask(tcorr_coarse_cold_img.select(['count'])
         #                 .gte(self.min_pixels_per_grid_cell))
         # change variable names in order to keep same naming conventions lower down.
-        tcorr_coarse_cold = tcorr_coarse_cold_img
+        tcorr_coarse_cold = tcorr_coarse_cold_img.select(['tcorr'])
 
         # Count the number of coarse resolution Tcorr cells
         count_coarse_cold = tcorr_coarse_cold \
@@ -1389,6 +1379,7 @@ class Image():
         #                 .gte(self.min_pixels_per_grid_cell))
         tcorr_coarse_hot = tcorr_coarse_hot_img.select(['tcorr']) \
             .updateMask(tcorr_coarse_hot_img.select(['count']))
+
         # Count the number of coarse resolution Tcorr cells
         count_coarse_hot = tcorr_coarse_hot \
             .reduceRegion(reducer=ee.Reducer.count(),
@@ -1511,7 +1502,9 @@ class Image():
         score_04 = zero_img.add(tcorr_rn04_blended.gt(0)).updateMask(1)
         score_16 = zero_img.add(tcorr_rn16_blended.gt(0)).updateMask(1)
 
-        # cold and hot scores ( these scores are just to help the end user see areas where either hot or cold images to begin with
+        # cold and hot scores
+        # These scores are just to help the end user see areas where either
+        #   hot or cold images to begin with
         cold_rn05_score = zero_img.add(tcorr_rn05_cold.gt(0)).updateMask(1)
         cold_rn05_score = cold_rn05_score.multiply(9).updateMask(1)
         coldscore = zero_img.add(tcorr_coarse_cold.gt(0)).updateMask(1)
