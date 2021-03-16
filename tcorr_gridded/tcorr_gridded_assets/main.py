@@ -259,6 +259,8 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             'tcorr_index': TCORR_INDICES[TCORR_SOURCE.upper()],
             'tcorr_source': TCORR_SOURCE,
             'tmax_source': TMAX_SOURCE,
+            # 'tmax_source': TMAX_SOURCE.replace(
+            #     'projects/earthengine-legacy/assets/', ''),
             'tool_name': TOOL_NAME,
             'tool_version': TOOL_VERSION,
             'wrs2_path': wrs2_path,

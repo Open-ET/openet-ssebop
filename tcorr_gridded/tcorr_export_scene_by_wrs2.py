@@ -213,24 +213,24 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     filter_args = {}
 
     # TODO: Add try/except blocks
-    tmax_name = ini[model_name]['tmax_source']
+    tmax_source = ini[model_name]['tmax_source']
     tcorr_source = ini[model_name]['tcorr_source']
 
     tcorr_scene_coll_id = '{}'.format(ini['EXPORT']['export_coll'])
     # tcorr_scene_coll_id = '{}/{}_scene'.format(
-    #     ini['EXPORT']['export_coll'], tmax_name.lower())
+    #     ini['EXPORT']['export_coll'], tmax_source.lower())
 
     if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED']:
         raise ValueError('unsupported tcorr_source for these tools')
 
     # For now only support reading specific Tmax sources
-    if (tmax_name.upper() not in ['DAYMET_MEDIAN_V2'] and
-            not re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', tmax_name)):
-        raise ValueError(f'unsupported tmax_source: {tmax_name}')
-    # if (tmax_name.upper() == 'CIMIS' and
+    if (tmax_source.upper() not in ['DAYMET_MEDIAN_V2'] and
+            not re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', tmax_source)):
+        raise ValueError(f'unsupported tmax_source: {tmax_source}')
+    # if (tmax_source.upper() == 'CIMIS' and
     #         ini['INPUTS']['end_date'] < '2003-10-01'):
     #     raise ValueError('CIMIS is not currently available before 2003-10-01')
-    # elif (tmax_name.upper() == 'DAYMET' and
+    # elif (tmax_source.upper() == 'DAYMET' and
     #         ini['INPUTS']['end_date'] > '2018-12-31'):
     #     logging.warning('\nDAYMET is not currently available past 2018-12-31, '
     #                     'using median Tmax values\n')
@@ -295,10 +295,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
     logging.debug('\nTmax properties')
-    tmax_source = tmax_name.split('_', 1)[0]
-    tmax_version = tmax_name.split('_', 1)[1]
     logging.debug(f'  Source:  {tmax_source}')
-    logging.debug(f'  Version: {tmax_version}')
     # # DEADBEEF - Not needed with gridded Tcorr
     # # Get a Tmax image to set the Tcorr values to
     # if 'MEDIAN' in tmax_name.upper():
@@ -438,7 +435,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             logging.debug(f'  Date: {export_date}')
 
             export_id = export_id_fmt.format(
-                product=tmax_name.split('/')[-1].lower(), scene_id=scene_id)
+                product=tmax_source.split('/')[-1].lower(), scene_id=scene_id)
             logging.debug(f'  Export ID: {export_id}')
 
             asset_id = asset_id_fmt.format(
@@ -591,6 +588,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
                     'tcorr_source': tcorr_source,
                     'tmax_source': tmax_source,
+                    # 'tmax_source': tmax_source.replace(
+                    #     'projects/earthengine-legacy/assets/', ''),
                     'tool_name': TOOL_NAME,
                     'tool_version': TOOL_VERSION,
                     'wrs2_path': wrs2_path,
