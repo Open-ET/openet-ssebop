@@ -114,6 +114,7 @@ class Image():
 
         """
         self.image = ee.Image(image)
+        print('Hello World!')
 
         # Set as "lazy_property" below in order to return custom properties
         # self.lst = self.image.select('lst')
@@ -1172,7 +1173,7 @@ class Image():
             ndvi_threshold = 0.7
 
         # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=120, units='meters')\
+        ndvi_smooth_mask = ndvi.focal_mean(radius=300, units='meters')\
             .reproject(crs=self.crs, crsTransform=self.transform)\
             .gte(ndvi_threshold)
         ndvi_buffer_mask = ndvi.gte(ndvi_threshold)\
@@ -1217,7 +1218,7 @@ class Image():
             ndvi_threshold = 0.25
 
         # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
-        ndvi_smooth = ndvi.focal_mean(radius=120, units='meters') \
+        ndvi_smooth = ndvi.focal_mean(radius=300, units='meters') \
             .reproject(crs=self.crs, crsTransform=self.transform)
         ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
 
@@ -1544,6 +1545,15 @@ class Image():
         # Combine the weighted means into a single image using first non-null
         tcorr = ee.Image([fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
             .reduce(ee.Reducer.firstNonNull()).updateMask(1)
+
+        tcorr = tcorr\
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.circle(radius=1, units='pixels'),
+                                # kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                # optimization='boxcar',
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
 
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score])\
             .reduce(ee.Reducer.sum())
