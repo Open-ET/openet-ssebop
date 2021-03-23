@@ -1173,7 +1173,7 @@ class Image():
             ndvi_threshold = 0.7
 
         # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = ndvi.focal_mean(radius=300, units='meters')\
+        ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters')\
             .reproject(crs=self.crs, crsTransform=self.transform)\
             .gte(ndvi_threshold)
         ndvi_buffer_mask = ndvi.gte(ndvi_threshold)\
@@ -1218,7 +1218,7 @@ class Image():
             ndvi_threshold = 0.25
 
         # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
-        ndvi_smooth = ndvi.focal_mean(radius=300, units='meters') \
+        ndvi_smooth = ndvi.focal_mean(radius=90, units='meters') \
             .reproject(crs=self.crs, crsTransform=self.transform)
         ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
 
@@ -1589,12 +1589,12 @@ class Image():
 
         # Mask cells without enough fine resolution Tcorr cells
         # The count band is dropped after it is used to mask
-        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
-            .updateMask(tcorr_coarse_img.select(['count'])
-                        .gte(self.min_pixels_per_grid_cell))
+        # tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
+        #     .updateMask(tcorr_coarse_img.select(['count'])
+        #                 .gte(self.min_pixels_per_grid_cell))
 
         # Count the number of coarse resolution Tcorr cells
-        count_coarse = tcorr_coarse\
+        count_coarse = tcorr_coarse_img\
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
                           crsTransform=coarse_transform,
                           bestEffort=False, maxPixels=100000)
