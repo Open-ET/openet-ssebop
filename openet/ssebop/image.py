@@ -44,13 +44,14 @@ class Image():
             elev_source='SRTM',
             tcorr_source='DYNAMIC',
             # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-            tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-            # tmax_source='DAYMET_MEDIAN_V2',
+            # tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+            tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
-            reflectance_type='TOA',
+            # reflectance_type='TOA',
+            reflectance_type='SR',
             **kwargs,
         ):
         """Construct a generic SSEBop Image
@@ -817,7 +818,7 @@ class Image():
             # The new Tmax collections do not have a time_start so filter using
             #   the "doy" property instead
             tmax_coll = ee.ImageCollection(self._tmax_source)\
-                .filterMetadata('doy', 'equals', self._doy.format('%03d'))
+                .filterMetadata('doy', 'equals', self._doy)
             tmax_image = ee.Image(tmax_coll.first())\
                 .set('tmax_source', self._tmax_source)
         elif 'median' in self._tmax_source.lower():
