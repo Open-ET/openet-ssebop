@@ -55,7 +55,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     """
     logging.info('\nGenerating {} median asset'.format(tmax_source))
 
-    # get_ee_assets returns the full legacy ID
+    # get_ee_assets seems to require the full ID, but only returns the partial?
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
     # tmax_folder = 'projects/usgs-ssebop/tmax'
 
@@ -125,6 +125,8 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
     # Get current running assets
     assets = utils.get_ee_assets(coll_id)
+    # assets = [asset_id.replace('projects/earthengine-legacy/assets/', '')
+    #           for asset_id in assets]
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -144,6 +146,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         #     time_start_dt.strftime('%Y-%m-%d')))
 
         asset_id = '{}/{:03d}'.format(coll_id, doy)
+        asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
         export_id = 'tmax_{}_median_{}_{}_day{:03d}'.format(
             tmax_source.lower(), year_start, year_end, doy)
         logging.debug('  Asset ID:  {}'.format(asset_id))
@@ -151,16 +154,16 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         if overwrite_flag:
             if export_id in tasks.keys():
-                logging.debug('  Task already submitted, cancelling')
+                logging.info('  Task already submitted, cancelling')
                 ee.data.cancelTask(tasks[export_id])
-            if asset_id in assets:
-                logging.debug('  Asset already exists, removing')
+            if asset_short_id in assets:
+                logging.info('  Asset already exists, removing')
                 ee.data.deleteAsset(asset_id)
         else:
             if export_id in tasks.keys():
                 logging.info('  Task already submitted, skipping')
                 continue
-            elif asset_id in assets:
+            elif asset_short_id in assets:
                 logging.info('  Asset already exists, skipping')
                 continue
 
@@ -189,7 +192,11 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-            'doy': ee.String(ee.Number(doy).format('%03d')),
+            # CGM - Should this be a number or formatted string?
+            # The system:index is already a zero padded string so it might make
+            #   more sense to make this a number
+            'doy': ee.String(ee.Number(doy).format('%3d')),
+            # 'doy': ee.String(ee.Number(doy).format('%03d')),
             'year_start': year_start,
             'year_end': year_end,
             'years': tmax_doy_coll.size(),
@@ -222,7 +229,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         #     formatOptions={'cloudOptimized': True},
         # )
 
-        logging.debug('    Starting export task')
+        logging.info('  Starting export task')
         utils.ee_task_start(task)
 
         # Pause before starting next task
