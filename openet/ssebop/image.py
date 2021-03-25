@@ -1613,7 +1613,7 @@ class Image():
         reducer. Both methods require considerable additional memory.
         """
         # select only the tcorr band.
-        tcorr_coarse = tcorr_coarse_img.get('tcorr')
+        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])
 
         # Do reduce neighborhood to interpolate c factor
         tcorr_rn02 = tcorr_coarse\
