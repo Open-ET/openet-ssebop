@@ -1601,16 +1601,6 @@ class Image():
                           bestEffort=False, maxPixels=100000)
         tcorr_count = ee.Number(count_coarse.get('tcorr'))
 
-        """
-        ReduceNeighborhood Optimization
-        optimization (String, default: null):
-        Optimization strategy. Options are 'boxcar' and 'window'. 
-        The 'boxcar' method is a fast method for computing count, sum or mean. 
-        It requires a homogeneous kernel, a single-input reducer and either 
-        MASK, KERNEL or no weighting. The 'window' method uses a running window, 
-        and has the same requirements as 'boxcar', but can use any single input 
-        reducer. Both methods require considerable additional memory.
-        """
         # select only the tcorr band.
         tcorr_coarse = tcorr_coarse_img.select(['tcorr'])
 
@@ -1691,7 +1681,7 @@ class Image():
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(4))
 
-        # CM - Why does the previous mosaic have .updateMask(1) calls but not these? - GELP removed all update masks 3/25/2021
+        # CM - Why does the previous mosaic have .updateMask(1) calls but not these? - GELP added update masks 3/25/2021
         # for 3:2:1 use weights (3/6, 2/6, 1/6)
         fm_mosaic_3 = ee.Image([tcorr_rn04.multiply(0.5).updateMask(1),
                                 tcorr_rn16.multiply(0.33).updateMask(1),
