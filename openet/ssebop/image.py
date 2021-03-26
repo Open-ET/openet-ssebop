@@ -43,9 +43,9 @@ class Image():
             dt_source='DAYMET_MEDIAN_V2',
             elev_source='SRTM',
             tcorr_source='DYNAMIC',
-            tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+            # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
             # tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-            # tmax_source='DAYMET_MEDIAN_V2',
+            tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=5,
             dt_max=25,
@@ -1577,7 +1577,6 @@ class Image():
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
-        # coarse_transform = [5000, 0, 0, 0, -5000, 0]
 
         # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
         tcorr_coarse_img = self.tcorr_image\
@@ -1602,7 +1601,6 @@ class Image():
                           bestEffort=False, maxPixels=100000)
         tcorr_count = ee.Number(count_coarse.get('tcorr'))
 
-        # TODO: Test the reduceNeighborhood optimization parameters
         """
         ReduceNeighborhood Optimization
         optimization (String, default: null):
@@ -1677,37 +1675,37 @@ class Image():
         # Use the score band to mask out the areas of overlap to weight the c factor:
 
         # Same as 4:3:2:1 below but use weights 75/1000 and 25/1000 for the last two layers to get 1/10
-        fm_mosaic_5 = ee.Image([tcorr_coarse.multiply(0.4),
-                                tcorr_rn02.multiply(0.3),
-                                tcorr_rn04.multiply(0.2),
-                                tcorr_rn16.multiply(0.075),
-                                tcorr_rn64.multiply(0.025)])\
+        fm_mosaic_5 = ee.Image([tcorr_coarse.multiply(0.4).updateMask(1),
+                                tcorr_rn02.multiply(0.3).updateMask(1),
+                                tcorr_rn04.multiply(0.2).updateMask(1),
+                                tcorr_rn16.multiply(0.075).updateMask(1),
+                                tcorr_rn64.multiply(0.025).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
-            .updateMask(total_score_img.eq(4))
+            .updateMask(total_score_img.eq(5))
 
         # for 4:3:2:1 use weights (4/10, 3/10, 2/10, 1/10)
-        fm_mosaic_4 = ee.Image([tcorr_rn02.multiply(0.4),
-                                tcorr_rn04.multiply(0.3),
-                                tcorr_rn16.multiply(0.2),
-                                tcorr_rn64.multiply(0.1)])\
+        fm_mosaic_4 = ee.Image([tcorr_rn02.multiply(0.4).updateMask(1),
+                                tcorr_rn04.multiply(0.3).updateMask(1),
+                                tcorr_rn16.multiply(0.2).updateMask(1),
+                                tcorr_rn64.multiply(0.1).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(4))
 
         # CM - Why does the previous mosaic have .updateMask(1) calls but not these? - GELP removed all update masks 3/25/2021
         # for 3:2:1 use weights (3/6, 2/6, 1/6)
-        fm_mosaic_3 = ee.Image([tcorr_rn04.multiply(0.5),
-                                tcorr_rn16.multiply(0.33),
-                                tcorr_rn64.multiply(0.17)])\
+        fm_mosaic_3 = ee.Image([tcorr_rn04.multiply(0.5).updateMask(1),
+                                tcorr_rn16.multiply(0.33).updateMask(1),
+                                tcorr_rn64.multiply(0.17).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(3))
 
         # for 2:1 use weights (2/3, 1/3)
-        fm_mosaic_2 = ee.Image([tcorr_rn16.multiply(0.67),
-                                tcorr_rn64.multiply(0.33)])\
+        fm_mosaic_2 = ee.Image([tcorr_rn16.multiply(0.67).updateMask(1),
+                                tcorr_rn64.multiply(0.33).updateMask(1)])\
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(2))
 
-        # for 1 use the value of 16
+        # for 1 use the value of 64
         fm_mosaic_1 = tcorr_rn64.updateMask(total_score_img.eq(1))
 
         # Combine the weighted means into a single image using first non-null
@@ -1721,13 +1719,6 @@ class Image():
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
-
-        # # GELP - the tcorr return function was like this when I got to the branch.
-        # # i set it back to the same bands as before (3/25/2021).
-        # return tcorr.select([0], ['tcorr'])\
-        #     .set(self._properties)\
-        #     .set({'tcorr_index': 1,
-        #           'tcorr_coarse_count': tcorr_count})
 
         return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
             .set(self._properties) \
