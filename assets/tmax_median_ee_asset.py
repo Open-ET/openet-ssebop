@@ -2,6 +2,7 @@ import argparse
 import datetime
 import logging
 import os
+import pprint
 
 import ee
 
@@ -55,7 +56,6 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     """
     logging.info('\nGenerating {} median asset'.format(tmax_source))
 
-    # get_ee_assets returns the full legacy ID
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
     # tmax_folder = 'projects/usgs-ssebop/tmax'
 
@@ -124,6 +124,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, coll_id)
 
     # Get current running assets
+    # CGM: This is currently returning the asset IDs without earthengine-legacy
     assets = utils.get_ee_assets(coll_id)
 
     # Get current running tasks
@@ -144,6 +145,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         #     time_start_dt.strftime('%Y-%m-%d')))
 
         asset_id = '{}/{:03d}'.format(coll_id, doy)
+        asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
         export_id = 'tmax_{}_median_{}_{}_day{:03d}'.format(
             tmax_source.lower(), year_start, year_end, doy)
         logging.debug('  Asset ID:  {}'.format(asset_id))
@@ -151,10 +153,10 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         if overwrite_flag:
             if export_id in tasks.keys():
-                logging.debug('  Task already submitted, cancelling')
+                logging.info('  Task already submitted, cancelling')
                 ee.data.cancelTask(tasks[export_id])
-            if asset_id in assets:
-                logging.debug('  Asset already exists, removing')
+            if asset_short_id in assets or asset_id in assets:
+                logging.info('  Asset already exists, removing')
                 ee.data.deleteAsset(asset_id)
         else:
             if export_id in tasks.keys():
@@ -189,7 +191,8 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-            'doy': ee.String(ee.Number(doy).format('%03d')),
+            'doy': int(doy),
+            # 'doy': ee.String(ee.Number(doy).format('%03d')),
             'year_start': year_start,
             'year_end': year_end,
             'years': tmax_doy_coll.size(),
@@ -222,7 +225,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         #     formatOptions={'cloudOptimized': True},
         # )
 
-        logging.debug('    Starting export task')
+        logging.info('  Starting export task')
         utils.ee_task_start(task)
 
         # Pause before starting next task

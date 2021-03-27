@@ -115,7 +115,6 @@ class Image():
 
         """
         self.image = ee.Image(image)
-        print('Hello World!')
 
         # Set as "lazy_property" below in order to return custom properties
         # self.lst = self.image.select('lst')
@@ -806,28 +805,27 @@ class Image():
             If `self._tmax_source` is not supported.
 
         """
-        date_today = datetime.datetime.today().strftime('%Y-%m-%d')
-
         if utils.is_number(self._tmax_source):
             # Allow Tmax source to be set as a number for testing
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
-                .set('tmax_source', 'custom_{}'.format(self._tmax_source))
-        elif re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
+                .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
+        # elif re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
+        elif re.match(r'projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
             # Process Tmax source as a collection ID
             # The new Tmax collections do not have a time_start so filter using
             #   the "doy" property instead
             tmax_coll = ee.ImageCollection(self._tmax_source)\
                 .filterMetadata('doy', 'equals', self._doy)
             tmax_image = ee.Image(tmax_coll.first())\
-                .set('tmax_source', self._tmax_source)
+                .set({'tmax_source': self._tmax_source})
         elif 'median' in self._tmax_source.lower():
             # Process the existing keyword median sources
             doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
             tmax_coll = ee.ImageCollection(
                 PROJECT_FOLDER + '/tmax/' + self._tmax_source.lower())
             tmax_image = ee.Image(tmax_coll.filter(doy_filter).first())\
-                .set('tmax_source', self._tmax_source)
+                .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() in ['DAYMET_V3', 'DAYMET_V4']:
             # DAYMET does not include Dec 31st on leap years
             # Adding one extra date to end date to avoid errors here
@@ -837,7 +835,7 @@ class Image():
                 .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
                 .select(['tmax']).map(utils.c_to_k)
             tmax_image = ee.Image(tmax_coll.first())\
-                .set('tmax_source', self._tmax_source)
+                .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() == 'CIMIS':
             tmax_coll_id = 'projects/earthengine-legacy/assets/' \
                            'projects/climate-engine/cimis/daily'
@@ -845,19 +843,19 @@ class Image():
                 .filterDate(self._start_date, self._end_date)\
                 .select(['Tx'], ['tmax']).map(utils.c_to_k)
             tmax_image = ee.Image(tmax_coll.first())\
-                .set('tmax_source', self._tmax_source)
+                .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() == 'GRIDMET':
             tmax_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
             tmax_image = ee.Image(tmax_coll.first())\
-                .set('tmax_source', self._tmax_source)
+                .set({'tmax_source': self._tmax_source})
         # elif self.tmax_source.upper() == 'TOPOWX':
         #     tmax_coll = ee.ImageCollection('X')\
         #         .filterDate(self.start_date, self.end_date)\
         #         .select(['tmmx'], ['tmax'])
         #     tmax_image = ee.Image(tmax_coll.first())\
-        #         .set('tmax_source', self._tmax_source)
+        #         .set({'tmax_source': self._tmax_source})
         else:
             raise ValueError('Unsupported tmax_source: {}\n'.format(
                 self._tmax_source))
