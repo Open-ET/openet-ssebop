@@ -680,6 +680,7 @@ class Image():
         if 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
+
             # e.g. .select([0, 1], ['tcorr', 'count'])
             if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
@@ -694,7 +695,7 @@ class Image():
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             # Compute gridded Tcorr for the scene
-            tcorr_img = self.tcorr_gridded_cold
+            tcorr_img = ee.Image(self.tcorr_gridded_cold).select(['tcorr'])
 
             # EE will resample using nearest neighbor by default
             if self._tcorr_resample.lower() in ['bilinear']:
@@ -1617,7 +1618,6 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
-
         tcorr_rn16 = tcorr_coarse\
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.square(radius=16, units='pixels'),
@@ -1679,7 +1679,6 @@ class Image():
             .reduce(ee.Reducer.sum())\
             .updateMask(total_score_img.eq(4))
 
-        # CM - Why does the previous mosaic have .updateMask(1) calls but not these? - GELP added update masks 3/25/2021
         # for 3:2:1 use weights (3/6, 2/6, 1/6)
         fm_mosaic_3 = ee.Image([tcorr_rn04.multiply(0.5).updateMask(1),
                                 tcorr_rn16.multiply(0.33).updateMask(1),
