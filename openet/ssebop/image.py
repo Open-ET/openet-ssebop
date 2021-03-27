@@ -1710,5 +1710,5 @@ class Image():
 
         return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
             .set(self._properties) \
-            .set({'tcorr_index': 0,
+            .set({'tcorr_index': 1,
                   'tcorr_coarse_count': tcorr_count})
