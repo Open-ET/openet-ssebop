@@ -2,6 +2,7 @@ import argparse
 import datetime
 import logging
 import os
+import pprint
 
 import ee
 
@@ -55,9 +56,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     """
     logging.info('\nGenerating {} median asset'.format(tmax_source))
 
-    # get_ee_assets seems to require the full ID, but only returns the partial?
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
-    # tmax_folder = 'projects/usgs-ssebop/tmax'
 
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980
@@ -124,6 +123,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, coll_id)
 
     # Get current running assets
+    # CGM: This is currently returning the asset IDs without earthengine-legacy
     assets = utils.get_ee_assets(coll_id)
     # assets = [asset_id.replace('projects/earthengine-legacy/assets/', '')
     #           for asset_id in assets]
@@ -156,7 +156,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
             if export_id in tasks.keys():
                 logging.info('  Task already submitted, cancelling')
                 ee.data.cancelTask(tasks[export_id])
-            if asset_short_id in assets:
+            if asset_short_id in assets or asset_id in assets:
                 logging.info('  Asset already exists, removing')
                 ee.data.deleteAsset(asset_id)
         else:
@@ -192,10 +192,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-            # CGM - Should this be a number or formatted string?
-            # The system:index is already a zero padded string so it might make
-            #   more sense to make this a number
-            'doy': ee.String(ee.Number(doy).format('%3d')),
+            'doy': int(doy),
             # 'doy': ee.String(ee.Number(doy).format('%03d')),
             'year_start': year_start,
             'year_end': year_end,
