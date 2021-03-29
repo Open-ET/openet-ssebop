@@ -57,7 +57,6 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     logging.info('\nGenerating {} median asset'.format(tmax_source))
 
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
-    # tmax_folder = 'projects/usgs-ssebop/tmax'
 
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980
@@ -126,6 +125,8 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     # Get current running assets
     # CGM: This is currently returning the asset IDs without earthengine-legacy
     assets = utils.get_ee_assets(coll_id)
+    # assets = [asset_id.replace('projects/earthengine-legacy/assets/', '')
+    #           for asset_id in assets]
 
     # Get current running tasks
     tasks = utils.get_ee_tasks()
@@ -162,7 +163,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
             if export_id in tasks.keys():
                 logging.info('  Task already submitted, skipping')
                 continue
-            elif asset_id in assets:
+            elif asset_short_id in assets:
                 logging.info('  Asset already exists, skipping')
                 continue
 

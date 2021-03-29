@@ -818,6 +818,7 @@ class Image():
             #   the "doy" property instead
             tmax_coll = ee.ImageCollection(self._tmax_source)\
                 .filterMetadata('doy', 'equals', self._doy)
+            #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
             tmax_image = ee.Image(tmax_coll.first())\
                 .set({'tmax_source': self._tmax_source})
         elif 'median' in self._tmax_source.lower():
