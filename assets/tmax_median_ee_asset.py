@@ -9,17 +9,21 @@ import ee
 import openet.core.utils as utils
 
 
-def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
-         gee_key_file=None, delay_time=0, max_ready=-1,
+def main(tmax_source, statistic, year_start, year_end,
+         doy_list=range(1, 367), gee_key_file=None, delay_time=0, max_ready=-1,
          overwrite_flag=False, reverse_flag=False):
-    """
+    """Tmax Climatology Assets
 
     Parameters
     ----------
     tmax_source : {'CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET'}
         Maximum air temperature source keyword.
+    statistic : {'median', 'mean'}
+        Climatology statistic.
     year_start : int
+        Start year.
     year_end : int
+        End year (inclusive).
     doy_list : list(int), optional
         Days of year to process (the default is 1-365).
     gee_key_file : str, None, optional
@@ -44,7 +48,7 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
     -----
     Collection is built/filtered using "day of year" based on the system:time_start
     The DOY 366 collection is built by selecting only the DOY 365 images
-        (so the DOY 366 median image should be a copy of the DOY 365 median)
+        (so the DOY 366 image should be a copy of the DOY 365 image)
 
     Daymet calendar definition
       https://daac.ornl.gov/DAYMET/guides/Daymet_Daily_V4.html
@@ -54,12 +58,15 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
       December 31 is discarded from leap years to maintain a 365-day year.
 
     """
-    logging.info('\nGenerating {} median asset'.format(tmax_source))
+    logging.info(f'\nGenerating {tmax_source} {statistic} asset')
 
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
 
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980
+
+    if statistic.lower() not in ['median', 'mean']:
+        raise ValueError(f'unsupported statistic: {statistic}')
 
     logging.info('\nInitializing Earth Engine')
     if gee_key_file and os.path.isfile(gee_key_file):
@@ -86,7 +93,8 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
         logging.error('Unsupported tmax_source: {}'.format(tmax_source))
         return False
 
-    coll_id = f'{tmax_folder}/{tmax_source.lower()}_median_{year_start}_{year_end}'
+    coll_id = f'{tmax_folder}/' \
+              f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
 
     tmax_info = ee.Image(tmax_coll.first()).getInfo()
     tmax_proj = ee.Image(tmax_coll.first()).projection().getInfo()
@@ -147,8 +155,8 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
 
         asset_id = '{}/{:03d}'.format(coll_id, doy)
         asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
-        export_id = 'tmax_{}_median_{}_{}_day{:03d}'.format(
-            tmax_source.lower(), year_start, year_end, doy)
+        export_id = 'tmax_{}_{}_{}_{}_day{:03d}'.format(
+            tmax_source.lower(), statistic, year_start, year_end, doy)
         logging.debug('  Asset ID:  {}'.format(asset_id))
         logging.debug('  Export ID: {}'.format(export_id))
 
@@ -178,8 +186,11 @@ def main(tmax_source, year_start, year_end, doy_list=range(1, 367),
                 .filter(ee.Filter.calendarRange(365, 365, 'day_of_year')) \
                 .filter(ee.Filter.calendarRange(year_start, year_end, 'year'))
 
-        # Compute the median Tmax
-        tmax_img = ee.Image(tmax_doy_coll.median())
+        # Compute the Tmax climo image
+        if statistic.lower() == 'median':
+            tmax_img = ee.Image(tmax_doy_coll.median())
+        elif statistic.lower() == 'mean':
+            tmax_img = ee.Image(tmax_doy_coll.mean())
 
         # Fill interior water holes with the mean of the surrounding cells
         # Use the filled image as the source to the where since tmax is nodata
@@ -241,12 +252,15 @@ def c_to_k(image):
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Generate Tmax Median Assets',
+        description='Generate Tmax Climatology Assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--tmax', type=str, metavar='TMAX',
         choices=['CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET'],
         help='Maximum air temperature source keyword')
+    parser.add_argument(
+        '--stat', choices=['median', 'mean'],
+        help='Climatology statistic')
     parser.add_argument(
         '--start', type=int, metavar='YEAR', help='Start year')
     parser.add_argument(
@@ -282,7 +296,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=args.loglevel, format='%(message)s')
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 
-    main(tmax_source=args.tmax, year_start=args.start, year_end=args.end,
+    main(tmax_source=args.tmax, statistic=args.stat,
+         year_start=args.start, year_end=args.end,
          doy_list=args.doy, gee_key_file=args.key,
          delay_time=args.delay, max_ready=args.ready,
          overwrite_flag=args.overwrite, reverse_flag=args.reverse,
