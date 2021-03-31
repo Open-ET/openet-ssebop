@@ -43,9 +43,10 @@ class Image():
             dt_source='DAYMET_MEDIAN_V2',
             elev_source='SRTM',
             tcorr_source='DYNAMIC',
+            tmax_source='DAYMET_MEDIAN_V2',
+            # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
             # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
             # tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-            tmax_source='DAYMET_MEDIAN_V2',
             elr_flag=False,
             dt_min=5,
             dt_max=25,
@@ -794,7 +795,7 @@ class Image():
 
     @lazy_property
     def tmax(self):
-        """Get Tmax image from precomputed median collections or dynamically
+        """Get Tmax image from precomputed climatology collections or dynamically
 
         Returns
         -------
@@ -811,8 +812,7 @@ class Image():
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
                 .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
-        # elif re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
-        elif re.match(r'projects/.+/tmax/.+_median_\d{4}_\d{4}', self._tmax_source):
+        elif re.match(r'projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}', self._tmax_source):
             # Process Tmax source as a collection ID
             # The new Tmax collections do not have a time_start so filter using
             #   the "doy" property instead

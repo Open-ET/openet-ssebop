@@ -148,9 +148,10 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'DAYMET_MEDIAN_V2'
     assert m._elev_source == 'SRTM'
     assert m._tcorr_source == 'DYNAMIC'
+    assert m._tmax_source == 'DAYMET_MEDIAN_V2'
+    # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019'
     # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
-    assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
@@ -366,6 +367,7 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          TEST_POINT, 310.15],
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', TEST_POINT, 310.155],
+        # ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', TEST_POINT, 310.155],
         ['DAYMET_V3', TEST_POINT, 307.65],
         # ['DAYMET_V4', TEST_POINT, 307.65],
         ['DAYMET_MEDIAN_V2', TEST_POINT, 310.15],
