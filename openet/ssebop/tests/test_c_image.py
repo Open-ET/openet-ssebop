@@ -361,6 +361,22 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
 
 
 @pytest.mark.parametrize(
+    'tmax_source',
+    [
+        'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+        'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        '305',
+        305,
+    ]
+)
+def test_Image_tmax_source_(tmax_source):
+    """Test that the tmax source is valid enough to instantiate the class"""
+    assert default_image_obj(tmax_source=tmax_source).tmax
+
+
+@pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
         ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', TEST_POINT, 310.15],
@@ -369,11 +385,11 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', TEST_POINT, 310.155],
         # ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', TEST_POINT, 310.155],
         ['DAYMET_V3', TEST_POINT, 307.65],
-        # ['DAYMET_V4', TEST_POINT, 307.65],
+        ['DAYMET_V4', TEST_POINT, 307.58],
         ['DAYMET_MEDIAN_V2', TEST_POINT, 310.15],
         ['CIMIS', [-120.113, 36.336], 307.725],
         ['DAYMET_V3', [-120.113, 36.336], 308.150],
-        # ['DAYMET_V4', [-120.113, 36.336], 308.150],
+        ['DAYMET_V4', [-120.113, 36.336], 308.500],
         ['GRIDMET', [-120.113, 36.336], 306.969],
         # ['TOPOWX', [-120.113, 36.336], 301.67],
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
@@ -392,16 +408,26 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         [305, [-120.113, 36.336], 305],
     ]
 )
-def test_Image_tmax_sources(tmax_source, xy, expected, tol=0.001):
+def test_Image_tmax_source_values(tmax_source, xy, expected, tol=0.001):
     """Test getting Tmax values for a single date at a real point"""
     m = default_image_obj(tmax_source=tmax_source)
     output = utils.point_image_value(ee.Image(m.tmax), xy)
     assert abs(output['tmax'] - expected) <= tol
 
 
-def test_Image_tmax_sources_exception():
+@pytest.mark.parametrize(
+    'tmax_source',
+    [
+        'projects/usgs-ssebop/tmax/daymet_v3_max_1980_2018', # Unsupported statistic
+        'projects/usgs-ssebop/dt/daymet_v3_median_1980_2018', # tmax must be in ID
+        'daymet_median_v2', # Don't support lowercase keywords
+        'deadbeef'
+        '',
+    ]
+)
+def test_Image_tmax_source_exception(tmax_source):
     with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(tmax_source='').tmax)
+        utils.getinfo(default_image_obj(tmax_source=tmax_source).tmax)
 
 
 today_dt = datetime.datetime.today()
@@ -413,7 +439,7 @@ today_dt = datetime.datetime.today()
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', {}],
         ['CIMIS', {}],
         ['DAYMET_V3', {}],
-        # ['DAYMET_V4', {}],
+        ['DAYMET_V4', {}],
         ['GRIDMET', {}],
         # ['TOPOWX', {}],
         ['CIMIS_MEDIAN_V1', {}],

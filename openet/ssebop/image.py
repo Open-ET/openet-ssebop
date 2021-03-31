@@ -821,7 +821,7 @@ class Image():
             #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
             tmax_image = ee.Image(tmax_coll.first())\
                 .set({'tmax_source': self._tmax_source})
-        elif 'median' in self._tmax_source.lower():
+        elif '_MEDIAN_' in self._tmax_source:
             # Process the existing keyword median sources
             doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
             tmax_coll = ee.ImageCollection(
