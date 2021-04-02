@@ -11,7 +11,7 @@ import openet.core.utils as utils
 
 def main(tmax_source, statistic, year_start, year_end,
          doy_list=range(1, 367), gee_key_file=None, delay_time=0, max_ready=-1,
-         overwrite_flag=False, reverse_flag=False):
+         overwrite_flag=False, elr_flag = False, reverse_flag=False):
     """Tmax Climatology Assets
 
     Parameters
@@ -37,6 +37,8 @@ def main(tmax_source, statistic, year_start, year_end,
     overwrite_flag : bool, optional
         If True, overwrite existing files (the default is False).
         key_path : str, None, optional
+    elr_flag : bool, optional
+        If True, apply Elevation Lapse Rate (ELR) adjustment (the default is False).
     reverse_flag : bool, optional
         If True, process days in reverse order (the default is False).
 
@@ -93,13 +95,18 @@ def main(tmax_source, statistic, year_start, year_end,
         logging.error('Unsupported tmax_source: {}'.format(tmax_source))
         return False
 
-    coll_id = f'{tmax_folder}/' \
-              f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
+    if elr_flag:
+        id_flag = 'elr'
+        coll_id = f'{tmax_folder}/' \
+                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}_{id_flag}'
+    else:
+        coll_id = f'{tmax_folder}/' \
+                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
 
     tmax_info = ee.Image(tmax_coll.first()).getInfo()
     tmax_proj = ee.Image(tmax_coll.first()).projection().getInfo()
     if 'wkt' in tmax_proj.keys():
-        crs = tmax_proj['wkt'].replace(' ', '').replace('\n', '')
+        tmax_crs = tmax_proj['wkt'].replace(' ', '').replace('\n', '')
     else:
         # TODO: Add support for projection have a "crs" key instead of "wkt"
         raise Exception('unsupported projection type')
@@ -117,7 +124,7 @@ def main(tmax_source, statistic, year_start, year_end,
     else:
         transform = tmax_proj['transform']
         dimensions = tmax_info['bands'][0]['dimensions']
-    logging.info('  CRS: {}'.format(crs))
+    logging.info('  CRS: {}'.format(tmax_crs))
     logging.info('  Transform: {}'.format(transform))
     logging.info('  Dimensions: {}\n'.format(dimensions))
 
@@ -197,9 +204,53 @@ def main(tmax_source, statistic, year_start, year_end,
         # CGM - Check if this is needed for DAYMET_V4
         if tmax_source.upper() in ['DAYMET_V3', 'DAYMET_V4']:
             filled_img = tmax_img.focal_mean(4000, 'circle', 'meters') \
-                .reproject(crs, transform)
+                .reproject(tmax_crs, transform)
             tmax_img = filled_img.where(tmax_img.gt(0), tmax_img)
             # tmax_img = filled_img.where(tmax_img, tmax_img)
+
+        if elr_flag:
+            # MF - Could eventually make the DEM source (keyword-based) as an input argument.
+            srtm = ee.Image("CGIAR/SRTM90_V4")
+
+            srtm_proj = srtm.projection().getInfo()
+            srtm_crs = srtm_proj['crs']
+
+            # MF - The SRTM image has crs not wkt.
+            # if 'crs' in srtm_proj.keys():
+            #     srtm_crs = srtm_proj['crs'].replace(' ', '').replace('\n', '')
+            # else:
+            #     # TODO: Add support for projection have a "crs" key instead of "wkt"
+            #     raise Exception('unsupported projection type')
+
+            # MF - This should be properly defined at L238(?)
+            # srtm_proj20km = srtm_proj.scale(200,200)
+
+            # Reduce DEM to median of ~20km cells
+            srtmMedian = srtm.reduceResolution(
+                reducer=ee.Reducer.median(),
+                maxPixels=65536)
+
+            # Smooth median DEM with 5x5 pixel radius
+            srtmMedian_5x5 = srtmMedian.reduceNeighborhood(ee.Reducer.mean(),
+                                                           ee.Kernel.square(radius=5, units='pixels'))
+
+            # Reproject to ~20km
+            srtmMedian20km = srtmMedian_5x5.reproject(crs=srtm_crs, scale=200)
+
+            # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
+            srtm_diff = (srtm.subtract(srtmMedian20km.add(100)))
+            srtm_diff_positive = (srtm.subtract(srtmMedian20km.add(100))).gt(0)
+
+            # Reproject to match Tmax source projection
+            srtm_diff = srtm_diff.reproject(crs=tmax_crs, crsTransform=transform)
+            srtm_diff_positive = srtm_diff_positive.reproject(crs=tmax_crs, crsTransform=transform)
+            srtm_diff_final = srtm_diff.mask(srtm_diff_positive)
+
+            elr_adjust = ee.Image(tmax_img).expression(
+                '(temperature - (0.005 * (elr_layer)))',
+                {'temperature': tmax_img, 'elr_layer': srtm_diff_final})
+
+            tmax_img = tmax_img.where(srtm_diff_final, elr_adjust)
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
@@ -220,7 +271,7 @@ def main(tmax_source, statistic, year_start, year_end,
             description=export_id,
             assetId=asset_id,
             dimensions='{0}x{1}'.format(*dimensions),
-            crs=crs,
+            crs=tmax_crs,
             crsTransform='[' + ','.join(map(str, transform)) + ']',
             maxPixels=int(1E10),
         )
@@ -230,7 +281,7 @@ def main(tmax_source, statistic, year_start, year_end,
         #     bucket='tmax_',
         #     fileNamePrefix=export_id,
         #     dimensions='{0}x{1}'.format(*dimensions),
-        #     crs=crs,
+        #     crs=tmax_crs,
         #     crsTransform='[' + ','.join(map(str, transform)) + ']',
         #     maxPixels=int(1E10),
         #     fileFormat='GeoTIFF',
@@ -281,6 +332,9 @@ def arg_parse():
         '--reverse', default=False, action='store_true',
         help='Process MGRS tiles in reverse order')
     parser.add_argument(
+        '--elr', default=False, action='store_true',
+        help='Apply Elevation Lapse Rate (ELR)   adjustment')
+    parser.add_argument(
         '-o', '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
@@ -300,5 +354,6 @@ if __name__ == '__main__':
          year_start=args.start, year_end=args.end,
          doy_list=args.doy, gee_key_file=args.key,
          delay_time=args.delay, max_ready=args.ready,
-         overwrite_flag=args.overwrite, reverse_flag=args.reverse,
+         overwrite_flag=args.overwrite, elr_flag = args.elr,
+         reverse_flag=args.reverse,
     )
