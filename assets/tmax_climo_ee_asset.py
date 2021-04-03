@@ -64,6 +64,9 @@ def main(tmax_source, statistic, year_start, year_end,
 
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
 
+    # MF - Could eventually make the DEM source (keyword-based) as an input argument.
+    elev_source_id = 'CGIAR/SRTM90_V4'
+
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980
 
@@ -104,9 +107,10 @@ def main(tmax_source, statistic, year_start, year_end,
                     f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
 
     tmax_info = ee.Image(tmax_coll.first()).getInfo()
-    tmax_proj = ee.Image(tmax_coll.first()).projection().getInfo()
-    if 'wkt' in tmax_proj.keys():
-        tmax_crs = tmax_proj['wkt'].replace(' ', '').replace('\n', '')
+    tmax_projection = ee.Image(tmax_coll.first()).projection()
+    tmax_proj_info = tmax_projection.getInfo()
+    if 'wkt' in tmax_proj_info.keys():
+        tmax_crs = tmax_proj_info['wkt'].replace(' ', '').replace('\n', '')
     else:
         # TODO: Add support for projection have a "crs" key instead of "wkt"
         raise Exception('unsupported projection type')
@@ -122,7 +126,7 @@ def main(tmax_source, statistic, year_start, year_end,
         # dimensions = [5000, 5000]
         # transform = [1000, 0, -2099750, 0, -1000, 1909500]
     else:
-        transform = tmax_proj['transform']
+        transform = tmax_proj_info['transform']
         dimensions = tmax_info['bands'][0]['dimensions']
     logging.info('  CRS: {}'.format(tmax_crs))
     logging.info('  Transform: {}'.format(transform))
@@ -209,53 +213,86 @@ def main(tmax_source, statistic, year_start, year_end,
             # tmax_img = filled_img.where(tmax_img, tmax_img)
 
         if elr_flag:
-            # MF - Could eventually make the DEM source (keyword-based) as an input argument.
-            srtm = ee.Image("CGIAR/SRTM90_V4")
+            elev_img = ee.Image(elev_source_id)
 
-            srtm_proj = srtm.projection().getInfo()
-            srtm_crs = srtm_proj['crs']
+            # First resample the elevation data to the temperature grid
+            # These approaches for resampling should all be really similar
+            #   but simple resampling is probably the fastest
+            elev_tmax_fine = elev_img.reproject(crs=tmax_projection)
+            # elev_tmax_fine = elev_img.resample('bilinear').reproject(crs=tmax_proj)
+            # elev_tmax_fine = elev_img\
+            #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)\
+            #     .reproject(crs=tmax_proj)
 
-            # MF - The SRTM image has crs not wkt.
-            # if 'crs' in srtm_proj.keys():
-            #     srtm_crs = srtm_proj['crs'].replace(' ', '').replace('\n', '')
-            # else:
-            #     # TODO: Add support for projection have a "crs" key instead of "wkt"
-            #     raise Exception('unsupported projection type')
-
-            # MF - This should be properly defined at L238(?)
-            # srtm_proj20km = srtm_proj.scale(200,200)
-
-            # Reduce DEM to median of ~20km cells
-            srtmMedian = srtm.reduceResolution(
-                reducer=ee.Reducer.median(),
-                maxPixels=65536)
-
-            # Smooth median DEM with 5x5 pixel radius
-            srtmMedian_5x5 = srtmMedian.reduceNeighborhood(ee.Reducer.mean(),
-                                                           ee.Kernel.square(radius=5, units='pixels'))
-
-            # Reproject to ~20km
-            srtmMedian20km = srtmMedian_5x5.reproject(crs=srtm_crs, scale=200)
+            # Then generate the coarse resolution elevation image
+            # Setting the radius to ~80 seems to get close to what was generated in the other script
+            #   For 1km DAYMET cells this is a 181km x 181km window
+            #   This is pretty similar to the 20km cells smoothed with a 9x9 window
+            #     (In the other script the radius was 5, which would be a 9x9 window, not 5x5)
+            # The images started to look reasonable for radius values >50
+            elev_tmax_coarse = elev_tmax_fine\
+                .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                    kernel=ee.Kernel.circle(radius=80, units='pixels'))\
+                .reproject(crs=tmax_projection)
 
             # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
-            srtm_diff = (srtm.subtract(srtmMedian20km.add(100)))
-            srtm_diff_positive = (srtm.subtract(srtmMedian20km.add(100))).gt(0)
-
-            # Reproject to match Tmax source projection
-            srtm_diff = srtm_diff.reproject(crs=tmax_crs, crsTransform=transform)
-            srtm_diff_positive = srtm_diff_positive.reproject(crs=tmax_crs, crsTransform=transform)
-            srtm_diff_final = srtm_diff.mask(srtm_diff_positive)
+            elev_diff = elev_tmax_fine.subtract(elev_tmax_coarse.add(100))
+            elev_mask = elev_diff.gt(0)
+            elev_diff_final = elev_diff.mask(elev_mask)
 
             elr_adjust = ee.Image(tmax_img).expression(
                 '(temperature - (0.005 * (elr_layer)))',
-                {'temperature': tmax_img, 'elr_layer': srtm_diff_final})
+                {'temperature': tmax_img, 'elr_layer': elev_diff_final})
 
-            tmax_img = tmax_img.where(srtm_diff_final, elr_adjust)
+            tmax_img = tmax_img.where(elev_mask, elr_adjust)
+
+            # DEADBEEF
+            # srtm_proj = srtm.projection().getInfo()
+            # srtm_crs = srtm_proj['crs']
+            #
+            # # MF - The SRTM image has crs not wkt.
+            # # if 'crs' in srtm_proj.keys():
+            # #     srtm_crs = srtm_proj['crs'].replace(' ', '').replace('\n', '')
+            # # else:
+            # #     # TODO: Add support for projection have a "crs" key instead of "wkt"
+            # #     raise Exception('unsupported projection type')
+            #
+            # # MF - This should be properly defined at L238(?)
+            # # srtm_proj20km = srtm_proj.scale(200,200)
+            #
+            # # Reduce DEM to median of ~20km cells
+            # srtmMedian = srtm\
+            #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)
+            #
+            # # Smooth median DEM with 5x5 pixel radius
+            # srtmMedian_5x5 = srtmMedian\
+            #     .reduceNeighborhood(reducer=ee.Reducer.mean(),
+            #                         kernel=ee.Kernel.square(radius=5, units='pixels'))
+            #
+            # # Reproject to ~20km
+            # srtmMedian20km = srtmMedian_5x5.reproject(crs=srtm_crs, scale=200)
+            #
+            # # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
+            # srtm_diff = (srtm.subtract(srtmMedian20km.add(100)))
+            # srtm_diff_positive = (srtm.subtract(srtmMedian20km.add(100))).gt(0)
+            #
+            # # Reproject to match Tmax source projection
+            # srtm_diff = srtm_diff.reproject(crs=tmax_crs, crsTransform=transform)
+            # srtm_diff_positive = srtm_diff_positive\
+            #     .reproject(crs=tmax_crs, crsTransform=transform)
+            # srtm_diff_final = srtm_diff.mask(srtm_diff_positive)
+            #
+            # elr_adjust = ee.Image(tmax_img).expression(
+            #     '(temperature - (0.005 * (elr_layer)))',
+            #     {'temperature': tmax_img, 'elr_layer': srtm_diff_final})
+            #
+            # tmax_img = tmax_img.where(srtm_mask, elr_adjust)
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
             'doy': int(doy),
             # 'doy': ee.String(ee.Number(doy).format('%03d')),
+            'elr_flag': elr_flag,
             'year_start': year_start,
             'year_end': year_end,
             'years': tmax_doy_coll.size(),
@@ -306,16 +343,16 @@ def arg_parse():
         description='Generate Tmax Climatology Assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--tmax', type=str, metavar='TMAX',
+        '--tmax', type=str, metavar='TMAX', required=True,
         choices=['CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET'],
         help='Maximum air temperature source keyword')
     parser.add_argument(
-        '--stat', choices=['median', 'mean'],
+        '--stat', choices=['median', 'mean'], required=True,
         help='Climatology statistic')
     parser.add_argument(
-        '--start', type=int, metavar='YEAR', help='Start year')
+        '--start', type=int, metavar='YEAR', required=True, help='Start year')
     parser.add_argument(
-        '--end', type=int, metavar='YEAR', help='End year')
+        '--end', type=int, metavar='YEAR', required=True, help='End year')
     parser.add_argument(
         '--doy', default='1-366', metavar='DOY', type=utils.parse_int_set,
         help='Day of year (DOY) range to process')
