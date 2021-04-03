@@ -485,10 +485,10 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     ee.data.deleteAsset(asset_id)
             else:
                 if export_id in tasks.keys():
-                    logging.debug('  Task already submitted, exiting')
+                    logging.info('  Task already submitted, skipping')
                     continue
                 elif asset_props and asset_id in asset_props.keys():
-                    logging.debug('  Asset already exists, skipping')
+                    logging.info('  Asset already exists, skipping')
                     continue
 
             # Get the input image grid and spatial reference
