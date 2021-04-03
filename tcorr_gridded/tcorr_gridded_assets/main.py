@@ -35,14 +35,16 @@ STUDY_AREA_COLL_ID = 'TIGER/2018/States'
 STUDY_AREA_PROPERTY = 'STUSPS'
 STUDY_AREA_FEATURES = ['CONUS']
 MGRS_FTR_COLL_ID = 'projects/earthengine-legacy/assets/projects/openet/mgrs/conus_gridmet/zones'
-# COLLECTIONS = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
-COLLECTIONS = ['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA']
+COLLECTIONS = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
+# COLLECTIONS = ['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA']
 COLLECTIONS_RT = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
 CLOUD_COVER = 70
+TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
 # TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019'
-TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
+# TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
 # TMAX_SOURCE = 'DAYMET_MEDIAN_V2'
-TCORR_SOURCE = 'GRIDDED'
+TCORR_SOURCE = 'GRIDDED_COLD'
+# TCORR_SOURCE = 'GRIDDED'
 CLIP_OCEAN_FLAG = True
 # MGRS_TILES = []
 # UTM_ZONES = list(range(10, 20))
@@ -155,7 +157,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
         return f'{export_id} - Unsupported tcorr_source: {TCORR_SOURCE}'
 
     if (TMAX_SOURCE.upper() not in ['DAYMET_MEDIAN_V2'] and
-            not re.match('projects/.+/tmax/.+_median_\d{4}_\d{4}', TCORR_SOURCE)):
+            not re.match('projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}', TCORR_SOURCE)):
         logging.error(f'Unsupported tmax_source: {TMAX_SOURCE}')
         return f'{export_id} - Unsupported tmax_source: {TMAX_SOURCE}'
     logging.debug(f'  Tmax Source:  {TMAX_SOURCE}')
