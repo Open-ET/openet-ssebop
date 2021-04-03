@@ -99,9 +99,8 @@ def main(tmax_source, statistic, year_start, year_end,
         return False
 
     if elr_flag:
-        id_flag = 'elr'
         coll_id = f'{tmax_folder}/' \
-                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}_{id_flag}'
+                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}_elr'
     else:
         coll_id = f'{tmax_folder}/' \
                     f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
@@ -168,6 +167,8 @@ def main(tmax_source, statistic, year_start, year_end,
         asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
         export_id = 'tmax_{}_{}_{}_{}_day{:03d}'.format(
             tmax_source.lower(), statistic, year_start, year_end, doy)
+        if elr_flag:
+            export_id = export_id + '_elr'
         logging.debug('  Asset ID:  {}'.format(asset_id))
         logging.debug('  Export ID: {}'.format(export_id))
 
@@ -228,7 +229,7 @@ def main(tmax_source, statistic, year_start, year_end,
             # Setting the radius to ~80 seems to get close to what was generated in the other script
             #   For 1km DAYMET cells this is a 181km x 181km window
             #   This is pretty similar to the 20km cells smoothed with a 9x9 window
-            #     (In the other script the radius was 5, which would be a 9x9 window, not 5x5)
+            #   (In the other script the radius was 5, which would be a 9x9 window, not 5x5)
             # The images started to look reasonable for radius values >50
             elev_tmax_coarse = elev_tmax_fine\
                 .reduceNeighborhood(reducer=ee.Reducer.mean(),
