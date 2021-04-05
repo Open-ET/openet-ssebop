@@ -232,8 +232,8 @@ def main(tmax_source, statistic, year_start, year_end,
             #   (In the other script the radius was 5, which would be a 9x9 window, not 5x5)
             # The images started to look reasonable for radius values >50
             elev_tmax_coarse = elev_tmax_fine\
-                .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                    kernel=ee.Kernel.circle(radius=80, units='pixels'))\
+                .reduceNeighborhood(reducer=ee.Reducer.median(),
+                                    kernel=ee.Kernel.square(radius=80, units='pixels'))\
                 .reproject(crs=tmax_projection)
 
             # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
