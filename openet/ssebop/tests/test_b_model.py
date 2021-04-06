@@ -183,3 +183,24 @@ def test_Model_dt_calc_rs_ea(tmax, tmin, elev, doy, lat, rs, ea, expected,
 def test_Model_dt_doy_exception():
     with pytest.raises(ValueError):
         utils.getinfo(model.dt(tmax=313.15, tmin=293.65, elev=21.83, doy=None))
+
+
+@pytest.mark.parametrize(
+    'xy, adjusted',
+    [
+        [[-119.0, 37.5], True],  # Mountains
+        [[-121.0, 37.5], False],  # Central Valley
+    ]
+)
+def test_Model_elr_adjust(xy, adjusted):
+    """Check if the temperature is lower when there should be an adjustment"""
+    tmax = ee.Image(f'NASA/ORNL/DAYMET_V4/20170701').select(['tmax']).add(273.15)
+    elev = ee.Image('CGIAR/SRTM90_V4')
+    # Use a small radius to make the test run faster
+    original = utils.point_image_value(tmax, xy, scale=100)['tmax']
+    tmax = model.elr_adjust(temperature=tmax, elevation=elev, radius=80)
+    output = utils.point_image_value(tmax, xy, scale=100)['tmax']
+    if adjusted:
+        assert output < original
+    else:
+        assert output == original

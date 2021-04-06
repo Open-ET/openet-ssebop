@@ -5,8 +5,8 @@ import os
 import pprint
 
 import ee
-
 import openet.core.utils as utils
+import openet.ssebop.model
 
 
 def main(tmax_source, statistic, year_start, year_end,
@@ -98,12 +98,12 @@ def main(tmax_source, statistic, year_start, year_end,
         logging.error('Unsupported tmax_source: {}'.format(tmax_source))
         return False
 
+    output_coll_id = f'{tmax_folder}/' \
+                     f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
     if elr_flag:
-        coll_id = f'{tmax_folder}/' \
-                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}_elr'
-    else:
-        coll_id = f'{tmax_folder}/' \
-                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
+        elevation_img = ee.Image(elev_source_id)
+        output_coll_id = output_coll_id + '_elr'
+    output_coll_id = output_coll_id + '_cgm'
 
     tmax_info = ee.Image(tmax_coll.first()).getInfo()
     tmax_projection = ee.Image(tmax_coll.first()).projection()
@@ -132,17 +132,17 @@ def main(tmax_source, statistic, year_start, year_end,
     logging.info('  Dimensions: {}\n'.format(dimensions))
 
     # Build the export collection if it doesn't exist
-    if not ee.data.getInfo(coll_id):
+    if not ee.data.getInfo(output_coll_id):
         logging.info('\nImage collection does not exist and will be built'
-                     '\n  {}'.format(coll_id))
+                     '\n  {}'.format(output_coll_id))
         input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'ImageCollection'}, coll_id)
+        ee.data.createAsset({'type': 'ImageCollection'}, output_coll_id)
         # # Switch type string if use_cloud_api=True
-        # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, coll_id)
+        # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, output_coll_id)
 
     # Get current running assets
     # CGM: This is currently returning the asset IDs without earthengine-legacy
-    assets = utils.get_ee_assets(coll_id)
+    assets = utils.get_ee_assets(output_coll_id)
     # assets = [asset_id.replace('projects/earthengine-legacy/assets/', '')
     #           for asset_id in assets]
 
@@ -163,7 +163,7 @@ def main(tmax_source, statistic, year_start, year_end,
         # logging.debug('  Time Start Date: {}'.format(
         #     time_start_dt.strftime('%Y-%m-%d')))
 
-        asset_id = '{}/{:03d}'.format(coll_id, doy)
+        asset_id = '{}/{:03d}'.format(output_coll_id, doy)
         asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
         export_id = 'tmax_{}_{}_{}_{}_day{:03d}'.format(
             tmax_source.lower(), statistic, year_start, year_end, doy)
@@ -214,7 +214,8 @@ def main(tmax_source, statistic, year_start, year_end,
             # tmax_img = filled_img.where(tmax_img, tmax_img)
 
         if elr_flag:
-            tmax_img = elr_adjust(tmax_img, elev_source_id, tmax_projection)
+            tmax_img = openet.ssebop.model.elr_adjust(
+                temperature=tmax_img, elevation=elevation_img)
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
@@ -263,53 +264,6 @@ def main(tmax_source, statistic, year_start, year_end,
 def c_to_k(image):
     """Convert temperature from C to K"""
     return image.add(273.15).copyProperties(image, ['system:time_start'])
-
-
-def elr_adjust(tmax_img, elev_source_id, tmax_projection):
-    """Elevation Lapse Rate (ELR) adjusted temperature [K]
-
-    Parameters
-    ----------
-    tmax_img : ee.Image
-    elev_source_id : str
-    tmax_projection : ee.Projection
-
-    Returns
-    -------
-    ee.Image
-
-    """
-    elev_img = ee.Image(elev_source_id)
-
-    # First resample the elevation data to the temperature grid
-    # These approaches for resampling should all be really similar
-    #   but simple resampling is probably the fastest
-    elev_tmax_fine = elev_img.reproject(crs=tmax_projection)
-    # elev_tmax_fine = elev_img.resample('bilinear').reproject(crs=tmax_proj)
-    # elev_tmax_fine = elev_img\
-    #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)\
-    #     .reproject(crs=tmax_proj)
-
-    # Then generate the coarse resolution elevation image
-    elev_tmax_coarse = elev_tmax_fine\
-        .reduceNeighborhood(reducer=ee.Reducer.median(),
-                            kernel=ee.Kernel.square(radius=80, units='pixels'))\
-        .reproject(crs=tmax_projection)
-
-    # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
-    elev_diff = elev_tmax_fine.subtract(elev_tmax_coarse.add(100))
-    elr_mask = elev_diff.gt(0)
-    elev_diff_final = elev_diff.mask(elr_mask)
-
-    # temperature - (0.005 * (elr_layer))
-    elr_adjust = ee.Image(tmax_img).subtract(elev_diff_final.multiply(0.005))
-    # elr_adjust = .expression(
-    #     '(temperature - (0.005 * (elr_layer)))',
-    #     {'temperature': tmax_img, 'elr_layer': elev_diff_final})
-
-    tmax_img = tmax_img.where(elr_mask, elr_adjust)
-
-    return tmax_img
 
 
 def arg_parse():
