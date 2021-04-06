@@ -214,80 +214,7 @@ def main(tmax_source, statistic, year_start, year_end,
             # tmax_img = filled_img.where(tmax_img, tmax_img)
 
         if elr_flag:
-            elev_img = ee.Image(elev_source_id)
-
-            # First resample the elevation data to the temperature grid
-            # These approaches for resampling should all be really similar
-            #   but simple resampling is probably the fastest
-            elev_tmax_fine = elev_img.reproject(crs=tmax_projection)
-            # elev_tmax_fine = elev_img.resample('bilinear').reproject(crs=tmax_proj)
-            # elev_tmax_fine = elev_img\
-            #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)\
-            #     .reproject(crs=tmax_proj)
-
-            # Then generate the coarse resolution elevation image
-            # Setting the radius to ~80 seems to get close to what was generated in the other script
-            #   For 1km DAYMET cells this is a 181km x 181km window
-            #   This is pretty similar to the 20km cells smoothed with a 9x9 window
-            #   (In the other script the radius was 5, which would be a 9x9 window, not 5x5)
-            # The images started to look reasonable for radius values >50
-            elev_tmax_coarse = elev_tmax_fine\
-                .reduceNeighborhood(reducer=ee.Reducer.median(),
-                                    kernel=ee.Kernel.square(radius=80, units='pixels'))\
-                .reproject(crs=tmax_projection)
-
-            # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
-            elev_diff = elev_tmax_fine.subtract(elev_tmax_coarse.add(100))
-            elev_mask = elev_diff.gt(0)
-            elev_diff_final = elev_diff.mask(elev_mask)
-
-            elr_adjust = ee.Image(tmax_img).expression(
-                '(temperature - (0.005 * (elr_layer)))',
-                {'temperature': tmax_img, 'elr_layer': elev_diff_final})
-
-            tmax_img = tmax_img.where(elev_mask, elr_adjust)
-
-            # DEADBEEF
-            # srtm_proj = srtm.projection().getInfo()
-            # srtm_crs = srtm_proj['crs']
-            #
-            # # MF - The SRTM image has crs not wkt.
-            # # if 'crs' in srtm_proj.keys():
-            # #     srtm_crs = srtm_proj['crs'].replace(' ', '').replace('\n', '')
-            # # else:
-            # #     # TODO: Add support for projection have a "crs" key instead of "wkt"
-            # #     raise Exception('unsupported projection type')
-            #
-            # # MF - This should be properly defined at L238(?)
-            # # srtm_proj20km = srtm_proj.scale(200,200)
-            #
-            # # Reduce DEM to median of ~20km cells
-            # srtmMedian = srtm\
-            #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)
-            #
-            # # Smooth median DEM with 5x5 pixel radius
-            # srtmMedian_5x5 = srtmMedian\
-            #     .reduceNeighborhood(reducer=ee.Reducer.mean(),
-            #                         kernel=ee.Kernel.square(radius=5, units='pixels'))
-            #
-            # # Reproject to ~20km
-            # srtmMedian20km = srtmMedian_5x5.reproject(crs=srtm_crs, scale=200)
-            #
-            # # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
-            # srtm_diff = (srtm.subtract(srtmMedian20km.add(100)))
-            # srtm_diff_positive = (srtm.subtract(srtmMedian20km.add(100))).gt(0)
-            #
-            # # Reproject to match Tmax source projection
-            # srtm_diff = srtm_diff.reproject(crs=tmax_crs, crsTransform=transform)
-            # srtm_diff_positive = srtm_diff_positive\
-            #     .reproject(crs=tmax_crs, crsTransform=transform)
-            # srtm_diff_final = srtm_diff.mask(srtm_diff_positive)
-            #
-            # elr_adjust = ee.Image(tmax_img).expression(
-            #     '(temperature - (0.005 * (elr_layer)))',
-            #     {'temperature': tmax_img, 'elr_layer': srtm_diff_final})
-            #
-            # tmax_img = tmax_img.where(srtm_mask, elr_adjust)
+            tmax_img = elr_adjust(tmax_img, elev_source_id, tmax_projection)
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
@@ -336,6 +263,53 @@ def main(tmax_source, statistic, year_start, year_end,
 def c_to_k(image):
     """Convert temperature from C to K"""
     return image.add(273.15).copyProperties(image, ['system:time_start'])
+
+
+def elr_adjust(tmax_img, elev_source_id, tmax_projection):
+    """Elevation Lapse Rate (ELR) adjusted temperature [K]
+
+    Parameters
+    ----------
+    tmax_img : ee.Image
+    elev_source_id : str
+    tmax_projection : ee.Projection
+
+    Returns
+    -------
+    ee.Image
+
+    """
+    elev_img = ee.Image(elev_source_id)
+
+    # First resample the elevation data to the temperature grid
+    # These approaches for resampling should all be really similar
+    #   but simple resampling is probably the fastest
+    elev_tmax_fine = elev_img.reproject(crs=tmax_projection)
+    # elev_tmax_fine = elev_img.resample('bilinear').reproject(crs=tmax_proj)
+    # elev_tmax_fine = elev_img\
+    #     .reduceResolution(reducer=ee.Reducer.median(), maxPixels=65536)\
+    #     .reproject(crs=tmax_proj)
+
+    # Then generate the coarse resolution elevation image
+    elev_tmax_coarse = elev_tmax_fine\
+        .reduceNeighborhood(reducer=ee.Reducer.median(),
+                            kernel=ee.Kernel.square(radius=80, units='pixels'))\
+        .reproject(crs=tmax_projection)
+
+    # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
+    elev_diff = elev_tmax_fine.subtract(elev_tmax_coarse.add(100))
+    elr_mask = elev_diff.gt(0)
+    elev_diff_final = elev_diff.mask(elr_mask)
+
+    # temperature - (0.005 * (elr_layer))
+    elr_adjust = ee.Image(tmax_img).subtract(elev_diff_final.multiply(0.005))
+    # elr_adjust = .expression(
+    #     '(temperature - (0.005 * (elr_layer)))',
+    #     {'temperature': tmax_img, 'elr_layer': elev_diff_final})
+
+    tmax_img = tmax_img.where(elr_mask, elr_adjust)
+
+    return tmax_img
 
 
 def arg_parse():
