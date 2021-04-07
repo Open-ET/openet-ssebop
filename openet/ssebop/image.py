@@ -613,6 +613,10 @@ class Image():
                     f'{PROJECT_FOLDER}/tcorr_gridded/c01/daymet_v3_median_1980_2018',
                 f'daymet_v4_median_1980_2019':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1980_2019',
+                f'daymet_v4_median_1981_2010':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1981_2010',
+                f'daymet_v4_median_1981_2010_elr':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1981_2010_elr',
             }
 
             if self._tmax_source.upper() in scene_dict.keys():
@@ -626,7 +630,7 @@ class Image():
                         self._tcorr_source, self._tmax_source))
 
         elif ('DYNAMIC' == self._tcorr_source.upper() or
-              'SCENE' in self._tcorr_source.upper()):
+              self._tcorr_source.upper().startswith('SCENE')):
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
             scene_dict = {
@@ -657,7 +661,7 @@ class Image():
             # Check Tmax source value
             if self._tmax_source.upper() in scene_dict.keys():
                 tmax_key = self._tmax_source.upper()
-            elif (self._tmax_source.lower().startswith('projects/') and
+            elif (self._tmax_source.startswith('projects/') and
                     self._tmax_source.split('/')[-1] in scene_dict.keys()):
                 tmax_key = self._tmax_source.split('/')[-1]
             else:
@@ -678,11 +682,34 @@ class Image():
 
 
         # Load the Tcorr image
-        if 'GRIDDED' == self._tcorr_source.upper():
+        # if self._tcorr_source.startswith('projects/'):
+        if re.match('projects/.+/tcorr_gridded/.+', self._tcorr_source):
+            # Read precomputed tcorr images
+            # CGM - Do we need to check that the tmax and tcorr source have the
+            #   the same "name"?
+            # CGM - How strict should the name matching be in the regex?
+            #   For now I'm only matching "tcorr_gridded" folders
+            # CGM - This section will need to be modified if monthly fallback
+            #   values are needed
+            # The following check assumes the tmax source is also a collection ID
+            tmax_key = self._tmax_source.split('/')[-1]
+            if tmax_key != self._tcorr_source.split('/')[-1]:
+                raise ValueError(
+                        '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
+                            self._tcorr_source, self._tmax_source))
+
+            scene_coll = ee.ImageCollection(self._tcorr_source)\
+                .filterDate(self._start_date, self._end_date)\
+                .filterMetadata('wrs2_tile', 'equals', self._wrs2_tile)\
+                .select(['tcorr'])
+            #     .filterMetadata('scene_id', 'equals', scene_id)
+            #     .filterMetadata('date', 'equals', self._date)
+            return ee.Image(scene_coll.first())
+        elif 'GRIDDED' == self._tcorr_source.upper():
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
-
             # e.g. .select([0, 1], ['tcorr', 'count'])
+
             if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img\
                     .resample(self._tcorr_resample.lower())\
@@ -745,7 +772,7 @@ class Image():
 
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
-        elif 'SCENE_GRIDDED' in self._tcorr_source.upper():
+        elif 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Load precomputed gridded Tcorr images
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
@@ -756,7 +783,7 @@ class Image():
 
             return ee.Image(scene_coll.first())
 
-        elif 'SCENE' in self._tcorr_source.upper():
+        elif self._tcorr_source.upper().startswith('SCENE'):
             # Load Tcorr from precomputed scene images with monthly/annual fallbacks
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
