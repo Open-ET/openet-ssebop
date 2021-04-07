@@ -5,8 +5,8 @@ import os
 import pprint
 
 import ee
-
 import openet.core.utils as utils
+import openet.ssebop.model
 
 
 def main(tmax_source, statistic, year_start, year_end,
@@ -64,6 +64,9 @@ def main(tmax_source, statistic, year_start, year_end,
 
     tmax_folder = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax'
 
+    # MF - Could eventually make the DEM source (keyword-based) as an input argument.
+    elev_source_id = 'CGIAR/SRTM90_V4'
+
     # CGM - Intentionally not setting the time_start
     # time_start_year = 1980
 
@@ -95,18 +98,18 @@ def main(tmax_source, statistic, year_start, year_end,
         logging.error('Unsupported tmax_source: {}'.format(tmax_source))
         return False
 
+    output_coll_id = f'{tmax_folder}/' \
+                     f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
     if elr_flag:
-        id_flag = 'elr'
-        coll_id = f'{tmax_folder}/' \
-                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}_{id_flag}'
-    else:
-        coll_id = f'{tmax_folder}/' \
-                    f'{tmax_source.lower()}_{statistic}_{year_start}_{year_end}'
+        elevation_img = ee.Image(elev_source_id)
+        output_coll_id = output_coll_id + '_elr'
+    output_coll_id = output_coll_id + '_cgm'
 
     tmax_info = ee.Image(tmax_coll.first()).getInfo()
-    tmax_proj = ee.Image(tmax_coll.first()).projection().getInfo()
-    if 'wkt' in tmax_proj.keys():
-        tmax_crs = tmax_proj['wkt'].replace(' ', '').replace('\n', '')
+    tmax_projection = ee.Image(tmax_coll.first()).projection()
+    tmax_proj_info = tmax_projection.getInfo()
+    if 'wkt' in tmax_proj_info.keys():
+        tmax_crs = tmax_proj_info['wkt'].replace(' ', '').replace('\n', '')
     else:
         # TODO: Add support for projection have a "crs" key instead of "wkt"
         raise Exception('unsupported projection type')
@@ -122,24 +125,24 @@ def main(tmax_source, statistic, year_start, year_end,
         # dimensions = [5000, 5000]
         # transform = [1000, 0, -2099750, 0, -1000, 1909500]
     else:
-        transform = tmax_proj['transform']
+        transform = tmax_proj_info['transform']
         dimensions = tmax_info['bands'][0]['dimensions']
     logging.info('  CRS: {}'.format(tmax_crs))
     logging.info('  Transform: {}'.format(transform))
     logging.info('  Dimensions: {}\n'.format(dimensions))
 
     # Build the export collection if it doesn't exist
-    if not ee.data.getInfo(coll_id):
+    if not ee.data.getInfo(output_coll_id):
         logging.info('\nImage collection does not exist and will be built'
-                     '\n  {}'.format(coll_id))
+                     '\n  {}'.format(output_coll_id))
         input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'ImageCollection'}, coll_id)
+        ee.data.createAsset({'type': 'ImageCollection'}, output_coll_id)
         # # Switch type string if use_cloud_api=True
-        # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, coll_id)
+        # ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, output_coll_id)
 
     # Get current running assets
     # CGM: This is currently returning the asset IDs without earthengine-legacy
-    assets = utils.get_ee_assets(coll_id)
+    assets = utils.get_ee_assets(output_coll_id)
     # assets = [asset_id.replace('projects/earthengine-legacy/assets/', '')
     #           for asset_id in assets]
 
@@ -160,10 +163,12 @@ def main(tmax_source, statistic, year_start, year_end,
         # logging.debug('  Time Start Date: {}'.format(
         #     time_start_dt.strftime('%Y-%m-%d')))
 
-        asset_id = '{}/{:03d}'.format(coll_id, doy)
+        asset_id = '{}/{:03d}'.format(output_coll_id, doy)
         asset_short_id = asset_id.replace('projects/earthengine-legacy/assets/', '')
         export_id = 'tmax_{}_{}_{}_{}_day{:03d}'.format(
             tmax_source.lower(), statistic, year_start, year_end, doy)
+        if elr_flag:
+            export_id = export_id + '_elr'
         logging.debug('  Asset ID:  {}'.format(asset_id))
         logging.debug('  Export ID: {}'.format(export_id))
 
@@ -209,53 +214,14 @@ def main(tmax_source, statistic, year_start, year_end,
             # tmax_img = filled_img.where(tmax_img, tmax_img)
 
         if elr_flag:
-            # MF - Could eventually make the DEM source (keyword-based) as an input argument.
-            srtm = ee.Image("CGIAR/SRTM90_V4")
-
-            srtm_proj = srtm.projection().getInfo()
-            srtm_crs = srtm_proj['crs']
-
-            # MF - The SRTM image has crs not wkt.
-            # if 'crs' in srtm_proj.keys():
-            #     srtm_crs = srtm_proj['crs'].replace(' ', '').replace('\n', '')
-            # else:
-            #     # TODO: Add support for projection have a "crs" key instead of "wkt"
-            #     raise Exception('unsupported projection type')
-
-            # MF - This should be properly defined at L238(?)
-            # srtm_proj20km = srtm_proj.scale(200,200)
-
-            # Reduce DEM to median of ~20km cells
-            srtmMedian = srtm.reduceResolution(
-                reducer=ee.Reducer.median(),
-                maxPixels=65536)
-
-            # Smooth median DEM with 5x5 pixel radius
-            srtmMedian_5x5 = srtmMedian.reduceNeighborhood(ee.Reducer.mean(),
-                                                           ee.Kernel.square(radius=5, units='pixels'))
-
-            # Reproject to ~20km
-            srtmMedian20km = srtmMedian_5x5.reproject(crs=srtm_crs, scale=200)
-
-            # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
-            srtm_diff = (srtm.subtract(srtmMedian20km.add(100)))
-            srtm_diff_positive = (srtm.subtract(srtmMedian20km.add(100))).gt(0)
-
-            # Reproject to match Tmax source projection
-            srtm_diff = srtm_diff.reproject(crs=tmax_crs, crsTransform=transform)
-            srtm_diff_positive = srtm_diff_positive.reproject(crs=tmax_crs, crsTransform=transform)
-            srtm_diff_final = srtm_diff.mask(srtm_diff_positive)
-
-            elr_adjust = ee.Image(tmax_img).expression(
-                '(temperature - (0.005 * (elr_layer)))',
-                {'temperature': tmax_img, 'elr_layer': srtm_diff_final})
-
-            tmax_img = tmax_img.where(srtm_diff_final, elr_adjust)
+            tmax_img = openet.ssebop.model.elr_adjust(
+                temperature=tmax_img, elevation=elevation_img)
 
         tmax_img = tmax_img.set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
             'doy': int(doy),
             # 'doy': ee.String(ee.Number(doy).format('%03d')),
+            'elr_flag': elr_flag,
             'year_start': year_start,
             'year_end': year_end,
             'years': tmax_doy_coll.size(),
@@ -306,16 +272,16 @@ def arg_parse():
         description='Generate Tmax Climatology Assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--tmax', type=str, metavar='TMAX',
+        '--tmax', type=str, metavar='TMAX', required=True,
         choices=['CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET'],
         help='Maximum air temperature source keyword')
     parser.add_argument(
-        '--stat', choices=['median', 'mean'],
+        '--stat', choices=['median', 'mean'], required=True,
         help='Climatology statistic')
     parser.add_argument(
-        '--start', type=int, metavar='YEAR', help='Start year')
+        '--start', type=int, metavar='YEAR', required=True, help='Start year')
     parser.add_argument(
-        '--end', type=int, metavar='YEAR', help='End year')
+        '--end', type=int, metavar='YEAR', required=True, help='End year')
     parser.add_argument(
         '--doy', default='1-366', metavar='DOY', type=utils.parse_int_set,
         help='Day of year (DOY) range to process')
