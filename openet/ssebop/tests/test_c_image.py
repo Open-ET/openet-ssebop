@@ -758,49 +758,58 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     'image_id, tmax_source, expected',
     [
         # TOPOWX_MEDIAN_V0
-        # Note, these values are slightly different than those in the tcorr
-        #   feature collection (commented out values), because the original
-        #   values were built with snap points of 0, 0 instead of 15, 15.
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9929312773213419, 'tcorr_count': 2463133}],  # 0.99255676, 971875
+         {'tcorr_value': 0.9929312773213419, 'tcorr_count': 2466713}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9819724043375294, 'tcorr_count': 743774}],   # 0.98302000, 1700567
+         {'tcorr_value': 0.9819724043375294, 'tcorr_count': 746171}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9561832021931235, 'tcorr_count': 514981}],   # 0.95788514, 2315630
+         {'tcorr_value': 0.9561832021931235, 'tcorr_count': 518067}],
 
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 761231}],
+         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 767445}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9870731706021387, 'tcorr_count': 2463133}],
+         {'tcorr_value': 0.9870731706021387, 'tcorr_count': 2466713}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9799146240259888, 'tcorr_count': 743774}],
+         {'tcorr_value': 0.9799146240259888, 'tcorr_count': 746171}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.951809413760349, 'tcorr_count': 514981}],
+         {'tcorr_value': 0.951809413760349, 'tcorr_count': 518067}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
          {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
 
         # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 761231}],
+         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 767445}],
         ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.974343145024715, 'tcorr_count': 1042877}],
+         {'tcorr_value': 0.974343145024715, 'tcorr_count': 1049672}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9768134772182919, 'tcorr_count': 1045383}],
+         {'tcorr_value': 0.9768134772182919, 'tcorr_count': 1052360}],
 
-        # projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-         {'tcorr_value': 0.972914850293274, 'tcorr_count': 761231}],
-        ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-         {'tcorr_value': 0.9732673567075457, 'tcorr_count': 1042877}],
+        # # DEADBEEF
+        # # projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+        #  {'tcorr_value': 0.972914850293274, 'tcorr_count': 767445}],
+        # ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+        #  {'tcorr_value': 0.9732673567075457, 'tcorr_count': 1049672}],
+        # ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+        #  {'tcorr_value': 0.9758419756854323, 'tcorr_count': 1052360}],
+
+        # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-         {'tcorr_value': 0.9758419756854323, 'tcorr_count': 1045383}],
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         {'tcorr_value': 0.9763274172196688, 'tcorr_count': 1052360}],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         {'tcorr_value': 0.9860930515490791, 'tcorr_count': 3771472}],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         {'tcorr_value': 0.9860930515490792, 'tcorr_count': 3771472}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
@@ -809,7 +818,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
         image_id, tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
     assert abs(output['tcorr_value'] - expected['tcorr_value']) <= tol
-    assert abs(output['tcorr_count'] == expected['tcorr_count']) <= 1
+    assert abs(output['tcorr_count'] - expected['tcorr_count']) <= 10
     # assert output['tcorr_count'] == expected['tcorr_count']
     # assert (abs(output['tcorr_count'] == expected['tcorr_count']) /
     #         expected['tcorr_count']) <= 0.0000001
@@ -855,23 +864,43 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, expected',
     [
+        # Check the keyword source
         ['DYNAMIC', 'DAYMET_MEDIAN_V2',
         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
          [0.9798917542625591, 1]],
+        # Check that the short collection ID
         ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
          [0.9738927482041165, 0]],
+        # Check that the full collection ID
         ['DYNAMIC',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
          [0.9738927482041165, 0]],
+        # CGM - daymet_v4 can't be used with DYNAMIC since there are no fallback collections
+        # ['DYNAMIC',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+        #  [0.9738927482041165, 0]],
+        # ['DYNAMIC',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+        #  [0.9738927482041165, 0]],
+        # ['DYNAMIC',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        #  [0.9738927482041165, 0]],
+        # ['DYNAMIC',
+        #  'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        #  [0.9738927482041165, 0]],
     ]
 )
 def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
                                     expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id), tcorr_source=tcorr_source,
+    tcorr_img = ssebop.Image.from_image_id(
+        image_id, tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
@@ -959,56 +988,30 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 #     assert index['index'] == expected[1]
 
 
-# CGM - Only checking that for a small area a consistent Tcorr value is returned
-#   for each of the GRIDDED source options
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        # DEADBEEF - Remove once DAYMET_V4 gridded tcorr is built
+        # ['GRIDDED', 'DAYMET_MEDIAN_V2',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.9917099881538578, 18, 0]],
+        # ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.9917099881538578, 18, 0]],
+        ['GRIDDED', 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9917099881538578, 0]],
-        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [0.9919621506381342, 18, 0]],
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9917099881538578, 0]],
-        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         [0.9919621506381342, 18, 0]],
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9930660051675222, 0]],
-    ]
-)
-def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
-    """Test getting the gridded Tcorr values
-
-    Clipping the input image is needed to get the test to finish in time
-    """
-    image_crs = ee.Image(image_id).select([3]).projection().crs()
-    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest',
-        tcorr_resample='nearest').tcorr
-    tcorr = utils.point_image_value(tcorr_img.clip(clip_geom), point_xy)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
-    assert index == expected[1]
-
-
-@pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, clip, xy, expected',
-    [
-        ['GRIDDED', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9917099881538578, 18, 0]],
-        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-         [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.9917099881538578, 18, 0]],
+         [0.9919621506381342, 18, 0]],
     ]
 )
 def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
@@ -1022,7 +1025,7 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
         .coordinates().getInfo()
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+    tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
         tcorr_resample='nearest').tcorr_gridded
@@ -1036,10 +1039,23 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
-        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        # DEADBEEF - Remove once DAYMET_V4 gridded tcorr is built
+        # ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.991009147396023, 1]],
+        ['GRIDDED_COLD', 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         [0.991009147396023, 1]],
+         [0.9914034763259638, 1]],
+        ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9914034763259638, 1]],
+        ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9914034763259638, 1]],
     ]
 )
 def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
@@ -1049,7 +1065,7 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
         .coordinates().getInfo()
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+    tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
         tcorr_resample='nearest').tcorr_gridded_cold
@@ -1059,6 +1075,99 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
     assert index == expected[1]
 
 
+# CGM - Only checking that for a small area a consistent Tcorr value is returned
+#   for each of the GRIDDED source options
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, clip, xy, expected',
+    [
+        # DEADBEEF - Remove once DAYMET_V4 gridded tcorr is built
+        # ['GRIDDED', 'DAYMET_MEDIAN_V2',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.9917099881538578, 0]],
+        # ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.9917099881538578, 0]],
+        # ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  [0.9930660051675222, 0]],
+        ['GRIDDED', 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9919621506381342, 0]],
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9919621506381342, 0]],
+        ['GRIDDED', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9919621506381342, 0]],
+        ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9914034763259638, 1]],
+        ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [0.9914034763259638, 1]],
+    ]
+)
+def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
+                                    clip, xy, expected, tol=0.000001):
+    """Test getting the gridded Tcorr values
+
+    Clipping the input image is needed to get the test to finish in time
+    """
+    image_crs = ee.Image(image_id).select([3]).projection().crs()
+    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+        .coordinates().getInfo()
+    tcorr_img = ssebop.Image.from_landsat_c2_sr(
+        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest',
+        tcorr_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img.clip(clip_geom), point_xy)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index == expected[1]
+
+
+
+
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, clip, xy, expected',
+    [
+        ['projects/usgs-ssebop/tcorr_gridded/c02/daymet_v4_mean_1981_2010',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.9917099881538578],
+        ['projects/usgs-ssebop/tcorr_gridded/c02/daymet_v4_mean_1981_2010_elr',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         0.9917099881538578],
+    ]
+)
+def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
+                                 expected, tol=0.000001):
+    """Test that tcorr_resample with bilinear is different than with nearest"""
+    image_crs = ee.Image(image_id).select([3]).projection().crs()
+    clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
+    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
+        .coordinates().getInfo()
+    tcorr_img = ssebop.Image.from_landsat_c2_sr(
+        ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
+        tmax_source=tmax_source).tcorr
+    tcorr = utils.point_image_value(tcorr_img, point_xy)
+    # index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected) <= tol
+    # assert tcorr['tcorr_index'] == 1
+#
+#
 # @pytest.mark.parametrize(
 #     'tcorr_source, tmax_source, image_id, clip, xy, expected',
 #     [
@@ -1098,26 +1207,47 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
 @pytest.mark.parametrize(
     'tcorr_resample, tcorr_source, tmax_source, image_id, clip, xy, expected',
     [
+        # DEADBEEF - Remove once DAYMET_V4 gridded tcorr is built
+        # ['NEAREST', 'GRIDDED',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  0.9917099881538578],
+        # ['BILINEAR', 'GRIDDED',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  0.9917171934702289],
+        # ['NEAREST', 'GRIDDED_COLD',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  0.991009147396023],
+        # ['BILINEAR', 'GRIDDED_COLD',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+        #  [600000, 4270000, 625000, 4285000], [612500, 4277500],
+        #  0.9910111874257315],
         ['NEAREST', 'GRIDDED',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9917099881538578],
+         0.9919621506381342],
         ['BILINEAR', 'GRIDDED',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9917171934702289],
+         0.9919712418204846],
         ['NEAREST', 'GRIDDED_COLD',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.991009147396023],
+         0.9914034763259638],
         ['BILINEAR', 'GRIDDED_COLD',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
+         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
-         0.9910111874257315],
+         0.991406257393843],
     ]
 )
 def test_Image_tcorr_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
@@ -1127,12 +1257,11 @@ def test_Image_tcorr_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
         .coordinates().getInfo()
-    tcorr_img = ssebop.Image.from_landsat_c1_toa(
+    tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
         tcorr_resample=tcorr_resample).tcorr
     tcorr = utils.point_image_value(tcorr_img, point_xy)
-    # index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected) <= tol
 
 

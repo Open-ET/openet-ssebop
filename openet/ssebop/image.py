@@ -613,10 +613,10 @@ class Image():
                     f'{PROJECT_FOLDER}/tcorr_gridded/c01/daymet_v3_median_1980_2018',
                 f'daymet_v4_median_1980_2019':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1980_2019',
-                f'daymet_v4_median_1981_2010':
-                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1981_2010',
-                f'daymet_v4_median_1981_2010_elr':
-                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1981_2010_elr',
+                f'daymet_v4_mean_1981_2010':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_mean_1981_2010',
+                f'daymet_v4_mean_1981_2010_elr':
+                    f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_mean_1981_2010_elr',
             }
 
             if self._tmax_source.upper() in scene_dict.keys():
