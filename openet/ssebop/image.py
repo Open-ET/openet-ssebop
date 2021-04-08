@@ -41,7 +41,7 @@ class Image():
             et_reference_factor=None,
             et_reference_resample=None,
             dt_source='DAYMET_MEDIAN_V2',
-            elev_source='SRTM',
+            elev_source=None,
             tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
             # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
@@ -79,7 +79,7 @@ class Image():
         dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
             dT source keyword (the default is 'DAYMET_MEDIAN_V1').
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
-            Elevation source keyword (the default is 'SRTM').
+            Elevation source keyword (the default is None).
         tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
@@ -284,10 +284,16 @@ class Image():
     @lazy_property
     def et_fraction(self):
         """Fraction of reference ET"""
+
+        # Adjust air temperature based on elevation (Elevation Lapse Rate)
+        # TODO: Eventually point thisat the model.elr_adjust() function instead
+        if self._elr_flag:
+            tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
+        else:
+            tmax = self.tmax
+
         et_fraction = model.et_fraction(
-            lst=self.lst, tmax=self.tmax, tcorr=self.tcorr, dt=self.dt,
-            elr_flag=self._elr_flag, elev=self.elev,
-        )
+            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=self.dt)
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
@@ -525,7 +531,9 @@ class Image():
             If `self._elev_source` is not supported.
 
         """
-        if utils.is_number(self._elev_source):
+        if self._elev_source is None:
+            raise ValueError('elev_source was not set')
+        elif utils.is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
         elif self._elev_source.upper() == 'ASSET':
             elev_image = ee.Image(PROJECT_FOLDER + '/srtm_1km')

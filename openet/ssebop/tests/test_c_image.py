@@ -146,7 +146,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
     assert m._dt_source == 'DAYMET_MEDIAN_V2'
-    assert m._elev_source == 'SRTM'
+    assert m._elev_source == None
     assert m._tcorr_source == 'DYNAMIC'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
     # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
@@ -219,6 +219,15 @@ def test_Image_lst_properties():
 
 
 @pytest.mark.parametrize(
+    'elev_source',
+    [None, '', 'DEADBEEF']
+)
+def test_Image_elev_source_exception(elev_source):
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(elev_source=elev_source).elev)
+
+
+@pytest.mark.parametrize(
     'elev_source, xy, expected',
     [
         ['SRTM', TEST_POINT, 67.0],
@@ -238,16 +247,11 @@ def test_Image_lst_properties():
         # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
     ]
 )
-def test_Image_elev_sources(elev_source, xy, expected, tol=0.001):
+def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
     """Test getting elevation values for a single date at a real point"""
     output = utils.point_image_value(default_image_obj(
         elev_source=elev_source).elev, xy)
     assert abs(output['elev'] - expected) <= tol
-
-
-def test_Image_elev_sources_exception():
-    with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(elev_source='').elev)
 
 
 def test_Image_elev_band_name():
@@ -334,7 +338,7 @@ def test_Image_dt_source_calculated(dt_source, elev, date, xy, expected, tol=0.0
     assert abs(output['dt'] - expected) <= tol
 
 
-def test_Image_dt_sources_exception():
+def test_Image_dt_source_exception():
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(dt_source='').dt)
 
@@ -1389,7 +1393,7 @@ def test_Image_tcorr_scene_daily():
         'IMAGE',
     ]
 )
-def test_Image_tcorr_sources_exception(tcorr_src):
+def test_Image_tcorr_source_exception(tcorr_src):
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(tcorr_source=tcorr_src).tcorr)
 
@@ -1402,7 +1406,7 @@ def test_Image_tcorr_sources_exception(tcorr_src):
         ['SCENE', 'DEADBEEF'],
     ]
 )
-def test_Image_tcorr_tmax_sources_exception(tcorr_src, tmax_src):
+def test_Image_tcorr_tmax_source_exception(tcorr_src, tmax_src):
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(
             tcorr_source=tcorr_src, tmax_source=tmax_src).tcorr)
@@ -1534,8 +1538,8 @@ def test_Image_et_reference_properties():
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]
 )
-def test_Image_et_reference_sources(source, band, factor, xy, expected,
-                                    tol=0.001):
+def test_Image_et_reference_source(source, band, factor, xy, expected,
+                                   tol=0.001):
     """Test getting reference ET values for a single date at a real point"""
     output = utils.point_image_value(default_image_obj(
         et_reference_source=source, et_reference_band=band,
@@ -1544,7 +1548,7 @@ def test_Image_et_reference_sources(source, band, factor, xy, expected,
 
 
 # TODO: Exception should be raised if source is not named like a collection
-# def test_Image_et_reference_sources_exception():
+# def test_Image_et_reference_source_exception():
 #     with pytest.raises(ValueError):
 #         utils.getinfo(default_image_obj(et_reference_source='DEADBEEF').et_reference)
 
