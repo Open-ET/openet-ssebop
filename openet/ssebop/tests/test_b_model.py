@@ -6,20 +6,6 @@ import openet.ssebop.utils as utils
 
 
 @pytest.mark.parametrize(
-    'tmax, elev, threshold, expected',
-    [
-        [305, 1500, 1500, 305],
-        [305, 2000, 1500, 303.5],
-        [305, 500, 0, 303.5],
-    ]
-)
-def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
-    output = utils.constant_image_value(model.lapse_adjust(
-        ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
-    assert abs(output['constant'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
     # Note: These are made up values
     'lst, ndvi, dt, tcorr, tmax, expected',
     [
@@ -45,7 +31,7 @@ def test_Image_static_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
         [327, 0.08, 17, 0.985, 308, 0.0],
     ]
 )
-def test_Image_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
+def test_Model_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
     output = utils.constant_image_value(model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt))
@@ -61,7 +47,7 @@ def test_Image_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.00
         [298, 10, 0.98, 310, None], # 1.58 ETf should be set to None (>1.5)
     ]
 )
-def test_Image_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
+def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
     """Test that ETf is set to nodata for ETf > 1.3"""
     output_img = model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
@@ -71,26 +57,6 @@ def test_Image_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
         assert output['et_fraction'] is None
     else:
         assert output['et_fraction'] == expected
-
-
-@pytest.mark.parametrize(
-    # Note: These are made up values
-    'lst, dt, elev, tcorr, tmax, elr_flag, expected',
-    [
-        # Test ELR flag
-        [305, 15, 2000, 0.98, 310, False, 0.9200],
-        [305, 15, 2000, 0.98, 310, True, 0.8220],
-        [315, 15, 2000, 0.98, 310, True, 0.1553],
-    ]
-)
-def test_Image_et_fraction_elr_param(lst, dt, elev, tcorr, tmax, elr_flag,
-                                     expected, tol=0.0001):
-    """Test that elr_flag works and changes ETf values"""
-    output_img = model.et_fraction(
-        lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
-        tcorr=tcorr, dt=dt, elr_flag=elr_flag, elev=elev)
-    output = utils.constant_image_value(ee.Image(output_img))
-    assert abs(output['et_fraction'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -186,6 +152,20 @@ def test_Model_dt_doy_exception():
 
 
 @pytest.mark.parametrize(
+    'tmax, elev, threshold, expected',
+    [
+        [305, 1500, 1500, 305],
+        [305, 2000, 1500, 303.5],
+        [305, 500, 0, 303.5],
+    ]
+)
+def test_Model_lapse_adjust(tmax, elev, threshold, expected, tol=0.0001):
+    output = utils.constant_image_value(model.lapse_adjust(
+        ee.Image.constant(tmax), ee.Image.constant(elev), threshold))
+    assert abs(output['constant'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
     'xy, adjusted',
     [
         [[-119.0, 37.5], True],  # Mountains
@@ -193,9 +173,14 @@ def test_Model_dt_doy_exception():
     ]
 )
 def test_Model_elr_adjust(xy, adjusted):
-    """Check if the temperature is lower when there should be an adjustment"""
+    """Check if the temperature is lower when there should be an adjustment
+
+    This test can't be done with constant images since there are reduce and
+    reproject calls in the function.
+    """
     tmax = ee.Image(f'NASA/ORNL/DAYMET_V4/20170701').select(['tmax']).add(273.15)
     elev = ee.Image('CGIAR/SRTM90_V4')
+
     # Use a small radius to make the test run faster
     original = utils.point_image_value(tmax, xy, scale=100)['tmax']
     tmax = model.elr_adjust(temperature=tmax, elevation=elev, radius=80)

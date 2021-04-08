@@ -3,8 +3,7 @@ import math
 import ee
 
 
-def et_fraction(lst, tmax, tcorr, dt, elr_flag=False,
-                elev=None):
+def et_fraction(lst, tmax, tcorr, dt):
     """SSEBop fraction of reference ET (ETf)
 
     Parameters
@@ -17,11 +16,6 @@ def et_fraction(lst, tmax, tcorr, dt, elr_flag=False,
         Tcorr.
     dt : ee.Image, ee.Number
         Temperature difference [K].
-    elr_flag : bool, optional
-        If True, apply Elevation Lapse Rate (ELR) adjustment
-        (the default is False).
-    elev : ee.Image, ee.Number, optional
-        Elevation [m] (the default is None).  Only needed if elr_flag is True.
 
     Returns
     -------
@@ -31,11 +25,11 @@ def et_fraction(lst, tmax, tcorr, dt, elr_flag=False,
     ----------
 
 
-    """
-    # Adjust air temperature based on elevation (Elevation Lapse Rate)
-    if elr_flag:
-        tmax = ee.Image(lapse_adjust(tmax, ee.Image(elev)))
+    Notes
+    -----
+    Clamping function assumes this is an alfalfa fraction.
 
+    """
     et_fraction = lst.expression(
         '(lst * (-1) + tmax * tcorr + dt) / dt',
         {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
@@ -187,11 +181,16 @@ def elr_adjust(temperature, elevation, radius=80):
     elevation : ee.Image
         Elevation [m].
     radius : int
-        Smoothing radius
+        Smoothing radius (the default is 80)
 
     Returns
     -------
     ee.Image of adjusted temperature
+
+    Notes
+    -----
+    The radius was selected for the DAYMET 1km grid and will likely need to be
+    adjusted for other temperature datasets.
 
     """
     tmax_img = ee.Image(temperature)
