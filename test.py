@@ -1,5 +1,5 @@
 """This script provides a quick way to test issues that are going wrong in a ipynb in the examples folder
-without having to throw 'pip install . --no-deps' every time you want to print something or troubleshoot"""
+without having to throw 'pip install . --no-deps' every time you want to print something or troubleshoot."""
 import openet.ssebop as model
 # Import the Earth Engine package
 import ee
