@@ -41,10 +41,14 @@ def test_Model_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.00
 @pytest.mark.parametrize(
     'lst, dt, tcorr, tmax, expected',
     [
+        # The ETf mask limit was changed from 1.5 to 2.0 for gridded Tcorr
+        [304, 10, 0.98, 310, 0.98], # 0.98 ETf will not be clamped
+        [303, 10, 0.98, 310, 1.00], # 1.08 ETf will be clamped to 1.0
+        [293, 10, 0.98, 310, None], # 2.08 ETf should be set to None (>2.0)
         # The ETf mask limit was changed from 1.3 to 1.5 for gridded Tcorr
-        [302, 10, 0.98, 310, 1.05], # 1.18 ETf should be clamped to 1.05
-        [300, 10, 0.98, 310, 1.05], # 1.38 ETf should be clamped to 1.05
-        [298, 10, 0.98, 310, None], # 1.58 ETf should be set to None (>1.5)
+        # [302, 10, 0.98, 310, 1.05], # 1.18 ETf should be clamped to 1.05
+        # [300, 10, 0.98, 310, 1.05], # 1.38 ETf should be clamped to 1.05
+        # [298, 10, 0.98, 310, None], # 1.58 ETf should be set to None (>1.5)
     ]
 )
 def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
@@ -56,7 +60,7 @@ def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
     if expected is None:
         assert output['et_fraction'] is None
     else:
-        assert output['et_fraction'] == expected
+        assert abs(output['et_fraction'] - expected) <= 0.000001
 
 
 @pytest.mark.parametrize(
