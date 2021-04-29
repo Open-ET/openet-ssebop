@@ -34,6 +34,18 @@ landsat_crs = landsat_img.select('SR_B3').projection().getInfo()['crs']
 landsat_region = landsat_img.geometry().bounds(1, 'EPSG:4326')
 landsat_dt = ee.Date(landsat_img.get('system:time_start'))
 
+# # Build the SSEBop object from the Landsat image
+# model_obj = model.Image.from_landsat_c2_sr(
+#     landsat_img,
+#     tcorr_source='SCENE_GRIDDED',
+#     et_reference_source='IDAHO_EPSCOR/GRIDMET',
+#     et_reference_band='etr',
+#     et_reference_factor=0.85,
+#     et_reference_resample='nearest',
+#     tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr'
+# )
+
+## ============== NON-Lapse Rate Adjusted =================
 # Build the SSEBop object from the Landsat image
 model_obj = model.Image.from_landsat_c2_sr(
     landsat_img,
@@ -42,7 +54,8 @@ model_obj = model.Image.from_landsat_c2_sr(
     et_reference_band='etr',
     et_reference_factor=0.85,
     et_reference_resample='nearest',
-    tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr'
+    tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
 )
 
-et_property = model_obj.et
+
+et_property = model_obj.et_fraction

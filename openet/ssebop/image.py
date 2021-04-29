@@ -632,6 +632,7 @@ class Image():
             elif (self._tmax_source.startswith('projects/') and
                     self._tmax_source.split('/')[-1] in scene_dict.keys()):
                 tmax_key = self._tmax_source.split('/')[-1]
+                print('the tmax key \n', tmax_key)
             else:
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
