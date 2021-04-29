@@ -1,12 +1,10 @@
 import argparse
-# import base64
 import datetime
 import logging
 import math
 import pprint
 import re
 import time
-import sys
 
 import ee
 from flask import abort, Response
@@ -23,25 +21,23 @@ TOOL_VERSION = '0.1.0'
 # TODO: Move all of these to config.py?
 FUNCTION_URL = 'https://us-central1-ssebop.cloudfunctions.net'
 FUNCTION_NAME = 'tcorr-gridded-worker'
-GEE_KEY_FILE = 'privatekey.json'
+GEE_KEY_FILE = 'ssebop-8715c0482348.json'
+# GEE_KEY_FILE = 'privatekey.json'
 PROJECT_NAME = 'ssebop'
 TASK_LOCATION = 'us-central1'
 TASK_QUEUE = 'default'
 START_DAY_OFFSET = 60
 END_DAY_OFFSET = 0
 
-# Inputs from DAYMET v2 Median Tcorr Export INI File
 STUDY_AREA_COLL_ID = 'TIGER/2018/States'
 STUDY_AREA_PROPERTY = 'STUSPS'
 STUDY_AREA_FEATURES = ['CONUS']
 MGRS_FTR_COLL_ID = 'projects/earthengine-legacy/assets/projects/openet/mgrs/conus_gridmet/zones'
 COLLECTIONS = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
-# COLLECTIONS = ['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA']
-COLLECTIONS_RT = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
+# COLLECTIONS_RT = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
 CLOUD_COVER = 70
 TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr'
 TCORR_SOURCE = 'GRIDDED_COLD'
-# TCORR_SOURCE = 'GRIDDED'
 CLIP_OCEAN_FLAG = True
 # MGRS_TILES = []
 # UTM_ZONES = list(range(10, 20))
@@ -49,10 +45,9 @@ CLIP_OCEAN_FLAG = True
 # STUDY_AREA_EXTENT = [-125, 25, -65, 49]
 
 ASSET_ID_FMT = '{coll_id}/{scene_id}'
+
 ASSET_COLL_ID = f'projects/earthengine-legacy/assets/' \
-                f'projects/usgs-ssebop/tcorr_gridded/{TMAX_SOURCE.split("/")[-1]}'
-# ASSET_COLL_ID = f'projects/earthengine-legacy/assets/' \
-#                 f'projects/usgs-ssebop/tcorr_gridded/c02/{TMAX_SOURCE.split("/")[-1]}'
+                f'projects/usgs-ssebop/tcorr_gridded/c02/{TMAX_SOURCE.split("/")[-1]}'
 EXPORT_ID_FMT = 'tcorr_gridded_{product}_{scene_id}'
 EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
 TCORR_INDICES = {
@@ -134,7 +129,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     if gee_key_file:
         logging.debug(f'  Using service account key file: {gee_key_file}')
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-        ee.Initialize(ee.ServiceAccountCredentials('', key_file=gee_key_file))
+
     else:
         ee.Initialize()
 
@@ -149,13 +144,15 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             return f'{export_id} - Error removing existing asset'
 
     # CGM - These checks are probably not necessary since they are hardcoded above
-    if TCORR_SOURCE.upper() not in ['GRIDDED']:
+    if TCORR_SOURCE.upper() not in ['GRIDDED', 'GRIDDED_COLD']:
         logging.error(f'Unsupported tcorr_source: {TCORR_SOURCE}')
         return f'{export_id} - Unsupported tcorr_source: {TCORR_SOURCE}'
 
     if (TMAX_SOURCE.upper() not in ['DAYMET_MEDIAN_V2'] and
-            not re.match('projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}', TCORR_SOURCE)):
+            not re.match('^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?',
+                         TMAX_SOURCE)):
         logging.error(f'Unsupported tmax_source: {TMAX_SOURCE}')
+        input('ENTER')
         return f'{export_id} - Unsupported tmax_source: {TMAX_SOURCE}'
     logging.debug(f'  Tmax Source:  {TMAX_SOURCE}')
 
@@ -172,7 +169,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     #     return f'{export_id} - Unsupported tmax_source: {TMAX_SOURCE}'
 
     # Get the input image grid and spatial reference
-    image_info = ee.Image(image_id).select(['B3']).getInfo()
+    image_info = ee.Image(image_id).select([2]).getInfo()
     image_geo = image_info['bands'][0]['crs_transform']
     image_crs = image_info['bands'][0]['crs']
     image_shape = image_info['bands'][0]['dimensions']
@@ -318,11 +315,12 @@ def tcorr_gridded_images(start_dt, end_dt, overwrite_flag=False,
 
     # TODO: Add a check for dates before 2013, since L5 isn't in collections
 
-    logging.info(f'  Realtime:   {realtime_flag}')
-    if realtime_flag:
-        collections = COLLECTIONS_RT[:]
-    else:
-        collections = COLLECTIONS[:]
+    # logging.info(f'  Realtime:   {realtime_flag}')
+    # if realtime_flag:
+    #     collections = COLLECTIONS_RT[:]
+    # else:
+    #     collections = COLLECTIONS[:]
+    collections = COLLECTIONS[:]
 
     # TODO: Move to config.py?
     logging.debug('\nInitializing Earth Engine')
@@ -335,6 +333,7 @@ def tcorr_gridded_images(start_dt, end_dt, overwrite_flag=False,
 
     if not ee.data.getInfo(ASSET_COLL_ID):
         logging.error('Export collection does not exist')
+        logging.error(f'  {ASSET_COLL_ID}')
         return []
 
     # Get list of MGRS tiles that intersect the study area
@@ -909,9 +908,7 @@ if __name__ == "__main__":
         start_dt=args.start, end_dt=args.end, gee_key_file=args.key,
         realtime_flag=args.realtime
     )
-    pprint.pprint(image_id_list)
-    input('ENTER')
 
-    # for image_id in image_id_list:
-    #     response = tcorr_gridded_asset_ingest(image_id, gee_key_file=args.key)
-    #     logging.info(f'{response}')
+    for image_id in image_id_list:
+        response = tcorr_gridded_asset_ingest(image_id, gee_key_file=args.key)
+        logging.info(f'{response}')

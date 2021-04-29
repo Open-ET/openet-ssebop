@@ -224,7 +224,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
     # For now only support reading specific Tmax sources
     if (tmax_source.upper() not in ['DAYMET_MEDIAN_V2'] and
-            not re.match('projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}', tmax_source)):
+            not re.match('^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?',
+                         tmax_source)):
         raise ValueError(f'unsupported tmax_source: {tmax_source}')
     # if (tmax_source.upper() == 'CIMIS' and
     #         ini['INPUTS']['end_date'] < '2003-10-01'):

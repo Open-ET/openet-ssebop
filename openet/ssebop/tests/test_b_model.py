@@ -52,7 +52,7 @@ def test_Model_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.00
     ]
 )
 def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
-    """Test that ETf is set to nodata for ETf > 1.3"""
+    """Test that ETf is set to nodata for ETf > 2.0"""
     output_img = model.et_fraction(
         lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
         tcorr=tcorr, dt=dt)
