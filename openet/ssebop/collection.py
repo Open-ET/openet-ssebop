@@ -287,7 +287,7 @@ class Collection():
                         'system:time_start', ee.Date('2011-12-31').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
-                        'system:time_start', ee.Date('2013-03-24').millis()))
+                        'system:time_start', ee.Date('2013-04-01').millis()))
 
                 def compute_lsr(image):
                     model_obj = Image.from_landsat_c2_sr(
@@ -324,7 +324,7 @@ class Collection():
                         'system:time_start', ee.Date('2011-12-31').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
-                        'system:time_start', ee.Date('2013-03-24').millis()))
+                        'system:time_start', ee.Date('2013-04-01').millis()))
 
                 def compute_ltoa(image):
                     model_obj = Image.from_landsat_c1_toa(
@@ -359,7 +359,7 @@ class Collection():
                         'system:time_start', ee.Date('2011-12-31').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
-                        'system:time_start', ee.Date('2013-03-24').millis()))
+                        'system:time_start', ee.Date('2013-04-01').millis()))
 
                 def compute_lsr(image):
                     model_obj = Image.from_landsat_c1_sr(
