@@ -40,13 +40,11 @@ class Image():
             et_reference_band=None,
             et_reference_factor=None,
             et_reference_resample=None,
+            et_reference_date_type=None,
             dt_source='DAYMET_MEDIAN_V2',
             elev_source=None,
             tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
-            # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            # tmax_source='projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-            # tmax_source='projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
             elr_flag=False,
             dt_min=5,
             dt_max=25,
@@ -156,6 +154,7 @@ class Image():
         self.et_reference_band = et_reference_band
         self.et_reference_factor = et_reference_factor
         self.et_reference_resample = et_reference_resample
+        self.et_reference_date_type = et_reference_date_type
 
         # Check reference ET parameters
         if et_reference_factor and not utils.is_number(et_reference_factor):
@@ -347,14 +346,38 @@ class Image():
             #   i.e. ee.ee_types.isNumber(self.et_reference_source)
             et_reference_img = ee.Image.constant(self.et_reference_source)
         elif type(self.et_reference_source) is str:
-            # Assume a string source is an image collection ID (not an image ID)
-            et_reference_coll = ee.ImageCollection(self.et_reference_source)\
-                .filterDate(self._start_date, self._end_date)\
-                .select([self.et_reference_band])
+            if self.et_reference_date_type == 'DOY':
+                def gridmet_median_v1_replace_daily(image):
+                    """Mapping function to get daily time_start and system:index
+
+                    Returns the doy-based gridmet with daily time properties
+                    """
+                    image_date = ee.Algorithms.Date(image.get("system:time_start"))
+                    doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
+                    coll_doy = ee.ImageCollection(self.et_reference_source)\
+                        .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
+                        .select([self.et_reference_band]).mean() #.first() returns a FC not IC
+                    return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
+
+                et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
+                    .filterDate(self._start_date, self._end_date) \
+                    .select([self.et_reference_band])\
+                    .map(gridmet_median_v1_replace_daily())
+
+            elif self.et_reference_date_type is None:
+                # Assume a string source is an image collection ID (not an image ID) and has daily time properties
+                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select([self.et_reference_band])
             et_reference_img = ee.Image(et_reference_coll.first())
             if self.et_reference_resample in ['bilinear', 'bicubic']:
                 et_reference_img = et_reference_img\
                     .resample(self.et_reference_resample)
+
+            else:
+                raise ValueError('unsupported et_reference_date_type: {}'.format(
+                    self.et_reference_date_type))
+
         # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
