@@ -347,10 +347,11 @@ class Image():
             et_reference_img = ee.Image.constant(self.et_reference_source)
         elif type(self.et_reference_source) is str:
             if self.et_reference_date_type == 'DOY':
+                # Assume a string source is an image collection ID (not an image ID) and only has DOY properties
                 def gridmet_median_v1_replace_daily(image):
                     """Mapping function to get daily time_start and system:index
 
-                    Returns the doy-based gridmet with daily time properties
+                    Returns the doy-based reference et with daily time properties from GRIDMET
                     """
                     image_date = ee.Algorithms.Date(image.get("system:time_start"))
                     doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
