@@ -848,7 +848,8 @@ class Image():
             tmax_image = ee.Image.constant(float(self._tmax_source))\
                 .rename(['tmax'])\
                 .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
-        elif re.match(r'projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}', self._tmax_source):
+        elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?',
+                      self._tmax_source):
             # Process Tmax source as a collection ID
             # The new Tmax collections do not have a time_start so filter using
             #   the "doy" property instead

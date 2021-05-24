@@ -21,8 +21,7 @@ TOOL_VERSION = '0.1.0'
 # TODO: Move all of these to config.py?
 FUNCTION_URL = 'https://us-central1-ssebop.cloudfunctions.net'
 FUNCTION_NAME = 'tcorr-gridded-worker'
-GEE_KEY_FILE = 'ssebop-8715c0482348.json'
-# GEE_KEY_FILE = 'privatekey.json'
+GEE_KEY_FILE = 'privatekey.json'
 PROJECT_NAME = 'ssebop'
 TASK_LOCATION = 'us-central1'
 TASK_QUEUE = 'default'
@@ -129,7 +128,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     if gee_key_file:
         logging.debug(f'  Using service account key file: {gee_key_file}')
         # The "EE_ACCOUNT" parameter is not used if the key file is valid
-
+        ee.Initialize(ee.ServiceAccountCredentials('', key_file=gee_key_file))
     else:
         ee.Initialize()
 
