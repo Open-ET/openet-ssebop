@@ -11,7 +11,7 @@ import openet.ssebop as ssebop
 import utils
 # from . import utils
 
-ANNUAL_TCORR_INDEX = 4
+ANNUAL_TCORR_INDEX = 6
 NODATA_TCORR_INDEX = 9
 
 
