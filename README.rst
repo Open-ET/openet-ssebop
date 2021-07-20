@@ -14,7 +14,7 @@ This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values
 
 Basic SSEBop model architecture in Earth Engine:
 
-.. image:: docs/SSEBop_GEE_flow.PNG
+.. image:: docs/SSEBop_GEE_diagram.jpg
 
 Input Collections
 =================
