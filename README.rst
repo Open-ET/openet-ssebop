@@ -9,21 +9,25 @@ OpenET - SSEBop
 This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
 The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr).
-The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on clear-sky net radiation balance principles.
+The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on average-sky net radiation balance principles.
 This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
 
-Basic SSEBop model architecture in Earth Engine:
+Basic SSEBop model implementation in Earth Engine:
 
 .. image:: docs/SSEBop_GEE_diagram.jpg
 
 Input Collections
 =================
 
-SSEBop ET can currently only be computed for Landsat Collection 1 TOA image from the following Earth Engine image collections:
+SSEBop ET can currently be computed for Landsat Collection 2 SR/ST images (where available) and Landsat Collection 1 TOA images from the following Earth Engine image collections:
 
+ * LANDSAT/LC08/C02/T1_L2
+ * LANDSAT/LE07/C02/T1_L2
+ * LANDSAT/LT05/C02/T1_L2
  * LANDSAT/LC08/C01/T1_TOA or LANDSAT/LC08/C01/T1_RT_TOA
  * LANDSAT/LE07/C01/T1_TOA or LANDSAT/LE07/C01/T1_RT_TOA
  * LANDSAT/LT05/C01/T1_TOA
+
 
 Note that scene specific Tcorr values have only been computed for Landsat images covering the contiguous United States (CONUS).  SSEBop estimates for Landsat images outside the CONUS will use the default c-factor value of 0.978 (see the `Tcorr (C-factor)`_ section for more details).
 
