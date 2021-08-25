@@ -117,7 +117,7 @@ class Collection():
         self.et_reference_band = et_reference_band
         self.et_reference_factor = et_reference_factor
         self.et_reference_resample = et_reference_resample
-        # self.et_reference_date_type = et_reference_date_type
+        self.et_reference_date_type = et_reference_date_type
 
         # Check reference ET parameters
         if et_reference_factor and not utils.is_number(et_reference_factor):
@@ -128,6 +128,10 @@ class Collection():
         if (et_reference_resample and
                 et_reference_resample.lower() not in et_reference_resample_methods):
             raise ValueError('unsupported et_reference_resample method')
+        et_reference_date_type_methods = ['doy', 'daily']
+        if (et_reference_date_type and
+                et_reference_date_type.lower() not in et_reference_date_type_methods):
+            raise ValueError('unsupported et_reference_date_type method')
 
         # Set/update the reference ET parameters in model_args if they were set in init()
         if self.et_reference_source:
@@ -138,6 +142,8 @@ class Collection():
             self.model_args['et_reference_factor'] = self.et_reference_factor
         if self.et_reference_resample:
             self.model_args['et_reference_resample'] = self.et_reference_resample
+        if self.et_reference_date_type:
+            self.model_args['et_reference_date_type'] = self.et_reference_date_type
 
         # Model specific variables that can be interpolated to a daily timestep
         # CGM - Should this be specified in the interpolation method instead?
