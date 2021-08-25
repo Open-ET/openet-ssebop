@@ -1562,6 +1562,7 @@ def test_Image_et_reference_source(source, band, factor, xy, expected,
          'etr', TEST_POINT, 10.2452],
         # None or "daily" is the default behavior of pulling the target date
         [None, 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
+        ['daily', 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
     ]
 )
 def test_Image_et_reference_date_type(date_type, source, band, xy, expected,

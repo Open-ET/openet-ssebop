@@ -165,6 +165,10 @@ class Image():
         if (et_reference_resample and
                 et_reference_resample.lower() not in et_reference_resample_methods):
             raise ValueError('unsupported et_reference_resample method')
+        et_reference_date_type_methods = ['doy', 'daily']
+        if (et_reference_date_type and
+                et_reference_date_type.lower() not in et_reference_date_type_methods):
+            raise ValueError('unsupported et_reference_date_type method')
 
         # Model input parameters
         self._dt_source = dt_source
@@ -346,8 +350,16 @@ class Image():
             #   i.e. ee.ee_types.isNumber(self.et_reference_source)
             et_reference_img = ee.Image.constant(self.et_reference_source)
         elif type(self.et_reference_source) is str:
-            if self.et_reference_date_type == 'DOY':
-                # Assume a string source is an image collection ID (not an image ID) and only has DOY properties
+            # Assume a string source is an image collection ID (not an image ID)
+            if (self.et_reference_date_type is None or
+                    self.et_reference_date_type.lower() == 'daily'):
+                # Assume the collection is daily with valid system:time_start values
+                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
+                    .filterDate(self._start_date, self._end_date)\
+                    .select([self.et_reference_band])
+            elif self.et_reference_date_type.lower() == 'doy':
+                # Assume the image collection is a climatology with "DOY" properties
+                # CGM - This function name doesn't seem to really match the operation
                 def gridmet_median_v1_replace_daily(image):
                     """Mapping function to get daily time_start and system:index
 
@@ -359,26 +371,19 @@ class Image():
                         .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
                         .select([self.et_reference_band]).mean() #.first() returns a FC not IC
                     return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
-
+                # CGM - Is GRIDMET supposed to be hardcoded here?
                 et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
                     .filterDate(self._start_date, self._end_date) \
                     .select([self.et_reference_band])\
-                    .map(gridmet_median_v1_replace_daily())
-
-            elif self.et_reference_date_type is None:
-                # Assume a string source is an image collection ID (not an image ID) and has daily time properties
-                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select([self.et_reference_band])
-            et_reference_img = ee.Image(et_reference_coll.first())
-            if self.et_reference_resample in ['bilinear', 'bicubic']:
-                et_reference_img = et_reference_img\
-                    .resample(self.et_reference_resample)
-
+                    .map(gridmet_median_v1_replace_daily)
             else:
                 raise ValueError('unsupported et_reference_date_type: {}'.format(
                     self.et_reference_date_type))
 
+            et_reference_img = ee.Image(et_reference_coll.first())
+            if self.et_reference_resample in ['bilinear', 'bicubic']:
+                et_reference_img = et_reference_img\
+                    .resample(self.et_reference_resample)
         # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
