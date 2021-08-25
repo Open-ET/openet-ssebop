@@ -31,6 +31,7 @@ default_coll_args = {
     'et_reference_band': 'etr',
     'et_reference_factor': 0.85,
     'et_reference_resample': 'nearest',
+    'et_reference_date_type': None,
     'model_args': {},
     'filter_args': {},
 }
@@ -55,6 +56,7 @@ def test_Collection_init_default_parameters():
     del args['et_reference_band']
     del args['et_reference_factor']
     del args['et_reference_resample']
+    del args['et_reference_date_type']
     del args['variables']
 
     m = ssebop.Collection(**args)
@@ -63,6 +65,7 @@ def test_Collection_init_default_parameters():
     assert m.et_reference_band == None
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
+    assert m.et_reference_date_type == None
     assert m.cloud_cover_max == 70
     assert m.model_args == {}
     assert m.filter_args == {}

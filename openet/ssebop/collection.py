@@ -44,6 +44,7 @@ class Collection():
             et_reference_band=None,
             et_reference_factor=None,
             et_reference_resample=None,
+            et_reference_date_type=None,
             filter_args=None,
             model_args=None,
             # model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
@@ -116,6 +117,7 @@ class Collection():
         self.et_reference_band = et_reference_band
         self.et_reference_factor = et_reference_factor
         self.et_reference_resample = et_reference_resample
+        # self.et_reference_date_type = et_reference_date_type
 
         # Check reference ET parameters
         if et_reference_factor and not utils.is_number(et_reference_factor):
