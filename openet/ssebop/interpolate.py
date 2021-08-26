@@ -151,16 +151,41 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     #     logging.debug('et_reference_resample was not set, default to nearest')
     #     # raise ValueError('et_reference_resample was not set')
 
+    if 'et_reference_date_type' in model_args.keys():
+        et_reference_date_type = model_args['et_reference_date_type']
+    else:
+        et_reference_date_type = None
+        # logging.debug('et_reference_date_type was not set, default to "daily"')
+        # et_reference_date_type = 'daily'
+
     if type(et_reference_source) is str:
         # Assume a string source is an single image collection ID
         #   not an list of collection IDs or ee.ImageCollection
-        daily_et_ref_coll = ee.ImageCollection(et_reference_source) \
-            .filterDate(start_date, end_date) \
-            .select([et_reference_band], ['et_reference'])
+        if (et_reference_date_type is None or
+                et_reference_date_type.lower() == 'daily'):
+            daily_et_ref_coll = ee.ImageCollection(et_reference_source) \
+                .filterDate(start_date, end_date) \
+                .select([et_reference_band], ['et_reference'])
+        elif et_reference_date_type.lower() == 'doy':
+            # Assume the image collection is a climatology with a "DOY" property
+            def doy_image(image):
+                """Return the doy-based reference et with daily time properties from GRIDMET"""
+                image_date = ee.Algorithms.Date(image.get("system:time_start"))
+                doy = ee.Number(image_date.getRelative('day', 'year')).add(1).int()
+                coll_doy = ee.ImageCollection(et_reference_source)\
+                    .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
+                    .select([et_reference_band], ['et_reference'])
+                return ee.Image(coll_doy.first())\
+                    .copyProperties(image, ['system:index', 'system:time_start'])
+            # Note, the collection and band that are used are important as
+            #   long as they are daily and available for the time period
+            daily_et_ref_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
+                .filterDate(start_date, end_date).select(['pet'])\
+                .map(doy_image)
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
     #     daily_et_reference_coll = ee.ImageCollection(et_reference_source) \
-    #         .filterDate(self.start_date, self.end_date) \
+    #         .filterDate(start_date, end_date) \
     #         .select([et_reference_band])
     else:
         raise ValueError('unsupported et_reference_source: {}'.format(
