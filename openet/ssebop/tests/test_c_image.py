@@ -1559,7 +1559,7 @@ def test_Image_et_reference_source(source, band, factor, xy, expected,
          'etr', TEST_POINT, 10.2452],
         # Check that date_type parameter is not case sensitive
         ['DOY', 'projects/usgs-ssebop/pet/gridmet_median_v1',
-         'etr', TEST_POINT, 10.2452],
+         'eto', TEST_POINT, 7.7345],
         # None or "daily" is the default behavior of pulling the target date
         [None, 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
         ['daily', 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],

@@ -166,3 +166,42 @@ def test_from_scene_et_fraction_monthly_et_reference_resample(tol=0.0001):
     # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
     # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
+
+
+# CGM - Test out using a reference ET climatology
+def test_from_scene_et_fraction_daily_et_reference_date_type_doy(tol=0.01):
+    output_coll = interpolate.from_scene_et_fraction(
+        scene_coll(['et_fraction', 'ndvi', 'time', 'mask']),
+        start_date='2017-07-01', end_date='2017-08-01',
+        variables=['et_reference'],
+        interp_args={'interp_method': 'linear', 'interp_days': 32},
+        model_args={'et_reference_source': 'projects/usgs-ssebop/pet/gridmet_median_v1',
+                    'et_reference_band': 'etr',
+                    'et_reference_factor': 1.0,
+                    'et_reference_resample': 'nearest',
+                    'et_reference_date_type': 'doy'},
+        t_interval='daily')
+
+    TEST_POINT = (-121.5265, 38.7399)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    # pprint.pprint(output)
+    assert abs(output['et_reference']['2017-07-01'] - 8.75) <= tol
+
+
+def test_from_scene_et_fraction_monthly_et_reference_date_type_doy(tol=0.01):
+    output_coll = interpolate.from_scene_et_fraction(
+        scene_coll(['et_fraction', 'ndvi', 'time', 'mask']),
+        start_date='2017-07-01', end_date='2017-08-01',
+        variables=['et_reference'],
+        interp_args={'interp_method': 'linear', 'interp_days': 32},
+        model_args={'et_reference_source': 'projects/usgs-ssebop/pet/gridmet_median_v1',
+                    'et_reference_band': 'etr',
+                    'et_reference_factor': 1.0,
+                    'et_reference_resample': 'nearest',
+                    'et_reference_date_type': 'doy'},
+        t_interval='monthly')
+
+    TEST_POINT = (-121.5265, 38.7399)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    assert abs(output['et_reference']['2017-07-01'] - 291.56) <= tol
+
