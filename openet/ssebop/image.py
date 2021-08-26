@@ -358,24 +358,31 @@ class Image():
                     .filterDate(self._start_date, self._end_date)\
                     .select([self.et_reference_band])
             elif self.et_reference_date_type.lower() == 'doy':
-                # Assume the image collection is a climatology with "DOY" properties
-                # CGM - This function name doesn't seem to really match the operation
-                def gridmet_median_v1_replace_daily(image):
-                    """Mapping function to get daily time_start and system:index
+                # Assume the image collection is a climatology with a "DOY" property
+                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
+                    .filter(ee.Filter.rangeContains('DOY', self._doy, self._doy))\
+                    .select([self.et_reference_band])
+                #     .limit(1, 'system:time_start', True)
 
-                    Returns the doy-based reference et with daily time properties from GRIDMET
-                    """
-                    image_date = ee.Algorithms.Date(image.get("system:time_start"))
-                    doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
-                    coll_doy = ee.ImageCollection(self.et_reference_source)\
-                        .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
-                        .select([self.et_reference_band]).mean() #.first() returns a FC not IC
-                    return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
-                # CGM - Is GRIDMET supposed to be hardcoded here?
-                et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
-                    .filterDate(self._start_date, self._end_date) \
-                    .select([self.et_reference_band])\
-                    .map(gridmet_median_v1_replace_daily)
+                # # CGM - Is this mapped function over GRIDMET really needed?
+                # #   Couldn't you just filter the source to the image DOY
+                # def et_reference_replace_daily(image):
+                #     """Mapping function to get daily time_start and system:index
+                #
+                #     Returns the doy-based reference et with daily time properties from GRIDMET
+                #     """
+                #     image_date = ee.Algorithms.Date(image.get("system:time_start"))
+                #     doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
+                #     coll_doy = ee.ImageCollection(self.et_reference_source)\
+                #         .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
+                #         .select([self.et_reference_band]).mean() #.first() returns a FC not IC
+                #     return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
+                # # Map over the GRIDMET collection to get a collection with the
+                # #   a single image for the target date
+                # et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
+                #     .filterDate(self._start_date, self._end_date) \
+                #     .select([self.et_reference_band])\
+                #     .map(et_reference_replace_daily)
             else:
                 raise ValueError('unsupported et_reference_date_type: {}'.format(
                     self.et_reference_date_type))
