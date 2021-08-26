@@ -180,7 +180,7 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
             # Note, the collection and band that are used are important as
             #   long as they are daily and available for the time period
             daily_et_ref_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
-                .filterDate(start_date, end_date).select(['pet'])\
+                .filterDate(start_date, end_date).select([et_reference_band])\
                 .map(doy_image)
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
