@@ -168,8 +168,8 @@ def test_from_scene_et_fraction_monthly_et_reference_resample(tol=0.0001):
     assert output['count']['2017-07-01'] == 3
 
 
-# CGM - Test out using a reference ET climatology
 def test_from_scene_et_fraction_daily_et_reference_date_type_doy(tol=0.01):
+    """Test interpolating a daily collection using a reference ET climatology"""
     output_coll = interpolate.from_scene_et_fraction(
         scene_coll(['et_fraction', 'ndvi', 'time', 'mask']),
         start_date='2017-07-01', end_date='2017-08-01',
@@ -189,6 +189,7 @@ def test_from_scene_et_fraction_daily_et_reference_date_type_doy(tol=0.01):
 
 
 def test_from_scene_et_fraction_monthly_et_reference_date_type_doy(tol=0.01):
+    """Test interpolating a monthly collection using a reference ET climatology"""
     output_coll = interpolate.from_scene_et_fraction(
         scene_coll(['et_fraction', 'ndvi', 'time', 'mask']),
         start_date='2017-07-01', end_date='2017-08-01',
@@ -204,4 +205,3 @@ def test_from_scene_et_fraction_monthly_et_reference_date_type_doy(tol=0.01):
     TEST_POINT = (-121.5265, 38.7399)
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['et_reference']['2017-07-01'] - 291.56) <= tol
-

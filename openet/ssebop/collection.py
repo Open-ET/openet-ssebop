@@ -144,6 +144,10 @@ class Collection():
             self.model_args['et_reference_resample'] = self.et_reference_resample
         if self.et_reference_date_type:
             self.model_args['et_reference_date_type'] = self.et_reference_date_type
+        # elif self.et_reference_date_type is None:
+        #     # Extra conditional needed since None is currently a valid date_type
+        #     # This should probably be changed so that "daily" is the default
+        #     self.model_args['et_reference_date_type'] = None
 
         # Model specific variables that can be interpolated to a daily timestep
         # CGM - Should this be specified in the interpolation method instead?
@@ -510,6 +514,9 @@ class Collection():
         if ('et_reference_resample' in kwargs.keys() and \
                 kwargs['et_reference_resample'] is not None):
             self.model_args['et_reference_resample'] = kwargs['et_reference_resample']
+        if ('et_reference_date_type' in kwargs.keys() and \
+                kwargs['et_reference_date_type'] is not None):
+            self.model_args['et_reference_date_type'] = kwargs['et_reference_date_type']
 
         # Check that all reference ET parameters were set
         # print(self.model_args)
@@ -523,14 +530,35 @@ class Collection():
         if type(self.model_args['et_reference_source']) is str:
             # Assume a string source is an single image collection ID
             #   not an list of collection IDs or ee.ImageCollection
-            daily_et_ref_coll_id = self.model_args['et_reference_source']
-            daily_et_ref_coll = ee.ImageCollection(daily_et_ref_coll_id)\
-                .filterDate(start_date, end_date)\
-                .select([self.model_args['et_reference_band']], ['et_reference'])
+            if ('et_reference_date_type' not in self.model_args.keys() or
+                    self.model_args['et_reference_date_type'] is None or
+                    self.model_args['et_reference_date_type'].lower() == 'daily'):
+                daily_et_ref_coll = ee.ImageCollection(self.model_args['et_reference_source'])\
+                    .filterDate(start_date, end_date)\
+                    .select([self.model_args['et_reference_band']], ['et_reference'])
+            elif self.model_args['et_reference_date_type'].lower() == 'doy':
+                # Assume the image collection is a climatology with a "DOY" property
+                def doy_image(input_img):
+                    """Return the doy-based reference et with daily time properties from GRIDMET"""
+                    image_date = ee.Algorithms.Date(input_img.get('system:time_start'))
+                    image_doy = ee.Number(image_date.getRelative('day', 'year')).add(1).int()
+                    doy_coll = ee.ImageCollection(self.model_args['et_reference_source'])\
+                        .filterMetadata('DOY', 'equals', image_doy)\
+                        .select([self.model_args['et_reference_band']], ['et_reference'])
+                    # CGM - Was there a reason to use rangeContains if limiting to one DOY?
+                    #     .filter(ee.Filter.rangeContains('DOY', image_doy, image_doy))\
+                    return ee.Image(doy_coll.first())\
+                        .set({'system:index': input_img.get('system:index'),
+                              'system:time_start': input_img.get('system:time_start')})
+                # Note, the collection and band that are used are important as
+                #   long as they are daily and available for the time period
+                daily_et_ref_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+                    .filterDate(start_date, end_date).select(['eto'])\
+                    .map(doy_image)
         # elif isinstance(self.model_args['et_reference_source'], computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     daily_et_ref_coll = self.model_args['et_reference_source'] \
-        #         .filterDate(self.start_date, self.end_date) \
+        #     daily_et_ref_coll = self.model_args['et_reference_source']\
+        #         .filterDate(self.start_date, self.end_date)\
         #         .select([self.model_args['et_reference_band']])
         else:
             raise ValueError('unsupported et_reference_source: {}'.format(

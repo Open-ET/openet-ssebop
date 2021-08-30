@@ -168,23 +168,26 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
                 .select([et_reference_band], ['et_reference'])
         elif et_reference_date_type.lower() == 'doy':
             # Assume the image collection is a climatology with a "DOY" property
-            def doy_image(image):
+            def doy_image(input_img):
                 """Return the doy-based reference et with daily time properties from GRIDMET"""
-                image_date = ee.Algorithms.Date(image.get("system:time_start"))
-                doy = ee.Number(image_date.getRelative('day', 'year')).add(1).int()
-                coll_doy = ee.ImageCollection(et_reference_source)\
-                    .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
+                image_date = ee.Algorithms.Date(input_img.get('system:time_start'))
+                image_doy = ee.Number(image_date.getRelative('day', 'year')).add(1).int()
+                doy_coll = ee.ImageCollection(et_reference_source)\
+                    .filterMetadata('DOY', 'equals', image_doy)\
                     .select([et_reference_band], ['et_reference'])
-                return ee.Image(coll_doy.first())\
-                    .copyProperties(image, ['system:index', 'system:time_start'])
+                # CGM - Was there a reason to use rangeContains if limiting to one DOY?
+                #     .filter(ee.Filter.rangeContains('DOY', doy, doy))\
+                return ee.Image(doy_coll.first())\
+                    .set({'system:index': input_img.get('system:index'),
+                          'system:time_start': input_img.get('system:time_start')})
             # Note, the collection and band that are used are important as
             #   long as they are daily and available for the time period
-            daily_et_ref_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
-                .filterDate(start_date, end_date).select([et_reference_band])\
+            daily_et_ref_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
+                .filterDate(start_date, end_date).select(['eto'])\
                 .map(doy_image)
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
-    #     daily_et_reference_coll = ee.ImageCollection(et_reference_source) \
+    #     daily_et_reference_coll = ee.ImageCollection(et_reference_source)\
     #         .filterDate(start_date, end_date) \
     #         .select([et_reference_band])
     else:
