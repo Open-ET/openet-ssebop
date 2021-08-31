@@ -73,6 +73,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        et_reference_band='etr',
                        et_reference_factor=1,
                        et_reference_resample='nearest',
+                       et_reference_date_type=None,
                        dt_source=18,
                        elev_source=67,
                        elr_flag=False,
@@ -90,6 +91,7 @@ def default_image_args(lst=305, ndvi=0.8,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
         'et_reference_resample': et_reference_resample,
+        'et_reference_date_type': et_reference_date_type,
         'dt_source': dt_source,
         'elev_source': elev_source,
         'elr_flag': elr_flag,
@@ -109,6 +111,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       et_reference_band='etr',
                       et_reference_factor=1,
                       et_reference_resample='nearest',
+                      et_reference_date_type=None,
                       dt_source=18,
                       elev_source=67,
                       elr_flag=False,
@@ -126,6 +129,7 @@ def default_image_obj(lst=305, ndvi=0.8,
         et_reference_band=et_reference_band,
         et_reference_factor=et_reference_factor,
         et_reference_resample=et_reference_resample,
+        et_reference_date_type=et_reference_date_type,
         dt_source=dt_source,
         elev_source=elev_source,
         elr_flag=elr_flag,
@@ -145,6 +149,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_band == None
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
+    assert m.et_reference_date_type == None
     assert m._dt_source == 'DAYMET_MEDIAN_V2'
     assert m._elev_source == None
     assert m._tcorr_source == 'DYNAMIC'
@@ -318,7 +323,7 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
     [
         ['CIMIS', 18, '2017-07-16', [-122.1622, 39.1968], 17.1013],
         ['DAYMET', 18, '2017-07-16', [-122.1622, 39.1968], 13.5525],
-        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1700],
+        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1588],
         # ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1711],
         # ['CIMIS', 67, SCENE_DATE, TEST_POINT, 17.10647],
         # ['DAYMET', 67, SCENE_DATE, TEST_POINT, 12.99047],
@@ -1547,10 +1552,38 @@ def test_Image_et_reference_source(source, band, factor, xy, expected,
     assert abs(output['et_reference'] - expected) <= tol
 
 
+@pytest.mark.parametrize(
+    'date_type, source, band, xy, expected',
+    [
+        ['doy', 'projects/usgs-ssebop/pet/gridmet_median_v1',
+         'etr', TEST_POINT, 10.2452],
+        # Check that date_type parameter is not case sensitive
+        ['DOY', 'projects/usgs-ssebop/pet/gridmet_median_v1',
+         'eto', TEST_POINT, 7.7345],
+        # None or "daily" is the default behavior of pulling the target date
+        [None, 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
+        ['daily', 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
+    ]
+)
+def test_Image_et_reference_date_type(date_type, source, band, xy, expected,
+                                      tol=0.001):
+    """Test if the date_type parameter works"""
+    output = utils.point_image_value(default_image_obj(
+        et_reference_source=source, et_reference_band=band,
+        et_reference_date_type=date_type).et_reference, xy)
+    assert abs(output['et_reference'] - expected) <= tol
+
+
+# TODO: Write a test to check that an exception is raise if the source collection
+#   doesn't have a DOY property when the date type is "DOY"
+
+
 # TODO: Exception should be raised if source is not named like a collection
-# def test_Image_et_reference_source_exception():
-#     with pytest.raises(ValueError):
-#         utils.getinfo(default_image_obj(et_reference_source='DEADBEEF').et_reference)
+#   Currently an exception is only raise if not a string or number
+def test_Image_et_reference_source_exception():
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(
+            et_reference_source=ee.Image.constant(10)).et_reference)
 
 
 def test_Image_et_properties():
