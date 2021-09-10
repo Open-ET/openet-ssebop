@@ -9,8 +9,8 @@ OpenET - SSEBop
 This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
 The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr or ETo).
-The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on average-sky net radiation balance principles.
-This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
+The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on "gray-sky" net radiation balance principles and an air temperature parameter.
+This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel, allowing an operational model setup and a relatively shorter compute time.
 
 *Basic SSEBop model implementation in Earth Engine:*
 
@@ -144,7 +144,7 @@ Land Surface Temperature is currently calculated in the SSEBop approach two ways
 Temperature Difference (dT)
 ----------------------
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
-In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under gray-sky conditions and assumed not to change from year to year, but is unique for each day and location.
+In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under "gray-sky" conditions and assumed not to change from year to year, but is unique for each day and location.
 
 Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v2*
 
@@ -156,16 +156,16 @@ Default Asset ID: `USGS/SRTMGL1_003 <https://developers.google.com/earth-engine/
 
 The elevation parameter will accept any Earth Engine image.
 
-Temperature Correction (Tcorr or C-factor)
+Temperature Correction (*c factor*)
 ----------------
-In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
-This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes Tcorr as a function of the maximum air temperature, so the data source of the Tcorr collection needs to match the data source of the air temperature.
+In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
+This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes the *c factor* as a function of the maximum air temperature, so the data source of the *c factor* collection needs to match the data source of the air temperature. **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid or scene-wide value.
 
 .. image:: docs/TODOaddNewTcorrFigure.PNG
 
-Model Tcorr can be implemented dynamically as a scene-based single C-factor (this is the default) or using precomputed spatially varying 5-km gridded Tcorr Image Assets (advanced setting).
+This parameter can be implemented dynamically as a scene-based single *c factor* (this is the default) or using precomputed spatially varying Image Assets where a gridded *c factor* is generated for every 5-km (advanced setting).
 
-* Using either DYNAMIC or SCENE_GRIDDED settings, the Tcorr parameter is read from precomputed Earth Engine image collections based on the Landsat scene ID (from the system:index property). A monthly/annual climatology Tcorr is used if Tcorr cannot be determined for a given Landsat scene. If fallback values have not been computed for the target path/row, a default value of 0.978 will be used.
+* Using either DYNAMIC or SCENE_GRIDDED settings, the *c factor* parameter is read from precomputed Earth Engine image collections based on the Landsat scene ID (from the system:index property). Monthly/annual climatology values are used if Tcorr cannot be determined for a given Landsat scene. If fallback values have not been computed for the target path/row, a default value of 0.978 will be used.
 * Currently, SCENE_GRIDDED is only supported for Landsat Collection 2 across CONUS (since model version 0.1.5x) and requires a matching Tmax source. See `this example notebook <examples/tcorr_gridded.ipynb>`__ for more information.
 
 Default Asset IDs
