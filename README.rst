@@ -8,18 +8,23 @@ OpenET - SSEBop
 
 This repository provides `Google Earth Engine <https://earthengine.google.com/>`__ Python API based implementation of the SSEBop ET model.
 
-The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr).
+The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr or ETo).
 The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on average-sky net radiation balance principles.
 This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel and is designed to reduce model operator errors when estimating ET routinely.
 
-Basic SSEBop model implementation in Earth Engine:
+*Basic SSEBop model implementation in Earth Engine:*
 
 .. image:: docs/SSEBop_GEE_diagram.jpg
+
+Model Design
+============
+
+The primary component of the SSEBop model is the Image() class.  The Image class can be used to compute a single fraction of reference ET (ETf) image from a single input image.  The Image class should generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.  ET image collections can be built by computing ET in a function that is mapped over a collection of input images.  Please see the `Example Notebooks`_ for more details.
 
 Input Collections
 =================
 
-SSEBop ET can currently be computed for Landsat Collection 2 SR/ST images (where available) and Landsat Collection 1 TOA images from the following Earth Engine image collections:
+SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) images and Landsat Collection 1 Top-Of-Atmosphere (TOA) images from the following Earth Engine image collections:
 
  * LANDSAT/LC08/C02/T1_L2
  * LANDSAT/LE07/C02/T1_L2
@@ -29,12 +34,22 @@ SSEBop ET can currently be computed for Landsat Collection 2 SR/ST images (where
  * LANDSAT/LT05/C01/T1_TOA
 
 
-Note that scene specific Tcorr values have only been computed for Landsat images covering the contiguous United States (CONUS).  SSEBop estimates for Landsat images outside the CONUS will use the default c-factor value of 0.978 (see the `Tcorr (C-factor)`_ section for more details).
+**Note:** Users are encouraged to prioritize use of Collection 2 data where available. Collection 1 will be produced by USGS until 2022-01-01, and maintained by Earth Engine until 2023-01-01. [`More Information <https://developers.google.com/earth-engine/guides/landsat#landsat-collection-status>`__]
 
-Model Design
-============
+Landsat Collection 2 SR/ST Input Image
+------------------------------------
 
-The primary component of the SSEBop model is the Image() class.  The Image class can be used to compute a single fraction of reference ET (ETf) image from a single input image.  The Image class should generally be instantiated from an Earth Engine Landsat image using the collection specific methods listed below.  ET image collections can be built by computing ET in a function that is mapped over a collection of input images.  Please see the `Example Notebooks`_ for more details.
+To instantiate the class for a Landsat Collection 2 SR/ST image, use the Image.from_landsat_c2_sr method.
+
+The input Landsat image must have the following bands and properties:
+
+=================  ======================================
+SPACECRAFT_ID      Band Names
+=================  ======================================
+LANDSAT_5          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B7, ST_B6, QA_PIXEL
+LANDSAT_7          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B7, ST_B6, QA_PIXEL
+LANDSAT_8          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7, ST_B10, QA_PIXEL
+=================  ======================================
 
 Landsat Collection 1 TOA Input Image
 ------------------------------------
@@ -66,6 +81,10 @@ Model Output
 ------------
 
 The primary output of the SSEBop model is the fraction of reference ET (ETf).  The actual ET (ETa) can then be computed by multiplying the Landsat-based ETf image with the reference ET (e.g. ETr from GRIDMET).
+
+*Example SSEBop ETa from Landsat:*
+
+.. image:: docs/ET_example.png
 
 Example
 -------
@@ -101,8 +120,8 @@ Example Notebooks
 Detailed Jupyter Notebooks of the various approaches for calling the OpenET SSEBop model are provided in the "examples" folder.
 
 + `Computing daily ET for a single Landsat image <examples/single_image.ipynb>`__
-+ `Computing a daily ET image collection from Landsat image collection <examples/collection.ipynb>`__
-+ `Computing annual ET from a collection <examples/interpolate.ipynb>`__
++ `Computing a daily ET image collection from Landsat image collection <examples/collection_overpass.ipynb>`__
++ `Computing monthly ET from a collection <examples/collection_interpolate.ipynb>`__
 
 Ancillary Datasets
 ==================
@@ -110,19 +129,24 @@ Ancillary Datasets
 Maximum Daily Air Temperature (Tmax)
 ------------------------------------
 The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay2017_.
+Support for source options includes CIMIS, GRIDMET, DAYMET, and other custom Image Collections. See the model Image class docstrings for more information.
 
-Default Asset ID: projects/usgs-ssebop/tmax/daymet_median_v2
+Default Asset ID: *projects/usgs-ssebop/tmax/daymet_median_v2* (Daily median from 1980-2018)
 
-Land Surface Temperature
+Land Surface Temperature (LST)
 ------------------------
-Land Surface Temperature (LST) is currently calculated in the SSEBop approach from Landsat Top-of-Atmosphere images by including commonly used calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; and (3) surface emissivity. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
+Land Surface Temperature is currently calculated in the SSEBop approach two ways:
 
-dT
---
+* Landsat Collection 2 Level-2 (ST band) images directly. More information can be found at: `USGS Landsat Collection 2 Level-2 Science Products <https://www.usgs.gov/core-science-systems/nli/landsat/landsat-collection-2-level-2-science-products>`__
+
+* Landsat Collection 1 Top-of-Atmosphere images by including an on-the-fly function for calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; and (3) surface emissivity. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
+
+Temperature Difference (dT)
+----------------------
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
-In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2013_. The input dT is calculated under average-sky conditions and assumed not to change from year to year, but is unique for each day and location.
+In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under gray-sky conditions and assumed not to change from year to year, but is unique for each day and location.
 
-Default Asset ID: projects/usgs-ssebop/dt/daymet_median_v0
+Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v2*
 
 Elevation
 ---------
@@ -132,17 +156,17 @@ Default Asset ID: `USGS/SRTMGL1_003 <https://developers.google.com/earth-engine/
 
 The elevation parameter will accept any Earth Engine image.
 
-Tcorr (C-factor)
+Temperature Correction (Tcorr or C-factor)
 ----------------
-In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels. This temperature correction component is based on a ratio of Tmax and Land Surface Temperature (LST) that has passed through several conditions such as NDVI limits.
+In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a gridded air temperature correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
+This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes Tcorr as a function of the maximum air temperature, so the data source of the Tcorr collection needs to match the data source of the air temperature.
 
-.. image:: docs/Tcorr_table.PNG
+.. image:: docs/TODOaddNewTcorrFigure.PNG
 
-The Tcorr value is read from precomputed Earth Engine feature/image collections based on the Landsat scene ID (from the system:index property).  If the target Landsat scene ID is not found in the Tcorr collection, a median monthly value for the WRS2 path/row is used.  If median monthly values have not been computed for the target path/row, a default value of 0.978 will be used.
+Model Tcorr can be implemented dynamically as a scene-based single C-factor (this is the default) or using precomputed spatially varying 5-km gridded Tcorr Image Assets (advanced setting).
 
-The Tcorr is a function of the maximum air temperature dataset, so separate Tcorr collections have been generated for each of the following air temperature datasets: CIMIS, DAYMET, GRIDMET, TopoWX.  The data source of the Tcorr collection needs to match the data source of the air temperature.
-
-The Tcorr collections were last updated through 2018 but will eventually be updated daily.
+* Using either DYNAMIC or SCENE_GRIDDED settings, the Tcorr parameter is read from precomputed Earth Engine image collections based on the Landsat scene ID (from the system:index property). A monthly/annual climatology Tcorr is used if Tcorr cannot be determined for a given Landsat scene. If fallback values have not been computed for the target path/row, a default value of 0.978 will be used.
+* Currently, SCENE_GRIDDED is only supported for Landsat Collection 2 across CONUS (since model version 0.1.5x) and requires a matching Tmax source. See `this example notebook <examples/tcorr_gridded.ipynb>`__ for more information.
 
 Default Asset IDs
 
