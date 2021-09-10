@@ -84,7 +84,7 @@ The primary output of the SSEBop model is the fraction of reference ET (ETf).  T
 
 *Example SSEBop ETa from Landsat:*
 
-.. image:: docs/ET_example.png
+.. image:: docs/ET_example.PNG
 
 Example
 -------
@@ -158,7 +158,7 @@ The elevation parameter will accept any Earth Engine image.
 
 Temperature Correction (Tcorr or C-factor)
 ----------------
-In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a gridded air temperature correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
+In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (C-factor) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
 This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes Tcorr as a function of the maximum air temperature, so the data source of the Tcorr collection needs to match the data source of the air temperature.
 
 .. image:: docs/TODOaddNewTcorrFigure.PNG
