@@ -161,7 +161,7 @@ Temperature Correction (*c factor*)
 In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
 This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes the *c factor* as a function of the maximum air temperature, so the data source of the *c factor* collection needs to match the data source of the air temperature. **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid or scene-wide value.
 
-.. image:: docs/TODOaddNewTcorrFigure.PNG
+.. image:: docs/GriddedCfactor_example.png
 
 This parameter can be implemented dynamically as a scene-based single *c factor* (this is the default) or using precomputed spatially varying Image Assets where a gridded *c factor* is generated for every 5-km (advanced setting).
 
