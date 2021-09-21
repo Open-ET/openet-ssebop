@@ -85,16 +85,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         # 'p047r031', # North California coast
         'p042r037',  # San Nicholas Island, California
         # 'p041r037', # South California coast
-        'p040r038', 'p039r038', 'p038r038', # Mexico (by California)
-        'p037r039', 'p036r039', 'p035r039', # Mexico (by Arizona)
-        'p034r039', 'p033r039', # Mexico (by New Mexico)
+        'p040r038', 'p039r038', 'p038r038',  # Mexico (by California)
+        'p037r039', 'p036r039', 'p035r039',  # Mexico (by Arizona)
+        'p034r039', 'p033r039',  # Mexico (by New Mexico)
         'p032r040',  # Mexico (West Texas)
         'p029r041', 'p028r042', 'p027r043', 'p026r043',  # Mexico (South Texas)
-        'p019r040', 'p018r040', # West Florida coast
-        'p016r043', 'p015r043', # South Florida coast
+        'p019r040', 'p018r040',  # West Florida coast
+        'p016r043', 'p015r043',  # South Florida coast
         'p014r041', 'p014r042', 'p014r043', # East Florida coast
-        'p013r035', 'p013r036', # North Carolina Outer Banks
-        'p013r026', 'p012r026', # Canada (by Maine)
+        'p013r035', 'p013r036',  # North Carolina Outer Banks
+        'p013r026', 'p012r026',  # Canada (by Maine)
         'p011r032', # Rhode Island coast
     ]
     wrs2_path_skip_list = [9, 49]
@@ -185,7 +185,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         mgrs_tiles = sorted([x.strip() for x in mgrs_tiles.split(',')])
         # CGM - Remove empty strings caused by trailing or extra commas
         mgrs_tiles = [x.upper() for x in mgrs_tiles if x]
-        logging.debug(f'  mgrs_tiles: {mgrs_tiles}')
+        logging.debug(f'mgrs_tiles: {mgrs_tiles}')
     except KeyError:
         mgrs_tiles = []
         logging.debug('  mgrs_tiles: not set in INI, defaulting to []')

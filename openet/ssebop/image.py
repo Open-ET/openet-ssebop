@@ -1,19 +1,12 @@
-import datetime
-import pprint
 import re
-
 import ee
 import openet.core.common
-# TODO: import utils from common
-# import openet.core.utils as utils
-
 from openet.ssebop import landsat
 from openet.ssebop import model
 from openet.ssebop import utils
 
 
 PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
-# PROJECT_FOLDER = 'projects/usgs-ssebop'
 
 
 def lazy_property(fn):
@@ -1773,13 +1766,13 @@ class Image():
         tcorr = ee.Image([fm_mosaic_5, fm_mosaic_4, fm_mosaic_3, fm_mosaic_2, fm_mosaic_1])\
             .reduce(ee.Reducer.firstNonNull())
 
-        # Do one more reduce neighborhood to smooth the c factor
-        tcorr = tcorr\
-            .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.square(radius=1, units='pixels'),
-                                skipMasked=False)\
-            .reproject(crs=self.crs, crsTransform=coarse_transform)\
-            .updateMask(1)
+        # # Do one more reduce neighborhood to smooth the c factor
+        # tcorr = tcorr\
+        #     .reduceNeighborhood(reducer=ee.Reducer.mean(),
+        #                         kernel=ee.Kernel.square(radius=1, units='pixels'),
+        #                         skipMasked=False)\
+        #     .reproject(crs=self.crs, crsTransform=coarse_transform)\
+        #     .updateMask(1)
 
         return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
             .set(self._properties) \
