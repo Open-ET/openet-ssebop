@@ -407,7 +407,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             # mask_img = ee.Image.constant(0).reproject(export_crs, export_geo)
 
             # Compute the gridded Tcorr climo image and count
-            reducer = ee.Reducer.median() \
+            reducer = ee.Reducer.mean() \
                 .combine(ee.Reducer.count(), sharedInputs=True)
             tcorr_img = tcorr_coll.reduce(reducer).rename(['tcorr', 'count'])
             count_img = tcorr_img.select(['count'])
