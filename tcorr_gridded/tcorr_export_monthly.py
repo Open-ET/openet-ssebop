@@ -110,6 +110,13 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
         raise e
 
     try:
+        tcorr_source = ini[model_name]['tcorr_source']
+    except KeyError:
+        raise ValueError('"tcorr_source" parameter was not set in INI')
+    except Exception as e:
+        raise e
+
+    try:
         tcorr_monthly_coll_id = '{}_monthly'.format(ini['EXPORT']['export_coll'])
     except KeyError:
         raise ValueError('"export_coll" parameter was not set in INI')
@@ -395,6 +402,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .filterMetadata('wrs2_tile', 'equals', wrs2_tile) \
                 .filter(ee.Filter.calendarRange(month, month, 'month')) \
                 .filter(ee.Filter.inList('year', year_list)) \
+                .filterMetadata('tcorr_index', 'equals', 1) \
                 .select(['tcorr'])
             #     .filterMetadata('tcorr_pixel_count', 'not_less_than', min_pixel_count) \
             # TODO: Should CLOUD_COVER_LAND filter should be re-applied here?
@@ -464,6 +472,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 # 'tcorr_value': tcorr,
                 'tcorr_index': TCORR_INDICES['MONTH'],
                 'tcorr_scene_count': tcorr_count,
+                'tcorr_source': tcorr_source,
                 'tmax_source': tmax_source,
                 'wrs2_path': wrs2_path,
                 'wrs2_row': wrs2_row,
