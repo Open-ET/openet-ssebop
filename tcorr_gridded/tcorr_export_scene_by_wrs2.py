@@ -202,6 +202,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     except Exception as e:
         raise e
 
+
+
+    try:
+        fill_with_climo_flag = bool(ini['EXPORT']['fill_with_climo'])
+    except KeyError:
+        fill_with_climo_flag = False
+        logging.debug('  fill_with_climo: not set in INI, defaulting to False')
+    except Exception as e:
+        raise e
+
+
+
     # TODO: Add try/except blocks and default values?
     cloud_cover = float(ini['INPUTS']['cloud_cover'])
 
@@ -557,6 +569,19 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
             elif tcorr_source == 'GRIDDED_COLD':
                 tcorr_img = t_obj.tcorr_gridded_cold
             # tcorr_img = t_obj.tcorr
+
+
+            # Replace masked tcorr images with climos
+            if fill_with_climo_flag and tcorr_source == 'GRIDDED_COLD':
+                tcorr_month_img = ee.Image(
+                        f'{tcorr_scene_coll_id}_monthly/'
+                        f'{wrs2_tile}_month{export_dt.month:02d}')\
+                    .select(['tcorr', 'count'], ['tcorr', 'quality'])
+                # tcorr_annual_img = ee.Image('f{tcorr_scene_coll_id}_annual/{wrs2_tile}')
+                tcorr_img = ee.Algorithms.If(
+                    ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0),
+                    tcorr_month_img)
+
 
             # Clip to the Landsat image footprint
             tcorr_img = ee.Image(tcorr_img).clip(ee.Image(image_id).geometry())
