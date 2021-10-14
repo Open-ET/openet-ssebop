@@ -403,6 +403,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 .filter(ee.Filter.calendarRange(month, month, 'month')) \
                 .filter(ee.Filter.inList('year', year_list)) \
                 .filterMetadata('tcorr_index', 'equals', 1) \
+                .filterMetadata('tcorr_coarse_count', 'greater_than', 0) \
                 .select(['tcorr'])
             #     .filterMetadata('tcorr_pixel_count', 'not_less_than', min_pixel_count) \
             # TODO: Should CLOUD_COVER_LAND filter should be re-applied here?
