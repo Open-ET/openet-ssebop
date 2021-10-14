@@ -568,15 +568,20 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
             # Replace masked tcorr images with climos
+            # Note, If the month climo doesn't exist this will keep the
+            #   existing masked Tcorr image (we may want to change that)
             if fill_with_climo_flag and tcorr_source == 'GRIDDED_COLD':
-                tcorr_month_img = ee.Image(
-                        f'{tcorr_scene_coll_id}_monthly/'
-                        f'{wrs2_tile}_month{export_dt.month:02d}')\
+                tcorr_month_coll_id = f'{tcorr_scene_coll_id}_monthly'
+                tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id)\
+                    .filterMetadata('wrs2_tile', 'equals', wrs2_tile)\
+                    .filterMetadata('month', 'equals', export_dt.month)
+                tcorr_month_img = tcorr_month_coll.first()\
                     .select(['tcorr', 'count'], ['tcorr', 'quality'])
                 # tcorr_annual_img = ee.Image('f{tcorr_scene_coll_id}_annual/{wrs2_tile}')
                 tcorr_img = ee.Algorithms.If(
-                    ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0),
-                    tcorr_month_img)
+                    ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
+                        .And(tcorr_month_coll.size().gt(0)),
+                    tcorr_month_img, tcorr_img)
 
 
             # Clip to the Landsat image footprint
