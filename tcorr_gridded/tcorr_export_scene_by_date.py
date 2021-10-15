@@ -567,10 +567,18 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_img = t_obj.tcorr_gridded_cold
             # tcorr_img = t_obj.tcorr
 
+            # Properties that the climo tcorr image might change need to be set
+            #   before the climo is used
+            # It would probably make more sense to move all of the property
+            #   setting to right here instead of down below
+            tcorr_img = tcorr_img.set({
+                'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
+            })
+
             # Replace masked tcorr images with climos
             # Note, If the month climo doesn't exist this will keep the
             #   existing masked Tcorr image (we may want to change that)
-            # Does the tcorr_coarse count need to be set to something?
+            # Does the tcorr_coarse count need to be set to a value like 0?
             if fill_with_climo_flag and tcorr_source == 'GRIDDED_COLD':
                 logging.debug('    Checking if monthly climo should be applied')
                 tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id)\
@@ -611,7 +619,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'realtime': 'true' if '/T1_RT' in coll_id else 'false',
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
-                    'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
+                    # 'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
                     'tcorr_source': tcorr_source,
                     'tmax_source': tmax_source,
                     # 'tmax_source': tmax_source.replace(
