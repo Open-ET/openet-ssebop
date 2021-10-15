@@ -584,12 +584,16 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id)\
                     .filterMetadata('wrs2_tile', 'equals', wrs2_tile)\
                     .filterMetadata('month', 'equals', export_dt.month)\
-                    .select(['tcorr', 'count'], ['tcorr', 'quality'])
+                    .select(['tcorr'])
+                # Setting the quality to 0 here causes it to get masked below
+                #   We might want to have it actually be 0 instead
+                tcorr_month_img = tcorr_month_coll.first()\
+                    .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])])\
+                    .set({'tcorr_coarse_count': None})
                 tcorr_img = ee.Algorithms.If(
                     ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
                         .And(tcorr_month_coll.size().gt(0)),
-                    tcorr_month_coll.first()
-                        .set({'tcorr_coarse_count': None}),
+                    tcorr_month_img,
                     tcorr_img)
 
             # Clip to the Landsat image footprint
@@ -619,7 +623,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'realtime': 'true' if '/T1_RT' in coll_id else 'false',
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
-                    # 'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
                     'tcorr_source': tcorr_source,
                     'tmax_source': tmax_source,
                     # 'tmax_source': tmax_source.replace(
