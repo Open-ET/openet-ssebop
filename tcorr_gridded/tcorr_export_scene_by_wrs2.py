@@ -202,17 +202,17 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     except Exception as e:
         raise e
 
-
-
     try:
-        fill_with_climo_flag = bool(ini['EXPORT']['fill_with_climo'])
+        fill_with_climo_flag = str(ini['EXPORT']['fill_with_climo'])
+        if fill_with_climo_flag.lower() in ['t', 'true']:
+            fill_with_climo_flag = True
+        else:
+            fill_with_climo_flag = False
     except KeyError:
         fill_with_climo_flag = False
         logging.debug('  fill_with_climo: not set in INI, defaulting to False')
     except Exception as e:
         raise e
-
-
 
     # TODO: Add try/except blocks and default values?
     cloud_cover = float(ini['INPUTS']['cloud_cover'])
@@ -231,6 +231,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     tcorr_scene_coll_id = '{}'.format(ini['EXPORT']['export_coll'])
     # tcorr_scene_coll_id = '{}/{}_scene'.format(
     #     ini['EXPORT']['export_coll'], tmax_source.lower())
+    tcorr_month_coll_id = f'{tcorr_scene_coll_id}_monthly'
 
     if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED']:
         raise ValueError('unsupported tcorr_source for these tools')
@@ -570,23 +571,22 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_img = t_obj.tcorr_gridded_cold
             # tcorr_img = t_obj.tcorr
 
-
             # Replace masked tcorr images with climos
             # Note, If the month climo doesn't exist this will keep the
             #   existing masked Tcorr image (we may want to change that)
+            # Does the tcorr_coarse count need to be set to something?
             if fill_with_climo_flag and tcorr_source == 'GRIDDED_COLD':
-                tcorr_month_coll_id = f'{tcorr_scene_coll_id}_monthly'
+                logging.debug('    Checking if monthly climo should be applied')
                 tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id)\
                     .filterMetadata('wrs2_tile', 'equals', wrs2_tile)\
-                    .filterMetadata('month', 'equals', export_dt.month)
-                tcorr_month_img = tcorr_month_coll.first()\
+                    .filterMetadata('month', 'equals', export_dt.month)\
                     .select(['tcorr', 'count'], ['tcorr', 'quality'])
-                # tcorr_annual_img = ee.Image('f{tcorr_scene_coll_id}_annual/{wrs2_tile}')
                 tcorr_img = ee.Algorithms.If(
                     ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
                         .And(tcorr_month_coll.size().gt(0)),
-                    tcorr_month_img, tcorr_img)
-
+                    tcorr_month_coll.first()
+                        .set({'tcorr_coarse_count': None}),
+                    tcorr_img)
 
             # Clip to the Landsat image footprint
             tcorr_img = ee.Image(tcorr_img).clip(ee.Image(image_id).geometry())
