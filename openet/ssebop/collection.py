@@ -47,6 +47,7 @@ class Collection():
             et_reference_date_type=None,
             filter_args=None,
             model_args=None,
+            filter=None,
             # model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
             #             'et_reference_band': 'etr',
             #             'et_reference_factor': 0.85,
@@ -87,9 +88,9 @@ class Collection():
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
         filter_args : dict
-            Image collection filter keyword arguments (the default is None).
-            Organize filter arguments as a nested dictionary with the primary
-            key being the collection ID.
+            Image collection filters (the default is None).
+            Organize filters as a nested dictionary with the primary key being
+            the collection ID.
         model_args : dict
             Model Image initialization keyword arguments (the default is None).
             Dictionary will be passed through to model Image init.
@@ -107,6 +108,7 @@ class Collection():
             self.model_args = model_args
         else:
             self.model_args = {}
+
         if filter_args is not None:
             self.filter_args = filter_args
         else:
@@ -281,9 +283,21 @@ class Collection():
                 # TODO: Check if PROCESSING_LEVEL needs to be filtered on
                 #     .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
 
-                # TODO: Need to come up with a system for applying
-                #   generic filter arguments to the collections
-                if coll_id in self.filter_args.keys():
+                # TODO: Move this to a separate function (maybe in utils.py?)
+                #   since  it is identical for all the supported collections
+                if (self.filter_args is None or
+                        type(self.filter_args) is not dict or
+                        coll_id not in self.filter_args.keys()):
+                    pass
+                elif isinstance(self.filter_args[coll_id], list):
+                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
+                elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
+                    input_coll = input_coll.filter(self.filter_args[coll_id])
+                elif isinstance(self.filter_args[coll_id], dict):
+                    # TODO: This generic dictionary based filtering should
+                    #   probably be removed since only the "equals" filter
+                    #   has been implemented and the functionality is better
+                    #   handled with the other two options.
                     for f in copy.deepcopy(self.filter_args[coll_id]):
                         try:
                             filter_type = f.pop('type')
@@ -291,6 +305,8 @@ class Collection():
                             continue
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
+                else:
+                    raise('Unsupported filter arguments')
 
                 # TODO: Check if these bad images are in collection 2
                 # Time filters are to remove bad (L5) and pre-op (L8) images
@@ -318,9 +334,21 @@ class Collection():
                                     self.cloud_cover_max)\
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
 
-                # TODO: Need to come up with a system for applying
-                #   generic filter arguments to the collections
-                if coll_id in self.filter_args.keys():
+                 # TODO: Move this to a separate function (maybe in utils.py?)
+                #   since  it is identical for all the supported collections
+                if (self.filter_args is None or
+                        type(self.filter_args) is not dict or
+                        coll_id not in self.filter_args.keys()):
+                    pass
+                elif isinstance(self.filter_args[coll_id], list):
+                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
+                elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
+                    input_coll = input_coll.filter(self.filter_args[coll_id])
+                elif isinstance(self.filter_args[coll_id], dict):
+                    # TODO: This generic dictionary based filtering should
+                    #   probably be removed since only the "equals" filter
+                    #   has been implemented and the functionality is better
+                    #   handled with the other two options.
                     for f in copy.deepcopy(self.filter_args[coll_id]):
                         try:
                             filter_type = f.pop('type')
@@ -354,9 +382,21 @@ class Collection():
                                     self.cloud_cover_max)\
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
 
-                # TODO: Need to come up with a system for applying
-                #   generic filter arguments to the collections
-                if coll_id in self.filter_args.keys():
+                # TODO: Move this to a separate function (maybe in utils.py?)
+                #   since  it is identical for all the supported collections
+                if (self.filter_args is None or
+                        type(self.filter_args) is not dict or
+                        coll_id not in self.filter_args.keys()):
+                    pass
+                elif isinstance(self.filter_args[coll_id], list):
+                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
+                elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
+                    input_coll = input_coll.filter(self.filter_args[coll_id])
+                elif isinstance(self.filter_args[coll_id], dict):
+                    # TODO: This generic dictionary based filtering should
+                    #   probably be removed since only the "equals" filter
+                    #   has been implemented and the functionality is better
+                    #   handled with the other two options.
                     for f in copy.deepcopy(self.filter_args[coll_id]):
                         try:
                             filter_type = f.pop('type')
