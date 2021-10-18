@@ -89,8 +89,8 @@ class Collection():
             to nearest neighbor resampling.
         filter_args : dict
             Image collection filters (the default is None).
-            Organize filters as a nested dictionary with the primary key being
-            the collection ID.
+            Organize filters as a dictionary with the key being
+            the collection ID and the value an ee.Filter() object.
         model_args : dict
             Model Image initialization keyword arguments (the default is None).
             Dictionary will be passed through to model Image init.
@@ -286,14 +286,12 @@ class Collection():
                 # TODO: Move this to a separate function (maybe in utils.py?)
                 #   since  it is identical for all the supported collections
                 if (self.filter_args is None or
-                        type(self.filter_args) is not dict or
+                        not isinstance(self.filter_args, dict) or
                         coll_id not in self.filter_args.keys()):
                     pass
-                elif isinstance(self.filter_args[coll_id], list):
-                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
                 elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
                     input_coll = input_coll.filter(self.filter_args[coll_id])
-                elif isinstance(self.filter_args[coll_id], dict):
+                elif isinstance(self.filter_args[coll_id], list):
                     # TODO: This generic dictionary based filtering should
                     #   probably be removed since only the "equals" filter
                     #   has been implemented and the functionality is better
@@ -306,7 +304,7 @@ class Collection():
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
                 else:
-                    raise('Unsupported filter arguments')
+                    raise ValueError('Unsupported filter_arg parameter')
 
                 # TODO: Check if these bad images are in collection 2
                 # Time filters are to remove bad (L5) and pre-op (L8) images
@@ -337,11 +335,9 @@ class Collection():
                  # TODO: Move this to a separate function (maybe in utils.py?)
                 #   since  it is identical for all the supported collections
                 if (self.filter_args is None or
-                        type(self.filter_args) is not dict or
+                        not isinstance(self.filter_args, list) or
                         coll_id not in self.filter_args.keys()):
                     pass
-                elif isinstance(self.filter_args[coll_id], list):
-                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
                 elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
                     input_coll = input_coll.filter(self.filter_args[coll_id])
                 elif isinstance(self.filter_args[coll_id], dict):
@@ -356,6 +352,8 @@ class Collection():
                             continue
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
+                else:
+                    raise ValueError('Unsupported filter_arg parameter')
 
                 # TODO: Check if these bad images are in collection 1 SR
                 # Time filters are to remove bad (L5) and pre-op (L8) images
@@ -385,14 +383,12 @@ class Collection():
                 # TODO: Move this to a separate function (maybe in utils.py?)
                 #   since  it is identical for all the supported collections
                 if (self.filter_args is None or
-                        type(self.filter_args) is not dict or
+                        not isinstance(self.filter_args, dict) or
                         coll_id not in self.filter_args.keys()):
                     pass
-                elif isinstance(self.filter_args[coll_id], list):
-                    input_coll = input_coll.filter(ee.Filter(self.filter_args[coll_id]))
                 elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
                     input_coll = input_coll.filter(self.filter_args[coll_id])
-                elif isinstance(self.filter_args[coll_id], dict):
+                elif isinstance(self.filter_args[coll_id], list):
                     # TODO: This generic dictionary based filtering should
                     #   probably be removed since only the "equals" filter
                     #   has been implemented and the functionality is better
@@ -404,6 +400,8 @@ class Collection():
                             continue
                         if filter_type.lower() == 'equals':
                             input_coll = input_coll.filter(ee.Filter.equals(**f))
+                else:
+                    raise ValueError('Unsupported filter_arg parameter')
 
                 # Time filters are to remove bad (L5) and pre-op (L8) images
                 if 'LT05' in coll_id:
