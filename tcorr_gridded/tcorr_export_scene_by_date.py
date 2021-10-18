@@ -623,6 +623,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'realtime': 'true' if '/T1_RT' in coll_id else 'false',
                     'scene_id': scene_id,
                     'system:time_start': image_info['properties']['system:time_start'],
+                    # 'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
                     'tcorr_source': tcorr_source,
                     'tmax_source': tmax_source,
                     # 'tmax_source': tmax_source.replace(

@@ -38,6 +38,7 @@ CLOUD_COVER = 70
 TMAX_SOURCE = 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr'
 TCORR_SOURCE = 'GRIDDED_COLD'
 CLIP_OCEAN_FLAG = True
+FILL_CLIMO_FLAG = True
 # MGRS_TILES = []
 # UTM_ZONES = list(range(10, 20))
 # WRS2_TILES = []
@@ -225,6 +226,33 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     tcorr_img = t_obj.tcorr_gridded
     # tcorr_img = t_obj.tcorr
 
+    # Properties that the climo tcorr image might change need to be set
+    #   before the climo is used
+    # It would probably make more sense to move all of the property
+    #   setting to right here instead of down below
+    tcorr_img = tcorr_img.set({
+        'tcorr_index': TCORR_INDICES[TCORR_SOURCE],
+    })
+
+    if FILL_CLIMO_FLAG:
+        logging.debug('    Checking if monthly climo should be applied')
+        # The climo collection names are hardcoded this way in the export scripts
+        tcorr_month_coll_id = ASSET_COLL_ID + '_monthly'
+        tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id)\
+            .filterMetadata('wrs2_tile', 'equals', wrs2_tile)\
+            .filterMetadata('month', 'equals', export_dt.month)\
+            .select(['tcorr'])
+        # Setting the quality to 0 here causes it to get masked below
+        #   We might want to have it actually be 0 instead
+        tcorr_month_img = tcorr_month_coll.first()\
+            .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])])\
+            .set({'tcorr_coarse_count': None})
+        tcorr_img = ee.Algorithms.If(
+            ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
+                .And(tcorr_month_coll.size().gt(0)),
+            tcorr_month_img,
+            tcorr_img)
+
     # Clip to the Landsat image footprint
     # Clear the transparency mask (from clipping)
     tcorr_img = ee.Image(tcorr_img).clip(ee.Image(image_id).geometry())
@@ -252,7 +280,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             'scene_id': scene_id,
             'system:time_start': image_info['properties']['system:time_start'],
             'tcorr_index': TCORR_INDICES[TCORR_SOURCE.upper()],
-            'tcorr_source': TCORR_SOURCE,
+            # 'tcorr_source': TCORR_SOURCE,
             'tmax_source': TMAX_SOURCE,
             # 'tmax_source': TMAX_SOURCE.replace(
             #     'projects/earthengine-legacy/assets/', ''),
