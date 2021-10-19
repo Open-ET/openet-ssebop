@@ -340,7 +340,7 @@ class Collection():
                     pass
                 elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
                     input_coll = input_coll.filter(self.filter_args[coll_id])
-                elif isinstance(self.filter_args[coll_id], dict):
+                elif isinstance(self.filter_args[coll_id], list):
                     # TODO: This generic dictionary based filtering should
                     #   probably be removed since only the "equals" filter
                     #   has been implemented and the functionality is better
