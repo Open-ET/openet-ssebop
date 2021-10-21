@@ -779,7 +779,7 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
         study_area_coll_id = 'projects/openet/featureCollections/boundaries/tiger_2018_conus'
         study_area_coll = ee.FeatureCollection(study_area_coll_id)
         study_area_property == 'STUSPS'
-        study_area_features = 'CONUS'
+        study_area_features = ['CONUS']
     elif (study_area_property == 'STUSPS' and
             'CONUS' in [x.upper() for x in study_area_features]):
         # Excluding AK, HI, AS, GU, PR, MP, VI
