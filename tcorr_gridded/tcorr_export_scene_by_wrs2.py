@@ -587,7 +587,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])])\
                     .set({'tcorr_coarse_count': None})
                 tcorr_img = ee.Algorithms.If(
-                    ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
+                    ee.Number(tcorr_img.get('tcorr_index')).eq(9)
                         .And(tcorr_month_coll.size().gt(0)),
                     tcorr_month_img,
                     tcorr_img)
