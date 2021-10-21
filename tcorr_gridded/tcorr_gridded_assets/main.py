@@ -228,14 +228,6 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     tcorr_img = t_obj.tcorr_gridded_cold
     # tcorr_img = t_obj.tcorr
 
-    # Properties that the climo tcorr image might change need to be set
-    #   before the climo is used
-    # It would probably make more sense to move all of the property
-    #   setting to right here instead of down below
-    tcorr_img = tcorr_img.set({
-        'tcorr_index': TCORR_INDICES[TCORR_SOURCE],
-    })
-
     if FILL_CLIMO_FLAG:
         logging.debug('    Checking if monthly climo should be applied')
         # The climo collection names are hardcoded this way in the export scripts
@@ -293,7 +285,7 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             'wrs2_tile': wrs2_tile,
             'year': int(export_dt.year),
         })
-    # pprint.pprint(output_img.getInfo()['properties'])
+    # pprint.pprint(tcorr_img.getInfo()['properties'])
     # input('ENTER')
 
     logging.debug('  Building export task')

@@ -571,14 +571,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_img = t_obj.tcorr_gridded_cold
             # tcorr_img = t_obj.tcorr
 
-            # Properties that the climo tcorr image might change need to be set
-            #   before the climo is used
-            # It would probably make more sense to move all of the property
-            #   setting to right here instead of down below
-            tcorr_img = tcorr_img.set({
-                'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
-            })
-
             # Replace masked tcorr images with climos
             # Note, If the month climo doesn't exist this will keep the
             #   existing masked Tcorr image (we may want to change that)
@@ -640,7 +632,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'wrs2_tile': wrs2_tile_fmt.format(wrs2_path, wrs2_row),
                     'year': int(export_dt.year),
                 })
-            # pprint.pprint(output_img.getInfo()['properties'])
+            # pprint.pprint(tcorr_img.getInfo()['properties'])
             # input('ENTER')
 
             logging.debug('  Building export task')
