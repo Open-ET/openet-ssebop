@@ -547,15 +547,22 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
     logging.debug('Building study area collection')
     logging.debug(f'  {study_area_coll_id}')
     study_area_coll = ee.FeatureCollection(study_area_coll_id)
-    if (study_area_property == 'STUSPS' and
+    if (study_area_coll_id in ['TIGER/2018/States'] and
             'CONUS' in [x.upper() for x in study_area_features]):
-        # Exclude AK, HI, AS, GU, PR, MP, VI, (but keep DC)
+        study_area_coll_id = 'projects/openet/featureCollections/boundaries/tiger_2018_conus'
+        study_area_coll = ee.FeatureCollection(study_area_coll_id)
+        study_area_features = 'union_result'
+    elif (study_area_property == 'STUSPS' and
+            'CONUS' in [x.upper() for x in study_area_features]):
+        # Excluding AK, HI, AS, GU, PR, MP, VI
+        # Dropping some other states also since they aren't needed in order
+        #   to intersect all the MGRS tiles in the CONUS (CT, DE, DC, RI, VT)
         study_area_features = [
-            'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
+            'AL', 'AR', 'AZ', 'CA', 'CO', 'FL', 'GA',
             'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
             'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ',
-            'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD',
-            'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY']
+            'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'SC', 'SD',
+            'TN', 'TX', 'UT', 'VA', 'WA', 'WI', 'WV', 'WY']
     # elif (study_area_property == 'STUSPS' and
     #         'WESTERN11' in [x.upper() for x in study_area_features]):
     #     study_area_features = [
