@@ -223,7 +223,9 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
     # CGM - Intentionally not calling the tcorr method directly since
     #   there may be compositing with climos or the scene average
     # if TCORR_SOURCE.upper() == 'GRIDDED':
-    tcorr_img = t_obj.tcorr_gridded
+    #     tcorr_img = t_obj.tcorr_gridded
+    # elif TCORR_SOURCE.upper() == 'GRIDDED_COLD':
+    tcorr_img = t_obj.tcorr_gridded_cold
     # tcorr_img = t_obj.tcorr
 
     # Properties that the climo tcorr image might change need to be set
@@ -279,8 +281,8 @@ def tcorr_gridded_asset_ingest(image_id, overwrite_flag=True,
             'realtime': 'true' if '/T1_RT' in coll_id else 'false',
             'scene_id': scene_id,
             'system:time_start': image_info['properties']['system:time_start'],
-            'tcorr_index': TCORR_INDICES[TCORR_SOURCE.upper()],
-            # 'tcorr_source': TCORR_SOURCE,
+            # 'tcorr_index': TCORR_INDICES[TCORR_SOURCE.upper()],
+            'tcorr_source': TCORR_SOURCE,
             'tmax_source': TMAX_SOURCE,
             # 'tmax_source': TMAX_SOURCE.replace(
             #     'projects/earthengine-legacy/assets/', ''),
@@ -468,7 +470,8 @@ def tcorr_gridded_images(start_dt, end_dt, overwrite_flag=False,
     # Skip image IDs that are already built
     image_id_list = [
         image_id for image_id in image_id_list
-        if image_id.split('/')[-1].upper() not in asset_id_list]
+        if ((image_id.split('/')[-1].upper() not in asset_id_list) or
+            overwrite_flag)]
     # print('Final image ID List')
     # pprint.pprint(sorted(image_id_list))
     # input('ENTER')
@@ -883,6 +886,9 @@ def arg_parse():
                  datetime.timedelta(days=END_DAY_OFFSET)),
         help='End date (format YYYY-MM-DD)')
     parser.add_argument(
+        '--overwrite', default=False, action='store_true',
+        help='Force overwrite of existing files')
+    parser.add_argument(
         '--realtime', default=False, action='store_true',
         help='Use realtime Landsat collections')
     parser.add_argument(
@@ -891,9 +897,6 @@ def arg_parse():
     parser.add_argument(
         '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
-    # parser.add_argument(
-    #     '--overwrite', default=False, action='store_true',
-    #     help='Force overwrite of existing files')
     # parser.add_argument(
     #     '--ready', default=3000, type=int,
     #     help='Maximum number of queued READY tasks')
@@ -933,7 +936,7 @@ if __name__ == "__main__":
 
     image_id_list = tcorr_gridded_images(
         start_dt=args.start, end_dt=args.end, gee_key_file=args.key,
-        realtime_flag=args.realtime
+        overwrite_flag=args.overwrite, realtime_flag=args.realtime,
     )
 
     for image_id in image_id_list:
