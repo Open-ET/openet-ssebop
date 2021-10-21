@@ -1632,9 +1632,13 @@ class Image():
         quality_score_img = ee.Image([total_score_img, hotscore, coldscore, cold_rn05_score])\
             .reduce(ee.Reducer.sum())
 
+        # Set tcorr index to 9 if coarse count is 0
+        # This if should be fast but the calculation below works also
+        tcorr_index = ee.Algorithms.If(tcorr_count_cold.gt(0), 0, 9)
+
         return ee.Image([tcorr, quality_score_img]).rename(['tcorr', 'quality'])\
             .set(self._properties)\
-            .set({'tcorr_index': 0,
+            .set({'tcorr_index': tcorr_index,
                   'tcorr_coarse_count_cold': tcorr_count_cold})
 
     @lazy_property
@@ -1781,7 +1785,12 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
+        # Set tcorr index to 9 if coarse count is 0
+        # This "if" should be fast but the calculation approach works also
+        tcorr_index = ee.Algorithms.If(tcorr_count.gt(0), 1, 9)
+        # tcorr_index = tcorr_count.multiply(-1).max(-1).add(1).multiply(8).add(1)
+
         return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
             .set(self._properties) \
-            .set({'tcorr_index': 1,
+            .set({'tcorr_index': tcorr_index,
                   'tcorr_coarse_count': tcorr_count})

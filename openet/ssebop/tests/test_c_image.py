@@ -1065,6 +1065,11 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
          'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          [600000, 4270000, 625000, 4285000], [612500, 4277500],
          [0.9914034763259638, 1]],
+        # TODO: Add a test where coarse count is 0
+        ['GRIDDED_COLD', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20200910',
+         [600000, 4270000, 625000, 4285000], [612500, 4277500],
+         [None, 9]],
     ]
 )
 def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
@@ -1080,7 +1085,10 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
         tcorr_resample='nearest').tcorr_gridded_cold
     tcorr = utils.point_image_value(tcorr_img, point_xy)
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    if expected[0] is None:
+        assert tcorr['tcorr'] is None
+    else:
+        assert abs(tcorr['tcorr'] - expected[0]) <= tol
     assert index == expected[1]
 
 
