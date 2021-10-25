@@ -16,7 +16,7 @@ import openet.core
 import openet.core.utils as utils
 
 TOOL_NAME = 'tcorr_export_scene_by_wrs2'
-TOOL_VERSION = '0.1.6'
+TOOL_VERSION = '0.1.7'
 
 # TODO: This could be a property or method of SSEBop or the Image class
 TCORR_INDICES = {
@@ -571,14 +571,6 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_img = t_obj.tcorr_gridded_cold
             # tcorr_img = t_obj.tcorr
 
-            # Properties that the climo tcorr image might change need to be set
-            #   before the climo is used
-            # It would probably make more sense to move all of the property
-            #   setting to right here instead of down below
-            tcorr_img = tcorr_img.set({
-                'tcorr_index': TCORR_INDICES[tcorr_source.upper()],
-            })
-
             # Replace masked tcorr images with climos
             # Note, If the month climo doesn't exist this will keep the
             #   existing masked Tcorr image (we may want to change that)
@@ -595,7 +587,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])])\
                     .set({'tcorr_coarse_count': None})
                 tcorr_img = ee.Algorithms.If(
-                    ee.Number(tcorr_img.get('tcorr_coarse_count')).eq(0)
+                    ee.Number(tcorr_img.get('tcorr_index')).eq(9)
                         .And(tcorr_month_coll.size().gt(0)),
                     tcorr_month_img,
                     tcorr_img)
@@ -640,7 +632,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                     'wrs2_tile': wrs2_tile_fmt.format(wrs2_path, wrs2_row),
                     'year': int(export_dt.year),
                 })
-            # pprint.pprint(output_img.getInfo()['properties'])
+            # pprint.pprint(tcorr_img.getInfo()['properties'])
             # input('ENTER')
 
             logging.debug('  Building export task')
@@ -782,15 +774,23 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
     logging.debug('Building study area collection')
     logging.debug(f'  {study_area_coll_id}')
     study_area_coll = ee.FeatureCollection(study_area_coll_id)
-    if (study_area_property == 'STUSPS' and
+    if (study_area_coll_id in ['TIGER/2018/States'] and
             'CONUS' in [x.upper() for x in study_area_features]):
-        # Exclude AK, HI, AS, GU, PR, MP, VI, (but keep DC)
+        study_area_coll_id = 'projects/openet/featureCollections/boundaries/tiger_2018_conus'
+        study_area_coll = ee.FeatureCollection(study_area_coll_id)
+        study_area_property == 'STUSPS'
+        study_area_features = ['CONUS']
+    elif (study_area_property == 'STUSPS' and
+            'CONUS' in [x.upper() for x in study_area_features]):
+        # Excluding AK, HI, AS, GU, PR, MP, VI
+        # Dropping some other states also since they aren't needed in order
+        #   to intersect all the MGRS tiles in the CONUS (CT, DE, DC, RI, VT)
         study_area_features = [
-            'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA',
+            'AL', 'AR', 'AZ', 'CA', 'CO', 'FL', 'GA',
             'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME',
             'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ',
-            'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD',
-            'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY']
+            'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'SC', 'SD',
+            'TN', 'TX', 'UT', 'VA', 'WA', 'WI', 'WV', 'WY']
     # elif (study_area_property == 'STUSPS' and
     #         'WESTERN11' in [x.upper() for x in study_area_features]):
     #     study_area_features = [
@@ -804,7 +804,7 @@ def mgrs_export_tiles(study_area_coll_id, mgrs_coll_id,
         study_area_coll = study_area_coll.filter(
             ee.Filter.inList(study_area_property, study_area_features))
 
-    logging.info('Building MGRS tile list')
+    logging.debug('Building MGRS tile list')
     tiles_coll = ee.FeatureCollection(mgrs_coll_id) \
         .filterBounds(study_area_coll.geometry())
 
