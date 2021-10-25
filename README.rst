@@ -37,7 +37,7 @@ SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) ima
 **Note:** Users are encouraged to prioritize use of Collection 2 data where available. Collection 1 will be produced by USGS until 2022-01-01, and maintained by Earth Engine until 2023-01-01. [`More Information <https://developers.google.com/earth-engine/guides/landsat#landsat-collection-status>`__]
 
 Landsat Collection 2 SR/ST Input Image
-------------------------------------
+--------------------------------------
 
 To instantiate the class for a Landsat Collection 2 SR/ST image, use the Image.from_landsat_c2_sr method.
 
@@ -134,7 +134,7 @@ Support for source options includes CIMIS, GRIDMET, DAYMET, and other custom Ima
 Default Asset ID: *projects/usgs-ssebop/tmax/daymet_median_v2* (Daily median from 1980-2018)
 
 Land Surface Temperature (LST)
-------------------------
+------------------------------
 Land Surface Temperature is currently calculated in the SSEBop approach two ways:
 
 * Landsat Collection 2 Level-2 (ST band) images directly. More information can be found at: `USGS Landsat Collection 2 Level-2 Science Products <https://www.usgs.gov/core-science-systems/nli/landsat/landsat-collection-2-level-2-science-products>`__
@@ -142,7 +142,7 @@ Land Surface Temperature is currently calculated in the SSEBop approach two ways
 * Landsat Collection 1 Top-of-Atmosphere images by including an on-the-fly function for calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; and (3) surface emissivity. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
 
 Temperature Difference (dT)
-----------------------
+---------------------------
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
 In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under "gray-sky" conditions and assumed not to change from year to year, but is unique for each day and location.
 
@@ -157,7 +157,7 @@ Default Asset ID: `USGS/SRTMGL1_003 <https://developers.google.com/earth-engine/
 The elevation parameter will accept any Earth Engine image.
 
 Temperature Correction (*c factor*)
-----------------
+-----------------------------------
 In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
 This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes the *c factor* as a function of the maximum air temperature, so the data source of the *c factor* collection needs to match the data source of the air temperature. **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid or scene-wide value.
 
