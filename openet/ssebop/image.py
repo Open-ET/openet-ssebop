@@ -1794,3 +1794,118 @@ class Image():
             .set(self._properties) \
             .set({'tcorr_index': tcorr_index,
                   'tcorr_coarse_count': tcorr_count})
+
+    @lazy_property
+    def tcorr_gridded_cold_1km(self):
+        """Compute a continuous gridded Tcorr at 1km resolution for the current image
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+        # todo - change ndvi threshold
+        # todo - change the cell sizes to match Matt Schauer's
+        # NOTE: This transform is being snapped to the Landsat grid
+        #   but this may not be necessary
+        coarse_transform = [1000, 0, 15, 0, -1000, 15]
+
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
+        tcorr_coarse_img = self.tcorr_image \
+            .reproject(crs=self.crs, crsTransform=self.transform) \
+            .reduceResolution(
+            reducer=ee.Reducer.percentile(percentiles=[2.5])
+                .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+            bestEffort=True, maxPixels=30000) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .select([0, 1], ['tcorr', 'count'])
+
+        # Mask cells without enough fine resolution Tcorr cells
+        # The count band is dropped after it is used to mask
+        # tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
+        #     .updateMask(tcorr_coarse_img.select(['count'])
+        #                 .gte(self.min_pixels_per_grid_cell))
+
+        # Count the number of coarse resolution Tcorr cells
+        count_coarse = tcorr_coarse_img \
+            .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
+                          crsTransform=coarse_transform,
+                          bestEffort=False, maxPixels=100000)
+        tcorr_count = ee.Number(count_coarse.get('tcorr'))
+
+        # select only the tcorr band.
+        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])
+
+        # Do reduce neighborhood to interpolate c factor
+        tcorr_rn02 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        tcorr_rn04 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        tcorr_rn16 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=16, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        # rn64 (added to make sure that the whole scene is covered on 3/25/2021)
+        tcorr_rn64 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=64, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16, tcorr_rn64]) \
+            .reduce(ee.Reducer.firstNonNull())
+        zero_img = tcorr.multiply(0).updateMask(1)
+
+        ## ===== SCORING =====
+        # == now only used for QUALITY purposes ==
+        # 0 - Empty: there was no c factor of any interpolation that covers the cell
+        # 1 - RN 64 zonal filled the cell (zonal stats value is not weighted)
+        # 2 - RN 64 and RN 16 coverage (weighted)
+        # 3 - RN 64, RN16 and RN4 coverage (weighted)
+        # 4 - RN 64, RN16, RN4 and RN02 coverage (weighted)
+        # 5 - 5km original COLD cfactor calculated for cell (The original value, however, is smoothed by weighting)
+
+        # We make a series of binary images to map the extent of each layer's c factor
+        score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
+        score_64 = zero_img.add(tcorr_rn64.gt(0)).updateMask(1)
+
+        # This layer has a score of 0-5 based on where the binaries overlap.
+        total_score_img = ee.Image([score_coarse, score_02, score_04, score_16, score_64]) \
+            .reduce(ee.Reducer.sum())
+
+        # Do one more reduce neighborhood to smooth the c factor
+        tcorr = tcorr \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        # Set tcorr index to 9 if coarse count is 0
+        # This "if" should be fast but the calculation approach works also
+        tcorr_index = ee.Algorithms.If(tcorr_count.gt(0), 1, 9)
+        # tcorr_index = tcorr_count.multiply(-1).max(-1).add(1).multiply(8).add(1)
+
+        return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
+            .set(self._properties) \
+            .set({'tcorr_index': tcorr_index,
+                  'tcorr_coarse_count': tcorr_count})
