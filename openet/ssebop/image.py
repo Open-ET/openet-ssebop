@@ -1241,10 +1241,14 @@ class Image():
 
         # Adjust NDVI
         if self.reflectance_type.upper() == 'SR':
-            ndvi_threshold = 0.75
+            # ndvi_threshold = 0.75
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold = 0.85
         # elif self.reflectance_type.upper() == 'TOA':
         else:
-            ndvi_threshold = 0.7
+            # ndvi_threshold = 0.7
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold = 0.8
 
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters')\
