@@ -781,6 +781,20 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
+        elif 'GRIDDED_COLD_1KM' == self._tcorr_source.upper():
+            tcorr_img = ee.Image(self.tcorr_gridded_cold_1km).select(['tcorr'])
+
+            # EE will resample using nearest neighbor by default
+            if self._tcorr_resample.lower() in ['bilinear']:
+                tcorr_img = tcorr_img \
+                    .resample(self._tcorr_resample.lower()) \
+                    .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
+
+            return tcorr_img.rename(['tcorr'])
+
         elif 'DYNAMIC' == self._tcorr_source.upper():
             # Compute Tcorr dynamically for the scene
             mask_img = ee.Image(default_coll.first()).multiply(0)
