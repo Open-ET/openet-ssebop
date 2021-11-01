@@ -1808,8 +1808,6 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        # todo - change ndvi threshold
-        # todo - change the cell sizes to match Matt Schauer's
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
         coarse_transform = [1000, 0, 15, 0, -1000, 15]
@@ -1841,62 +1839,82 @@ class Image():
         tcorr_coarse = tcorr_coarse_img.select(['tcorr'])
 
         # Do reduce neighborhood to interpolate c factor
+        # 3X3
+        tcorr_rn01 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 5X5
         tcorr_rn02 = tcorr_coarse \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.square(radius=2, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
-
+        # 7X7
+        tcorr_rn03 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=3, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 9X9
         tcorr_rn04 = tcorr_coarse \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.square(radius=4, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
-
-        tcorr_rn16 = tcorr_coarse \
+        # 75 X 75
+        tcorr_rn37 = tcorr_coarse \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.square(radius=16, units='pixels'),
+                                kernel=ee.Kernel.square(radius=37, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
-
-        # rn64 (added to make sure that the whole scene is covered on 3/25/2021)
-        tcorr_rn64 = tcorr_coarse \
+        # added to make sure that the whole scene is covered
+        # 500 X 500
+        tcorr_rn249 = tcorr_coarse \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
-                                kernel=ee.Kernel.square(radius=64, units='pixels'),
+                                kernel=ee.Kernel.square(radius=249, units='pixels'),
                                 skipMasked=False) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
 
         # --- In this section we build an image to weight the cfactor
         #   proportionally to how close it is to the original c ---
-        tcorr = ee.Image([tcorr_coarse, tcorr_rn02, tcorr_rn04, tcorr_rn16, tcorr_rn64]) \
+        tcorr = ee.Image([tcorr_coarse, tcorr_rn01, tcorr_rn02, tcorr_rn03, tcorr_rn04, tcorr_rn37, tcorr_rn249]) \
             .reduce(ee.Reducer.firstNonNull())
         zero_img = tcorr.multiply(0).updateMask(1)
 
         ## ===== SCORING =====
         # == now only used for QUALITY purposes ==
         # 0 - Empty: there was no c factor of any interpolation that covers the cell
-        # 1 - RN 64 zonal filled the cell (zonal stats value is not weighted)
-        # 2 - RN 64 and RN 16 coverage (weighted)
-        # 3 - RN 64, RN16 and RN4 coverage (weighted)
-        # 4 - RN 64, RN16, RN4 and RN02 coverage (weighted)
-        # 5 - 5km original COLD cfactor calculated for cell (The original value, however, is smoothed by weighting)
+        # 1 - 500 X 500 zonal filled the cell
+        # 2 - 75 X 75 and 500 X 500 coverage
+        # 3 - 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 4 - 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 5 - 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 6 - 3 X 3, 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 7 - Original coarse c factor - a final 3 X 3 smoothing is done on this layer at the end.
 
-        # We make a series of binary images to map the extent of each layer's c factor
+        # We make a series of binary images to map the
+        # extent of each layer's c factor
         score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        score_01 = zero_img.add(tcorr_rn01.gt(0)).updateMask(1)
         score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        score_03 = zero_img.add(tcorr_rn03.gt(0)).updateMask(1)
         score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
-        score_16 = zero_img.add(tcorr_rn16.gt(0)).updateMask(1)
-        score_64 = zero_img.add(tcorr_rn64.gt(0)).updateMask(1)
+        score_37 = zero_img.add(tcorr_rn37.gt(0)).updateMask(1)
+        score_249 = zero_img.add(tcorr_rn249.gt(0)).updateMask(1)
 
         # This layer has a score of 0-5 based on where the binaries overlap.
-        total_score_img = ee.Image([score_coarse, score_02, score_04, score_16, score_64]) \
+        total_score_img = ee.Image([score_coarse, score_01, score_02, score_03, score_04, score_37, score_249]) \
             .reduce(ee.Reducer.sum())
 
-        # Do one more reduce neighborhood to smooth the c factor
+        # Do one more reduce neighborhood to smooth c factor
         tcorr = tcorr \
             .reduceNeighborhood(reducer=ee.Reducer.mean(),
                                 kernel=ee.Kernel.square(radius=1, units='pixels'),
