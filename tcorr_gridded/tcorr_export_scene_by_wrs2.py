@@ -233,7 +233,7 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
     #     ini['EXPORT']['export_coll'], tmax_source.lower())
     tcorr_month_coll_id = f'{tcorr_scene_coll_id}_monthly'
 
-    if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED']:
+    if tcorr_source.upper() not in ['GRIDDED_COLD', 'GRIDDED_COLD_1KM', 'GRIDDED']:
         raise ValueError('unsupported tcorr_source for these tools')
 
     # For now only support reading specific Tmax sources
@@ -569,6 +569,8 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 tcorr_img = t_obj.tcorr_gridded
             elif tcorr_source == 'GRIDDED_COLD':
                 tcorr_img = t_obj.tcorr_gridded_cold
+            elif tcorr_source == 'GRIDDED_COLD_1KM':
+                tcorr_img = t_obj.tcorr_gridded_cold_1km
             # tcorr_img = t_obj.tcorr
 
             # Replace masked tcorr images with climos
@@ -585,6 +587,22 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
                 #   We might want to have it actually be 0 instead
                 tcorr_month_img = tcorr_month_coll.first()\
                     .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])])\
+                    .set({'tcorr_coarse_count': None})
+                tcorr_img = ee.Algorithms.If(
+                    ee.Number(tcorr_img.get('tcorr_index')).eq(9)
+                        .And(tcorr_month_coll.size().gt(0)),
+                    tcorr_month_img,
+                    tcorr_img)
+            elif fill_with_climo_flag and tcorr_source == 'GRIDDED_COLD_1KM':
+                logging.debug('    Checking if monthly climo should be applied')
+                tcorr_month_coll = ee.ImageCollection(tcorr_month_coll_id) \
+                    .filterMetadata('wrs2_tile', 'equals', wrs2_tile) \
+                    .filterMetadata('month', 'equals', export_dt.month) \
+                    .select(['tcorr'])
+                # Setting the quality to 0 here causes it to get masked below
+                #   We might want to have it actually be 0 instead
+                tcorr_month_img = tcorr_month_coll.first() \
+                    .addBands([tcorr_month_coll.first().multiply(0).rename(['quality'])]) \
                     .set({'tcorr_coarse_count': None})
                 tcorr_img = ee.Algorithms.If(
                     ee.Number(tcorr_img.get('tcorr_index')).eq(9)
