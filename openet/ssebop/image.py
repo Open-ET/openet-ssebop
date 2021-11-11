@@ -785,6 +785,7 @@ class Image():
             tcorr_img = ee.Image(self.tcorr_gridded_cold_1km).select(['tcorr'])
 
             # EE will resample using nearest neighbor by default
+            # TODO - We want to make sure that the bilinear resample happens.
             if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img \
                     .resample(self._tcorr_resample.lower()) \
@@ -1832,7 +1833,7 @@ class Image():
             .reduceResolution(
             reducer=ee.Reducer.percentile(percentiles=[2.5])
                 .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
-            bestEffort=True, maxPixels=30000) \
+            bestEffort=True, maxPixels=65000) \
             .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .select([0, 1], ['tcorr', 'count'])
 
@@ -1846,7 +1847,7 @@ class Image():
         count_coarse = tcorr_coarse_img \
             .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
                           crsTransform=coarse_transform,
-                          bestEffort=False, maxPixels=100000)
+                          bestEffort=False, maxPixels=200000)
         tcorr_count = ee.Number(count_coarse.get('tcorr'))
 
         # select only the tcorr band.
