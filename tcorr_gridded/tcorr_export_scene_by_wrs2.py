@@ -31,7 +31,7 @@ TCORR_INDICES = {
     'USER': 8,
     'NODATA': 9,
 }
-EXPORT_GEO = [5000, 0, 15, 0, -5000, 15]
+EXPORT_GEO = [1000, 0, 15, 0, -1000, 15]
 
 
 def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
