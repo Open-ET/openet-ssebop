@@ -1825,6 +1825,7 @@ class Image():
         """
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
+
         coarse_transform = [1000, 0, 15, 0, -1000, 15]
 
         # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
