@@ -1524,9 +1524,6 @@ class Image():
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
-        # a possibility
-        # ndvi_smooth_med = ndvi.reduceNeighborhood(ee.Reducer.median(),
-        #                                           ee.Kernel.square(3, 'pixels')).reproject(self.crs, coarse_transform)
 
         ndvi_smooth_avg = ndvi.reduceNeighborhood(ee.Reducer.mean(),
                                     ee.Kernel.square(3, 'pixels')).reproject(self.crs, coarse_transform)
@@ -1540,7 +1537,9 @@ class Image():
                                 .where(ndvi_smooth_avg.gt(0.9), lst_smooth)\
                                 .where(ndvi_smooth_avg.lt(0.0), lst_smooth)
 
-        return tcold.rename(['tcorr']) \
+        tcorr = tcold.divide(tmax)
+
+        return tcorr.rename(['tcorr']) \
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
