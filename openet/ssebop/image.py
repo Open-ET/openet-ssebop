@@ -289,12 +289,13 @@ class Image():
         """Fraction of reference ET"""
 
         # Adjust air temperature based on elevation (Elevation Lapse Rate)
-        # TODO: Eventually point thisat the model.elr_adjust() function instead
+        # TODO: Eventually point this at the model.elr_adjust() function instead
         if self._elr_flag:
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
         else:
             tmax = self.tmax
 
+        # todo - should there be a way to get tmax to be 1km
         et_fraction = model.et_fraction(
             lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=self.dt)
 
@@ -799,15 +800,6 @@ class Image():
         elif 'WARM' == self._tcorr_source.upper():
             tcorr_img = ee.Image(self.tcorr_warm).select(['tcorr'])
 
-            # EE will resample using nearest neighbor by default
-            if self._tcorr_resample.lower() in ['bilinear']:
-                tcorr_img = tcorr_img \
-                    .resample(self._tcorr_resample.lower()) \
-                    .reproject(crs=self.crs, crsTransform=self.transform)
-            elif self._tcorr_resample.lower() != 'nearest':
-                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
-                    self._tcorr_resample))
-
             return tcorr_img.rename(['tcorr'])
 
         elif 'DYNAMIC' == self._tcorr_source.upper():
@@ -1297,6 +1289,13 @@ class Image():
                   'tmax_version': tmax.get('tmax_version')})
 
     @lazy_property
+    def ndwi(self):
+        # TODO Return NDWI index
+        #var ndwi = (b3.subtract(b6)).divide(b6.add(b3)).select(['SR_B3'], ['ndwi'])//.updateMask(mask)
+        return None
+
+
+    @lazy_property
     def tcorr_image_hot(self):
         """Compute the scene wide HOT Tcorr for the current image
 
@@ -1516,30 +1515,45 @@ class Image():
 
         """
 
-        coarse_transform = [1000, 0, 15, 0, -1000, 15]
+        coarse_transform = [3000, 0, 15, 0, -3000, 15]
         dt_coeff = 0.12
+        ndwi_threshold = -0.25
+        high_ndvi_threshold = 0.85
+        # max pixels argument for .reduceResolution()
+        m_pixels = 65535
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
+        # TODO - self.ndwi is not yet implemented
+        ndwi = ee.Image(self.ndwi)
+        watermask = ndwi.lt(ndwi_threshold)
 
+        # TODO - is reproject alone doing averaging in a way that is acceptable?
+        ndvi_avg = ndvi.reproject(self.crs, coarse_transform)
+        lst_avg = lst.reproject(self.crs, coarse_transform)
+        dt_avg = dt.reproject(self.crs, coarse_transform)
+        tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
-        ndvi_smooth_avg = ndvi.reduceNeighborhood(ee.Reducer.mean(),
-                                    ee.Kernel.square(3, 'pixels')).reproject(self.crs, coarse_transform)
+        # now mask!
+        ndvi_avg_mask = ndvi_avg.updateMask(watermask)
+        lst_avg_mask = lst_avg.updateMask(watermask)
 
-        lst_smooth = lst.reduceNeighborhood(ee.Reducer.mean(),
-                                    ee.Kernel.square(3, 'pixels')).reproject(self.crs, coarse_transform)
-        Tc_warm = lst_smooth.expression('(lst - (dt_coeff * dt * (0.90 - ndvi) * 10))',
-                                      {'ndvi': ndvi_smooth_avg, 'dt': dt, 'lst': lst_smooth, 'dt_coeff': dt_coeff})
-        tcold = lst_smooth.where((ndvi_smooth_avg.gte(0)
-                                .And(ndvi_smooth_avg.lte(0.9))), Tc_warm)\
-                                .where(ndvi_smooth_avg.gt(0.9), lst_smooth)\
-                                .where(ndvi_smooth_avg.lt(0.0), lst_smooth)
+        Tc_warm = lst_avg_mask.expression(f'(lst - (dt_coeff * dt * ({high_ndvi_threshold} - ndvi) * 10))',
+                                      {'ndvi': ndvi_avg_mask, 'dt': dt_avg, 'lst': lst_avg_mask, 'dt_coeff': dt_coeff})
+        # in places where NDVI is really high, use the lst at those places
 
-        tcorr = tcold.divide(tmax)
+        # TODO - Seems strange to me using masked ndvi lt(0) to get water but we feed it the lst_avg_mask which is already watermasked? That won't work right?!?!
+        Tc_cold = Tc_warm.where(ndvi_avg_mask.gt(0.9), lst_avg_mask).where(ndvi_avg_mask.lt(0), lst_avg_mask)
 
-        return tcorr.rename(['tcorr']) \
+        c_factor = Tc_cold.divide(tmax_avg)
+
+        # bilinearly smooth the 3km c factor
+        c_factor_bilinear = c_factor.resample('bilinear')
+
+        # TODO - is there a technical reason to keep the label name as tcorr?
+        return c_factor_bilinear.rename(['tcorr']) \
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
