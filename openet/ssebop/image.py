@@ -292,10 +292,14 @@ class Image():
         # TODO: Eventually point this at the model.elr_adjust() function instead
         if self._elr_flag:
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
+
+        elif self._tcorr_source.upper() == 'WARM':
+            # resample tmax to be 1km
+            tmax = self.tmax.resample('bilinear')
+
         else:
             tmax = self.tmax
 
-        # todo - should there be a way to get tmax to be 1km
         et_fraction = model.et_fraction(
             lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=self.dt)
 
