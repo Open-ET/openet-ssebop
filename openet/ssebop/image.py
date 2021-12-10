@@ -294,7 +294,7 @@ class Image():
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
 
         elif self._tcorr_source.upper() == 'WARM':
-            # resample tmax to be 1km
+            # resample tmax to be 1km.
             tmax = self.tmax.resample('bilinear')
 
         else:
