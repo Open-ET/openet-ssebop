@@ -46,7 +46,6 @@ def emissivity(landsat_image):
         .clamp(0.977, 0.99)\
         .rename(['emissivity'])\
 
-
 def lst(landsat_image):
     """Emissivity corrected land surface temperature (LST) from brightness Ts.
 
@@ -107,7 +106,6 @@ def lst(landsat_image):
 
     return lst.rename(['lst'])
 
-
 def ndvi(landsat_image):
     """Normalized difference vegetation index
 
@@ -123,3 +121,25 @@ def ndvi(landsat_image):
     """
     return ee.Image(landsat_image).normalizedDifference(['nir', 'red'])\
         .rename(['ndvi'])
+
+def ndwi(landsat_image):
+    """Normalized difference water index
+
+    Parameters
+    ----------
+    landsat_image : ee.Image
+        "Prepped" Landsat image with standardized band names.
+
+    Returns
+    -------
+    ee.Image
+
+"""
+
+    # ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',  'ST_B10', 'QA_PIXEL'],
+    # .... equal to ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',  'tir', 'QA_PIXEL']
+
+    return ee.Image(landsat_image).normalizedDifference(['green', 'swir1'])\
+        .rename(['ndwi'])
+
+

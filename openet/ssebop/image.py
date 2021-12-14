@@ -450,6 +450,12 @@ class Image():
         return self.image.select(['ndvi']).set(self._properties)
 
     @lazy_property
+    def ndwi(self):
+        """Input normalized difference water index (NDWI) to mask water features."""
+
+        return self.image.select(['ndwi']).set(self._properties)
+
+    @lazy_property
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
         return self.mask\
@@ -1075,6 +1081,7 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1159,6 +1166,7 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1235,6 +1243,7 @@ class Image():
             prep_image.select(['tir'], ['lst']),
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1291,13 +1300,6 @@ class Image():
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
                   'tmax_version': tmax.get('tmax_version')})
-
-    @lazy_property
-    def ndwi(self):
-        # TODO Return NDWI index
-        #var ndwi = (b3.subtract(b6)).divide(b6.add(b3)).select(['SR_B3'], ['ndwi'])//.updateMask(mask)
-        return None
-
 
     @lazy_property
     def tcorr_image_hot(self):
@@ -1530,7 +1532,6 @@ class Image():
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
-        # TODO - self.ndwi is not yet implemented
         ndwi = ee.Image(self.ndwi)
         watermask = ndwi.lt(ndwi_threshold)
 
@@ -1544,12 +1545,16 @@ class Image():
         ndvi_avg_mask = ndvi_avg.updateMask(watermask)
         lst_avg_mask = lst_avg.updateMask(watermask)
 
-        Tc_warm = lst_avg_mask.expression(f'(lst - (dt_coeff * dt * ({high_ndvi_threshold} - ndvi) * 10))',
-                                      {'ndvi': ndvi_avg_mask, 'dt': dt_avg, 'lst': lst_avg_mask, 'dt_coeff': dt_coeff})
+        # make sure you use unmasked LST here
+        Tc_warm = lst_avg_mask.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
+                                      {'ndvi': ndvi_avg_mask, 'dt': dt_avg, 'lst': lst_avg_mask, 'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
         # in places where NDVI is really high, use the lst at those places
 
         # TODO - Seems strange to me using masked ndvi lt(0) to get water but we feed it the lst_avg_mask which is already watermasked? That won't work right?!?!
-        Tc_cold = Tc_warm.where(ndvi_avg_mask.gt(0.9), lst_avg_mask).where(ndvi_avg_mask.lt(0), lst_avg_mask)
+        Tc_cold = Tc_warm \
+            .where((ndvi_avg_mask.gte(0).And(ndvi_avg_mask.lte(high_ndvi_threshold))), Tc_warm)\
+            .where(ndvi_avg_mask.gt(high_ndvi_threshold), lst_avg_mask)\
+            .where(ndvi_avg_mask.lt(0), lst_avg_mask)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
