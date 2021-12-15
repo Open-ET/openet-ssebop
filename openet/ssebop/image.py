@@ -1535,7 +1535,7 @@ class Image():
         ndwi = ee.Image(self.ndwi)
         watermask = ndwi.lt(ndwi_threshold)
 
-        # TODO - is reproject alone doing averaging in a way that is acceptable?
+        # TODO - is reproject alone doing averaging in a way that is acceptable??
         ndvi_avg = ndvi.reproject(self.crs, coarse_transform)
         lst_avg = lst.reproject(self.crs, coarse_transform)
         dt_avg = dt.reproject(self.crs, coarse_transform)
