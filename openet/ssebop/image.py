@@ -1546,15 +1546,15 @@ class Image():
         lst_avg_mask = lst_avg.updateMask(watermask)
 
         # make sure you use unmasked LST here
-        Tc_warm = lst_avg_mask.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
+        Tc_warm = lst_avg.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
                                       {'ndvi': ndvi_avg_mask, 'dt': dt_avg, 'lst': lst_avg_mask, 'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
-        # in places where NDVI is really high, use the lst at those places
 
-        # TODO - Seems strange to me using masked ndvi lt(0) to get water but we feed it the lst_avg_mask which is already watermasked? That won't work right?!?!
+        # in places where NDVI is really high, use the masked original lst at those places
+        # in places where NDVI is really low (water) use the unmasked original lst
         Tc_cold = Tc_warm \
             .where((ndvi_avg_mask.gte(0).And(ndvi_avg_mask.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_mask.gt(high_ndvi_threshold), lst_avg_mask)\
-            .where(ndvi_avg_mask.lt(0), lst_avg_mask)
+            .where(ndvi_avg.lt(0), lst_avg)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
