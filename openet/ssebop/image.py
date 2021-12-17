@@ -1522,9 +1522,9 @@ class Image():
         """
 
         coarse_transform = [3000, 0, 15, 0, -3000, 15]
-        dt_coeff = 0.12
-        ndwi_threshold = -0.25
-        high_ndvi_threshold = 0.85
+        dt_coeff = 0.13
+        ndwi_threshold = -0.15
+        high_ndvi_threshold = 0.9
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
@@ -1535,11 +1535,39 @@ class Image():
         ndwi = ee.Image(self.ndwi)
         watermask = ndwi.lt(ndwi_threshold)
 
+        # get geo transforms TODO - is it necessary
+        # lst_geo = lst.getInfo()['bands'][0]['crs_transform']
+        # ndvi_geo = ndvi.getInfo()['bands'][0]['crs_transform']
+        # tmax_geo = tmax.getInfo()['bands'][0]['crs_transform']
+        # dt_geo = dt.getInfo()['bands'][0]['crs_transform']
+
+
+
         # TODO - is reproject alone doing averaging in a way that is acceptable??
         ndvi_avg = ndvi.reproject(self.crs, coarse_transform)
         lst_avg = lst.reproject(self.crs, coarse_transform)
         dt_avg = dt.reproject(self.crs, coarse_transform)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
+
+        # # # TODO - should this be done?!?! reproject().reduceResolution().reproject() sandwich.
+        # ndvi_avg = ndvi\
+        #     .reproject(self.crs, self.transform)\
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+        #     .reproject(self.crs, coarse_transform)
+        # lst_avg = lst\
+        #     .reproject(self.crs, self.transform)\
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+        #     .reproject(self.crs, coarse_transform)
+        # # TODO is it wrong to use self.transform here if the original dt (or tmax) has a different transform?
+        # dt_avg = dt\
+        #     .reproject(self.crs, self.transform)\
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+        #     .reproject(self.crs, coarse_transform)
+        # tmax_avg = tmax\
+        #     .reproject(self.crs, self.transform)\
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+        #     .reproject(self.crs, coarse_transform)
+
 
         # now mask!
         ndvi_avg_mask = ndvi_avg.updateMask(watermask)
@@ -1551,7 +1579,7 @@ class Image():
 
         # in places where NDVI is really high, use the masked original lst at those places
         # in places where NDVI is really low (water) use the unmasked original lst
-        Tc_cold = Tc_warm \
+        Tc_cold = lst_avg \
             .where((ndvi_avg_mask.gte(0).And(ndvi_avg_mask.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_mask.gt(high_ndvi_threshold), lst_avg_mask)\
             .where(ndvi_avg.lt(0), lst_avg)
