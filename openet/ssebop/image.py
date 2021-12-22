@@ -179,8 +179,13 @@ class Image():
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
-        # Convert elr_flag from string to bool if necessary
+        print('here is  self._tcorr_source',self._tcorr_source)
+        print(f'checking ELR flag {self._elr_flag}')
+        print(f'type of ELR flag {type(self._elr_flag)}')
+
+        # Convert elr_flag from string to bool IF necessary
         if type(self._elr_flag) is str:
+            print('ELR given as string')
             if self._elr_flag.upper() in ['TRUE']:
                 self._elr_flag = True
             elif self._elr_flag.upper() in ['FALSE']:
@@ -188,6 +193,8 @@ class Image():
             else:
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
+
+        print(f'ELR type is {self._elr_flag}')
 
         # ET fraction type
         # CGM - Should et_fraction_type be set as a kwarg instead?
@@ -247,6 +254,8 @@ class Image():
         # else:
         #     self.min_pixels_per_image = 250
 
+        print(f'this is the tcorr source passed to the image class {tcorr_source}')
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -290,11 +299,14 @@ class Image():
 
         # Adjust air temperature based on elevation (Elevation Lapse Rate)
         # TODO: Eventually point this at the model.elr_adjust() function instead
+        print(f'elr flag is: {self._elr_flag}')
+        # =========================================================
         if self._elr_flag:
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
 
-        elif self._tcorr_source.upper() == 'WARM':
+        if self._tcorr_source.upper() == 'WARM':
             # resample tmax to be 1km.
+            print('WARM, so we resample tmax.,.,.,')
             tmax = self.tmax.resample('bilinear')
 
         else:
@@ -796,7 +808,7 @@ class Image():
             tcorr_img = ee.Image(self.tcorr_gridded_cold_1km).select(['tcorr'])
 
             # EE will resample using nearest neighbor by default
-            # TODO - We want to make sure that the bilinear resample happens.
+            # We want to make sure that the bilinear resample happens.
             if self._tcorr_resample.lower() in ['bilinear']:
                 tcorr_img = tcorr_img \
                     .resample(self._tcorr_resample.lower()) \
@@ -807,7 +819,9 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
+        # is WARM being called as expected here when we use export tools in SSEBop Workflows - YES
         elif 'WARM' == self._tcorr_source.upper():
+            print('about to call tcorr warm')
             tcorr_img = ee.Image(self.tcorr_warm).select(['tcorr'])
 
             return tcorr_img.rename(['tcorr'])
@@ -1521,6 +1535,8 @@ class Image():
 
         """
 
+        print('tcorr warm has been called')
+
         coarse_transform = [3000, 0, 15, 0, -3000, 15]
         dt_coeff = 0.13
         ndwi_threshold = -0.15
@@ -1544,8 +1560,13 @@ class Image():
 
 
         # TODO - is reproject alone doing averaging in a way that is acceptable??
-        ndvi_avg = ndvi.reproject(self.crs, coarse_transform)
-        lst_avg = lst.reproject(self.crs, coarse_transform)
+        # TODO - I need to mask the NDVI prior to reprojecting
+        ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform)
+        ndvi_avg_unmasked = ndvi.reproject(self.crs, coarse_transform)
+        lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, coarse_transform)
+        lst_avg_unmasked = lst.reproject(self.crs, coarse_transform).updateMask(1)
+        # ndvi_avg = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform)
+        # lst_avg = lst.reproject(self.crs, coarse_transform)
         dt_avg = dt.reproject(self.crs, coarse_transform)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
@@ -1568,21 +1589,16 @@ class Image():
         #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
         #     .reproject(self.crs, coarse_transform)
 
-
-        # now mask!
-        ndvi_avg_mask = ndvi_avg.updateMask(watermask)
-        lst_avg_mask = lst_avg.updateMask(watermask)
-
         # make sure you use unmasked LST here
-        Tc_warm = lst_avg.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
-                                      {'ndvi': ndvi_avg_mask, 'dt': dt_avg, 'lst': lst_avg_mask, 'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+        Tc_warm = lst_avg_unmasked.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
+                                      {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked, 'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
 
         # in places where NDVI is really high, use the masked original lst at those places
         # in places where NDVI is really low (water) use the unmasked original lst
-        Tc_cold = lst_avg \
-            .where((ndvi_avg_mask.gte(0).And(ndvi_avg_mask.lte(high_ndvi_threshold))), Tc_warm)\
-            .where(ndvi_avg_mask.gt(high_ndvi_threshold), lst_avg_mask)\
-            .where(ndvi_avg.lt(0), lst_avg)
+        Tc_cold = lst_avg_unmasked \
+            .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
+            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
@@ -1682,6 +1698,7 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
+        print('gridded tocorr lazy prop activated')
 
         # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
@@ -1936,6 +1953,7 @@ class Image():
         ee.Image of Tcorr values
 
         """
+        print('cold gridded tcorr activated')
         # TODO: Define coarse cellsize or transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
@@ -2093,6 +2111,7 @@ class Image():
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
 
+        print('1km gridded tcorr cold activated')
         coarse_transform = [1000, 0, 15, 0, -1000, 15]
 
         # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)

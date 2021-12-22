@@ -30,6 +30,7 @@ def et_fraction(lst, tmax, tcorr, dt):
     Clamping function assumes this is an alfalfa fraction.
 
     """
+
     et_fraction = lst.expression(
         '(lst * (-1) + tmax * tcorr + dt) / dt',
         {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
