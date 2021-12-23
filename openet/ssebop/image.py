@@ -299,14 +299,13 @@ class Image():
 
         # Adjust air temperature based on elevation (Elevation Lapse Rate)
         # TODO: Eventually point this at the model.elr_adjust() function instead
-        print(f'elr flag is: {self._elr_flag}')
         # =========================================================
         if self._elr_flag:
+            # TODO - how to handle a potential ELR and WARM call?!?! Or don't and get rid of ELR.
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
 
         if self._tcorr_source.upper() == 'WARM':
             # resample tmax to be 1km.
-            print('WARM, so we resample tmax.,.,.,')
             tmax = self.tmax.resample('bilinear')
 
         else:
