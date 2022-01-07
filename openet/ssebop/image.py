@@ -821,7 +821,7 @@ class Image():
         # is WARM being called as expected here when we use export tools in SSEBop Workflows - YES
         elif 'WARM' == self._tcorr_source.upper():
             print('about to call tcorr warm')
-            tcorr_img = ee.Image(self.tcorr_warm).select(['tcorr'])
+            tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
 
             return tcorr_img.rename(['tcorr'])
 
@@ -1524,9 +1524,11 @@ class Image():
         #           'tmax_version': tmax.get('tmax_version')})
 
     @lazy_property
-    def tcorr_warm(self):
+    def tcorr_FANO(self):
         """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
             to simulate true cold cfactor
+
+            FANO: Force And Normalize Operation/Operator
 
         Returns
         -------
@@ -1537,9 +1539,11 @@ class Image():
         print('tcorr warm has been called')
 
         coarse_transform = [3000, 0, 15, 0, -3000, 15]
+        coarse_transform25 = [25000, 0, 15, 0, -25000, 15]
         dt_coeff = 0.13
         ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
+        water_pct = 10
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
@@ -1549,6 +1553,25 @@ class Image():
         dt = ee.Image(self.dt)
         ndwi = ee.Image(self.ndwi)
         watermask = ndwi.lt(ndwi_threshold)
+        watermask_for_coarse = ndwi.updateMask(ndwi.lt(ndwi_threshold))
+        antiwatermask = ndwi.gte(ndwi_threshold)
+
+        ## GELP - changes slightly here reproject self.crs and self.transform
+        # should be equivalent to: landsat_crs, ndvi_transform.
+        watermask_coarse_count = watermask_for_coarse\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.count(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1).select([0], ['count'])
+        total_pixels_count = ndvi\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.count(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1).select([0], ['count'])
+
+        percentage_bad = watermask_coarse_count.divide(total_pixels_count)
+        pct_value = (1 - (water_pct / 100))
+        wet_region_mask_5km = percentage_bad.lte(pct_value)
 
         # get geo transforms TODO - is it necessary
         # lst_geo = lst.getInfo()['bands'][0]['crs_transform']
@@ -1556,48 +1579,38 @@ class Image():
         # tmax_geo = tmax.getInfo()['bands'][0]['crs_transform']
         # dt_geo = dt.getInfo()['bands'][0]['crs_transform']
 
-
-
         # TODO - is reproject alone doing averaging in a way that is acceptable??
         # TODO - I need to mask the NDVI prior to reprojecting
         ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform)
+        ndvi_avg_masked25 = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform25)
         ndvi_avg_unmasked = ndvi.reproject(self.crs, coarse_transform)
         lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, coarse_transform)
+        lst_avg_masked25 = lst.updateMask(watermask).reproject(self.crs, coarse_transform25)
         lst_avg_unmasked = lst.reproject(self.crs, coarse_transform).updateMask(1)
-        # ndvi_avg = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform)
-        # lst_avg = lst.reproject(self.crs, coarse_transform)
         dt_avg = dt.reproject(self.crs, coarse_transform)
+        dt_avg25 = dt.reproject(self.crs, coarse_transform25).updateMask(1)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
-
-        # # # TODO - should this be done?!?! reproject().reduceResolution().reproject() sandwich.
-        # ndvi_avg = ndvi\
-        #     .reproject(self.crs, self.transform)\
-        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-        #     .reproject(self.crs, coarse_transform)
-        # lst_avg = lst\
-        #     .reproject(self.crs, self.transform)\
-        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-        #     .reproject(self.crs, coarse_transform)
-        # # TODO is it wrong to use self.transform here if the original dt (or tmax) has a different transform?
-        # dt_avg = dt\
-        #     .reproject(self.crs, self.transform)\
-        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-        #     .reproject(self.crs, coarse_transform)
-        # tmax_avg = tmax\
-        #     .reproject(self.crs, self.transform)\
-        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-        #     .reproject(self.crs, coarse_transform)
 
         # make sure you use unmasked LST here
         Tc_warm = lst_avg_unmasked.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
-                                      {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked, 'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+                                      {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
+                                       'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+        Tc_warm25 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+                                             {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+                                              'ndvi': ndvi_avg_masked25, 'dt': dt_avg25, 'lst': lst_avg_masked25})
 
         # in places where NDVI is really high, use the masked original lst at those places
         # in places where NDVI is really low (water) use the unmasked original lst
+        # everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
+        # in places where there is too much land covered by water 10% or greater,
+        # use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
+        # TODO - should we make the water have it's old C factor some other way, like is
+        #  ".where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \" redundant???
         Tc_cold = lst_avg_unmasked \
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
-            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \
+            .where(wet_region_mask_5km, Tc_warm25)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
