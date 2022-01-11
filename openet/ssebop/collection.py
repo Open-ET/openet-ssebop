@@ -185,7 +185,7 @@ class Collection():
             if (coll_id not in self._landsat_c2_sr_collections and
                     coll_id not in self._landsat_c1_sr_collections and
                     coll_id not in self._landsat_c1_toa_collections):
-                raise ValueError('unsupported collection: {}'.format(coll_id))
+                raise ValueError(f'unsupported collection: {coll_id}')
 
         # Check that collections don't have "duplicates"
         #   (i.e TOA and SR or TOA and TOA_RT for same Landsat)
@@ -230,6 +230,8 @@ class Collection():
         if self.start_date >= '2012-01-01':
             self.collections = [c for c in self.collections if 'LT05' not in c]
         if self.end_date <= '1999-01-01':
+            self.collections = [c for c in self.collections if 'LE07' not in c]
+        if self.end_date >= '2022-01-01':
             self.collections = [c for c in self.collections if 'LE07' not in c]
         if self.end_date <= '2013-01-01':
             self.collections = [c for c in self.collections if 'LC08' not in c]
@@ -311,6 +313,9 @@ class Collection():
                 if 'LT05' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.lt(
                         'system:time_start', ee.Date('2011-12-31').millis()))
+                elif 'LE07' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.lt(
+                        'system:time_start', ee.Date('2022-01-01').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2013-04-01').millis()))
@@ -360,6 +365,9 @@ class Collection():
                 if 'LT05' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.lt(
                         'system:time_start', ee.Date('2011-12-31').millis()))
+                elif 'LE07' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.lt(
+                        'system:time_start', ee.Date('2022-01-01').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2013-04-01').millis()))
@@ -407,6 +415,9 @@ class Collection():
                 if 'LT05' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.lt(
                         'system:time_start', ee.Date('2011-12-31').millis()))
+                elif 'LE07' in coll_id:
+                    input_coll = input_coll.filter(ee.Filter.lt(
+                        'system:time_start', ee.Date('2022-01-01').millis()))
                 elif 'LC08' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2013-04-01').millis()))
@@ -420,7 +431,7 @@ class Collection():
                     ee.ImageCollection(input_coll.map(compute_lsr)))
 
             else:
-                raise ValueError('unsupported collection: {}'.format(coll_id))
+                raise ValueError(f'unsupported collection: {coll_id}')
 
         return variable_coll
 
@@ -464,7 +475,8 @@ class Collection():
             instantiation call.
         t_interval : {'daily', 'monthly', 'annual', 'custom'}, optional
             Time interval over which to interpolate and aggregate values
-            (the default is 'monthly').
+            The default 'custom' interval will aggregate all days within the
+            start/end dates and return an image collection with a single image.
         interp_method : {'linear}, optional
             Interpolation method (the default is 'linear').
         interp_days : int, str, optional
@@ -491,10 +503,9 @@ class Collection():
         """
         # Check that the input parameters are valid
         if t_interval.lower() not in ['daily', 'monthly', 'annual', 'custom']:
-            raise ValueError('unsupported t_interval: {}'.format(t_interval))
+            raise ValueError(f'unsupported t_interval: {t_interval}')
         elif interp_method.lower() not in ['linear']:
-            raise ValueError('unsupported interp_method: {}'.format(
-                interp_method))
+            raise ValueError(f'unsupported interp_method: {interp_method}')
 
         if type(interp_days) is str and utils.is_number(interp_days):
             interp_days = int(interp_days)
@@ -561,9 +572,9 @@ class Collection():
         for et_reference_param in ['et_reference_source', 'et_reference_band',
                                    'et_reference_factor']:
             if et_reference_param not in self.model_args.keys():
-                raise ValueError('{} was not set'.format(et_reference_param))
+                raise ValueError(f'{et_reference_param} was not set')
             elif not self.model_args[et_reference_param]:
-                raise ValueError('{} was not set'.format(et_reference_param))
+                raise ValueError(f'{et_reference_param} was not set')
 
         if type(self.model_args['et_reference_source']) is str:
             # Assume a string source is an single image collection ID
@@ -599,8 +610,8 @@ class Collection():
         #         .filterDate(self.start_date, self.end_date)\
         #         .select([self.model_args['et_reference_band']])
         else:
-            raise ValueError('unsupported et_reference_source: {}'.format(
-                self.model_args['et_reference_source']))
+            raise ValueError(f'unsupported et_reference_source: '
+                             f'{self.model_args["et_reference_source"]}')
 
         # Scale reference ET images (if necessary)
         # CGM - Resampling is not working correctly so not including for now
