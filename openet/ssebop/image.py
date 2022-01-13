@@ -305,7 +305,7 @@ class Image():
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
 
         if self._tcorr_source.upper() == 'WARM':
-            # resample tmax to be 1km.
+            # bilinearly resample tmax at 1km (smoothed).
             tmax = self.tmax.resample('bilinear')
 
         else:
@@ -820,7 +820,7 @@ class Image():
 
         # is WARM being called as expected here when we use export tools in SSEBop Workflows - YES
         elif 'WARM' == self._tcorr_source.upper():
-            print('about to call tcorr warm')
+
             tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
 
             return tcorr_img.rename(['tcorr'])
@@ -1528,7 +1528,7 @@ class Image():
         """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
             to simulate true cold cfactor
 
-            FANO: Force And Normalize Operation/Operator
+            FANO: Forcing And Normalizing Operation
 
         Returns
         -------
@@ -1536,11 +1536,9 @@ class Image():
 
         """
 
-        print('tcorr warm has been called')
-
-        coarse_transform = [3000, 0, 15, 0, -3000, 15]
+        coarse_transform = [5000, 0, 15, 0, -5000, 15]
         coarse_transform25 = [25000, 0, 15, 0, -25000, 15]
-        dt_coeff = 0.13
+        dt_coeff = 0.125
         ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
         water_pct = 10
@@ -1554,7 +1552,6 @@ class Image():
         ndwi = ee.Image(self.ndwi)
         watermask = ndwi.lt(ndwi_threshold)
         watermask_for_coarse = ndwi.updateMask(ndwi.lt(ndwi_threshold))
-        antiwatermask = ndwi.gte(ndwi_threshold)
 
         ## GELP - changes slightly here reproject self.crs and self.transform
         # should be equivalent to: landsat_crs, ndvi_transform.
