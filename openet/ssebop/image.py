@@ -179,10 +179,6 @@ class Image():
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
-        print('here is  self._tcorr_source',self._tcorr_source)
-        print(f'checking ELR flag {self._elr_flag}')
-        print(f'type of ELR flag {type(self._elr_flag)}')
-
         # Convert elr_flag from string to bool IF necessary
         if type(self._elr_flag) is str:
             print('ELR given as string')
@@ -194,7 +190,7 @@ class Image():
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
 
-        print(f'ELR type is {self._elr_flag}')
+        # print(f'ELR type is {self._elr_flag}')
 
         # ET fraction type
         # CGM - Should et_fraction_type be set as a kwarg instead?
@@ -254,7 +250,7 @@ class Image():
         # else:
         #     self.min_pixels_per_image = 250
 
-        print(f'this is the tcorr source passed to the image class {tcorr_source}')
+        # print(f'this is the tcorr source passed to the image class {tcorr_source}')
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -304,7 +300,7 @@ class Image():
             # TODO - how to handle a potential ELR and WARM call?!?! Or don't and get rid of ELR.
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
 
-        if self._tcorr_source.upper() == 'WARM':
+        if self._tcorr_source.upper() == 'FANO':
             # bilinearly resample tmax at 1km (smoothed).
             tmax = self.tmax.resample('bilinear')
 
@@ -690,7 +686,7 @@ class Image():
             elif (self._tmax_source.startswith('projects/') and
                     self._tmax_source.split('/')[-1] in scene_dict.keys()):
                 tmax_key = self._tmax_source.split('/')[-1]
-                print('the tmax key \n', tmax_key)
+                # print('the tmax key \n', tmax_key)
             else:
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
@@ -818,8 +814,8 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
-        # is WARM being called as expected here when we use export tools in SSEBop Workflows - YES
-        elif 'WARM' == self._tcorr_source.upper():
+        # is FANO being called as expected here when we use export tools in SSEBop Workflows - YES
+        elif 'FANO' == self._tcorr_source.upper():
 
             tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
 
@@ -1570,20 +1566,25 @@ class Image():
         pct_value = (1 - (water_pct / 100))
         wet_region_mask_5km = percentage_bad.lte(pct_value)
 
-        # get geo transforms TODO - is it necessary
-        # lst_geo = lst.getInfo()['bands'][0]['crs_transform']
-        # ndvi_geo = ndvi.getInfo()['bands'][0]['crs_transform']
-        # tmax_geo = tmax.getInfo()['bands'][0]['crs_transform']
-        # dt_geo = dt.getInfo()['bands'][0]['crs_transform']
-
-        # TODO - is reproject alone doing averaging in a way that is acceptable??
-        # TODO - I need to mask the NDVI prior to reprojecting
-        ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform)
-        ndvi_avg_masked25 = ndvi.updateMask(watermask).reproject(self.crs, coarse_transform25)
-        ndvi_avg_unmasked = ndvi.reproject(self.crs, coarse_transform)
-        lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, coarse_transform)
-        lst_avg_masked25 = lst.updateMask(watermask).reproject(self.crs, coarse_transform25)
-        lst_avg_unmasked = lst.reproject(self.crs, coarse_transform).updateMask(1)
+        ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform)
+        ndvi_avg_masked25 = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform25)
+        ndvi_avg_unmasked = ndvi.reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform).updateMask(1)
+        lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform)
+        lst_avg_masked25 = lst.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform25)
+        lst_avg_unmasked = lst.reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform).updateMask(1)
+        # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_avg = dt.reproject(self.crs, coarse_transform)
         dt_avg25 = dt.reproject(self.crs, coarse_transform25).updateMask(1)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
@@ -1601,8 +1602,6 @@ class Image():
         # everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
         # in places where there is too much land covered by water 10% or greater,
         # use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
-        # TODO - should we make the water have it's old C factor some other way, like is
-        #  ".where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \" redundant???
         Tc_cold = lst_avg_unmasked \
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
@@ -1614,7 +1613,6 @@ class Image():
         # bilinearly smooth the 3km c factor
         c_factor_bilinear = c_factor.resample('bilinear')
 
-        # TODO - is there a technical reason to keep the label name as tcorr?
         return c_factor_bilinear.rename(['tcorr']) \
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
@@ -1707,7 +1705,7 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
-        print('gridded tocorr lazy prop activated')
+        # print('gridded tocorr lazy prop activated')
 
         # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
@@ -1962,7 +1960,7 @@ class Image():
         ee.Image of Tcorr values
 
         """
-        print('cold gridded tcorr activated')
+        # print('cold gridded tcorr activated')
         # TODO: Define coarse cellsize or transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
@@ -2120,7 +2118,7 @@ class Image():
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
 
-        print('1km gridded tcorr cold activated')
+        # print('1km gridded tcorr cold activated')
         coarse_transform = [1000, 0, 15, 0, -1000, 15]
 
         # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
