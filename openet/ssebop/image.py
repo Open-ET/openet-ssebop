@@ -1584,24 +1584,26 @@ class Image():
         lst_avg_unmasked = lst.reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
                                                     .reproject(self.crs, coarse_transform).updateMask(1)
+
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_avg = dt.reproject(self.crs, coarse_transform)
         dt_avg25 = dt.reproject(self.crs, coarse_transform25).updateMask(1)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
-        # make sure you use unmasked LST here
+        # FANO expression as a function of dT, calculated at the coarse resolution(s)
         Tc_warm = lst_avg_unmasked.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
                                       {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
                                        'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+
         Tc_warm25 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
                                              {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
                                               'ndvi': ndvi_avg_masked25, 'dt': dt_avg25, 'lst': lst_avg_masked25})
 
-        # in places where NDVI is really high, use the masked original lst at those places
-        # in places where NDVI is really low (water) use the unmasked original lst
-        # everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
-        # in places where there is too much land covered by water 10% or greater,
-        # use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
+        # In places where NDVI is really high, use the masked original lst at those places.
+        # In places where NDVI is really low (water) use the unmasked original lst.
+        # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
+        # In places where there is too much land covered by water 10% or greater,
+        #   use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
         Tc_cold = lst_avg_unmasked \
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
@@ -1610,7 +1612,7 @@ class Image():
 
         c_factor = Tc_cold.divide(tmax_avg)
 
-        # bilinearly smooth the 3km c factor
+        # bilinearly smooth the gridded c factor
         c_factor_bilinear = c_factor.resample('bilinear')
 
         return c_factor_bilinear.rename(['tcorr']) \

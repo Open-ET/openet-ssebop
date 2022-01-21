@@ -135,11 +135,5 @@ def ndwi(landsat_image):
     ee.Image
 
 """
-
-    # ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',  'ST_B10', 'QA_PIXEL'],
-    # .... equal to ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',  'tir', 'QA_PIXEL']
-
     return ee.Image(landsat_image).normalizedDifference(['green', 'swir1'])\
         .rename(['ndwi'])
-
-
