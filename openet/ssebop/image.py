@@ -316,10 +316,10 @@ class Image():
 
         if (self._dt_resample and
                 self._dt_resample.lower() in ['bilinear', 'bicubic']):
-            self.dt = self.dt_img.resample(self._dt_resample)
+            dt = self.dt.resample(self._dt_resample)
 
         et_fraction = model.et_fraction(
-            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=self.dt)
+            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
@@ -510,7 +510,7 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             # MF: Optional scale factor only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
-            dt_img = ee.Image(dt_coll.first()).multipy(self._dt_scale_factor)
+            dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
