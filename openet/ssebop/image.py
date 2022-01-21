@@ -503,7 +503,8 @@ class Image():
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
-        elif type(self._dt_source) is str:
+        elif (self._dt_source.lower().startswith('projects/') or
+              self._dt_source.lower().startswith('users/')):
             # Assumes a string source is an image collection ID (not an image ID), \
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
             dt_coll = ee.ImageCollection(self._dt_source) \
