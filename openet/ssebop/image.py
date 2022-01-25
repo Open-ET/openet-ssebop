@@ -42,7 +42,7 @@ class Image():
             et_reference_resample=None,
             et_reference_date_type=None,
             dt_source=None,
-            dt_scale_factor=None,
+            # dt_scale_factor=None,
             elev_source=None,
             tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
@@ -176,7 +176,7 @@ class Image():
 
         # Model input parameters
         self._dt_source = dt_source
-        self._dt_scale_factor = dt_scale_factor
+        # self._dt_scale_factor = dt_scale_factor
         self._elev_source = elev_source
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
@@ -226,8 +226,8 @@ class Image():
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
-        if 'dt_scale_factor' in kwargs.keys():
-            self._dt_scale_factor = kwargs['dt_scale_factor']
+        # if 'dt_scale_factor' in kwargs.keys():
+        #     self._dt_scale_factor = kwargs['dt_scale_factor']
         if 'tmax_resample' in kwargs.keys():
             self._tmax_resample = kwargs['tmax_resample'].lower()
         else:
@@ -511,7 +511,8 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             # MF: Optional scale factor only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
-            dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
+            # dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
+            dt_img = ee.Image(dt_coll.first()).multiply(0.01)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))

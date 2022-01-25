@@ -616,11 +616,11 @@ class Collection():
 
         # See if there is a scale dT scale factor besides 1.0.
         # MF: Make this model_arg available for the image class
-        if ('dt_scale_factor' in kwargs.keys() and
-                kwargs['dt_scale_factor'] is not None):
-            self.model_args['dt_scale_factor'] = kwargs['dt_scale_factor']
-        else:
-            self.model_args['dt_scale_factor'] = 1.0
+        # if ('dt_scale_factor' in kwargs.keys() and
+        #         kwargs['dt_scale_factor'] is not None):
+        #     self.model_args['dt_scale_factor'] = kwargs['dt_scale_factor']
+        # else:
+        #     self.model_args['dt_scale_factor'] = 1.0
 
         # Initialize variable list to only variables that can be interpolated
         interp_vars = list(set(self._interp_vars) & set(variables))
