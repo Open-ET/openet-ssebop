@@ -38,11 +38,11 @@ setup(
     long_description=long_description,
     long_description_content_type='text/x-rst',
     license='Apache',
-    author='Charles Morton',
-    author_email='charles.morton@dri.edu',
-    url=f'https://github.com/Open-ET/openet-{model_name.lower()}-beta',
-    download_url=f'https://github.com/Open-ET/openet-{model_name.lower()}-beta/'
-                 f'archive/v{version}.tar.gz',
+    author='Gabe Parrish, Mac Friedrichs, Gabriel Senay',
+    author_email='gparrish@contractor.usgs.gov',
+    url='https://github.com/Open-ET/openet-{}-beta'.format(model_name.lower()),
+    download_url='https://github.com/Open-ET/openet-{}-beta/archive/v{}.tar.gz'.format(
+		model_name.lower(), version),
     install_requires=['earthengine-api', 'openet-core', 'openet-refet-gee',
                       'python-dateutil'],
     setup_requires=['pytest-runner'],

@@ -179,8 +179,9 @@ class Image():
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
-        # Convert elr_flag from string to bool if necessary
+        # Convert elr_flag from string to bool IF necessary
         if type(self._elr_flag) is str:
+            print('ELR given as string')
             if self._elr_flag.upper() in ['TRUE']:
                 self._elr_flag = True
             elif self._elr_flag.upper() in ['FALSE']:
@@ -188,6 +189,8 @@ class Image():
             else:
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
+
+        # print(f'ELR type is {self._elr_flag}')
 
         # ET fraction type
         # CGM - Should et_fraction_type be set as a kwarg instead?
@@ -247,6 +250,8 @@ class Image():
         # else:
         #     self.min_pixels_per_image = 250
 
+        # print(f'this is the tcorr source passed to the image class {tcorr_source}')
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -289,9 +294,16 @@ class Image():
         """Fraction of reference ET"""
 
         # Adjust air temperature based on elevation (Elevation Lapse Rate)
-        # TODO: Eventually point thisat the model.elr_adjust() function instead
+        # TODO: Eventually point this at the model.elr_adjust() function instead
+        # =========================================================
         if self._elr_flag:
+            # TODO - how to handle a potential ELR and WARM call?!?! Or don't and get rid of ELR.
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
+
+        if self._tcorr_source.upper() == 'FANO':
+            # bilinearly resample tmax at 1km (smoothed).
+            tmax = self.tmax.resample('bilinear')
+
         else:
             tmax = self.tmax
 
@@ -443,6 +455,12 @@ class Image():
     def ndvi(self):
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
+
+    @lazy_property
+    def ndwi(self):
+        """Input normalized difference water index (NDWI) to mask water features."""
+
+        return self.image.select(['ndwi']).set(self._properties)
 
     @lazy_property
     def quality(self):
@@ -606,7 +624,7 @@ class Image():
         Tcorr Index values indicate which level of Tcorr was used
           0 - Gridded blended cold/hot Tcorr (*)
           1 - Gridded cold Tcorr
-          2 - Gridded hot Tcorr (*)
+          2 - Continuous cold tcorr based on an NDVI function.
           3 - Scene specific Tcorr
           4 - Mean monthly Tcorr per WRS2 tile
           5 - Mean seasonal Tcorr per WRS2 tile (*)
@@ -620,7 +638,7 @@ class Image():
         tcorr_indices = {
             'gridded': 0,
             'gridded_cold': 1,
-            'gridded_hot': 2,
+            'continuous': 2,
             'scene': 3,
             'month': 4,
             'season': 5,
@@ -668,7 +686,7 @@ class Image():
             elif (self._tmax_source.startswith('projects/') and
                     self._tmax_source.split('/')[-1] in scene_dict.keys()):
                 tmax_key = self._tmax_source.split('/')[-1]
-                print('the tmax key \n', tmax_key)
+                # print('the tmax key \n', tmax_key)
             else:
                 raise ValueError(
                     '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
@@ -778,6 +796,28 @@ class Image():
             elif self._tcorr_resample.lower() != 'nearest':
                 raise ValueError('Unsupported tcorr_resample: {}\n'.format(
                     self._tcorr_resample))
+
+            return tcorr_img.rename(['tcorr'])
+
+        elif 'GRIDDED_COLD_1KM' == self._tcorr_source.upper():
+            tcorr_img = ee.Image(self.tcorr_gridded_cold_1km).select(['tcorr'])
+
+            # EE will resample using nearest neighbor by default
+            # We want to make sure that the bilinear resample happens.
+            if self._tcorr_resample.lower() in ['bilinear']:
+                tcorr_img = tcorr_img \
+                    .resample(self._tcorr_resample.lower()) \
+                    .reproject(crs=self.crs, crsTransform=self.transform)
+            elif self._tcorr_resample.lower() != 'nearest':
+                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
+                    self._tcorr_resample))
+
+            return tcorr_img.rename(['tcorr'])
+
+        # is FANO being called as expected here when we use export tools in SSEBop Workflows - YES
+        elif 'FANO' == self._tcorr_source.upper():
+
+            tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
 
             return tcorr_img.rename(['tcorr'])
 
@@ -1050,6 +1090,7 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1134,6 +1175,7 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1210,6 +1252,7 @@ class Image():
             prep_image.select(['tir'], ['lst']),
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1241,10 +1284,14 @@ class Image():
 
         # Adjust NDVI
         if self.reflectance_type.upper() == 'SR':
-            ndvi_threshold = 0.75
+            # ndvi_threshold = 0.75
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold = 0.85
         # elif self.reflectance_type.upper() == 'TOA':
         else:
-            ndvi_threshold = 0.7
+            # ndvi_threshold = 0.7
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold = 0.8
 
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters')\
@@ -1305,6 +1352,270 @@ class Image():
         tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+            .set({'system:index': self._index,
+                  'system:time_start': self._time_start,
+                  'tmax_source': tmax.get('tmax_source'),
+                  'tmax_version': tmax.get('tmax_version')})
+
+    @lazy_property
+    def tcorr_image_warm(self):
+        """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
+            to simulate true cold cfactor
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+        # TODO - is this the most elegant way to do this? yes? No?
+        # if tcorr_source == 'GRIDDED':
+        #     tcorr_img = t_obj.tcorr_gridded
+        # elif tcorr_source == 'GRIDDED_COLD':
+        #     tcorr_img = t_obj.tcorr_gridded_cold
+        # elif tcorr_source == 'GRIDDED_COLD_1KM':
+        #     tcorr_img = t_obj.tcorr_gridded_cold_1km
+
+        coarse_transform = [1000, 0, 15, 0, -1000, 15]
+        # max pixels should also change depending on coarse transform
+        m_pixels = 100000
+        dt_coeff = 0.12
+
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+        tmax = ee.Image(self.tmax)
+        dt = ee.Image(self.dt)
+
+        # # Compute Tcorr
+        # tcorr = lst.divide(tmax)
+
+        # Adjust NDVI
+        if self.reflectance_type.upper() == 'SR':
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold_0 = 0.85
+            ndvi_threshold_1 = 0.75
+            ndvi_threshold_2 = 0.65
+            ndvi_threshold_3 = 0.55
+            ndvi_threshold_4 = 0.45
+            ndvi_threshold_5 = 0.35
+        # elif self.reflectance_type.upper() == 'TOA':
+        else:
+            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
+            ndvi_threshold_0 = 0.8
+            ndvi_threshold_1 = 0.7
+            ndvi_threshold_2 = 0.6
+            ndvi_threshold_3 = 0.5
+            ndvi_threshold_4 = 0.4
+            ndvi_threshold_5 = 0.3
+
+        # # OLD Select high NDVI pixels that are also surrounded by high NDVI
+        # ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters') \
+        #     .reproject(crs=self.crs, crsTransform=self.transform) \
+        #     .gte(ndvi_threshold)
+
+        # 7X7 Kernel for averaging NDVI
+        ndvi_smooth = ndvi.reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=3, units='pixels'),
+                                skipMasked=False)\
+            .reproject(crs=self.crs, crsTransform=self.transform)
+
+        # select NDVI within intervals
+        ndvi_smooth_mask_0 = ndvi_smooth.gte(ndvi_threshold_0)
+        # === Second layer down is more involved ===
+        ndvi_smooth_mask_1 = ndvi_smooth.gte(ndvi_threshold_1).lt(ndvi_threshold_0)
+        # we only do the nested mask on this second-to-last layer to prevent edges of irrigated fields getting sampled.
+        # 0.85 and up is already in the center of fields anyway...
+        ndvi_buffer_mask_1 = ndvi.gte(ndvi_threshold_1).reduceNeighborhood(reducer=ee.Reducer.min(),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'))
+        ndvi_buffer_1 = ndvi_smooth_mask_1.And(ndvi_buffer_mask_1)
+        # ===========================================
+        ndvi_smooth_mask_2 = ndvi_smooth.gte(ndvi_threshold_2).lt(ndvi_threshold_1)
+        ndvi_smooth_mask_3 = ndvi_smooth.gte(ndvi_threshold_3).lt(ndvi_threshold_2)
+        ndvi_smooth_mask_4 = ndvi_smooth.gte(ndvi_threshold_4).lt(ndvi_threshold_3)
+        ndvi_smooth_mask_5 = ndvi_smooth.gte(ndvi_threshold_5).lt(ndvi_threshold_4)
+
+        # make 5 layers of temperatures to add to lst for different NDVI thresholds.
+        dt1 = dt.multiply(1 * dt_coeff)
+        dt2 = dt.multiply(2 * dt_coeff)
+        dt3 = dt.multiply(3 * dt_coeff)
+        dt4 = dt.multiply(4 * dt_coeff)
+        dt5 = dt.multiply(5 * dt_coeff)
+
+        # the first lst layer 0.85 and above NDVI needs no adjustment, we simply mask out low ndvi places
+        # todo - you MAY need to mask the dt or something
+        lst_0 = lst.updateMask(ndvi_smooth_mask_0)
+        lst_1 = lst.updateMask(ndvi_buffer_1).add(dt1)
+        lst_2 = lst.updateMask(ndvi_smooth_mask_2).add(dt2)
+        lst_3 = lst.updateMask(ndvi_smooth_mask_3).add(dt3)
+        lst_4 = lst.updateMask(ndvi_smooth_mask_4).add(dt4)
+        lst_5 = lst.updateMask(ndvi_smooth_mask_5).add(dt5)
+
+        tcorr_0 = lst_0.divide(tmax)
+        tcorr_1 = lst_1.divide(tmax)
+        tcorr_2 = lst_2.divide(tmax)
+        tcorr_3 = lst_3.divide(tmax)
+        tcorr_4 = lst_4.divide(tmax)
+        tcorr_5 = lst_5.divide(tmax)
+
+        # get c factor mean tcorr at each NDVI 'confidence' level.
+        # todo - need reproject/reduceResolution/reproject sandwich here.
+        c0 = tcorr_0.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+        c1 = tcorr_1.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+        c2 = tcorr_2.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+        c3 = tcorr_3.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+        c4 = tcorr_4.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+        c5 = tcorr_5.reduceResolution(reducer=ee.Reducer.mean, crs=self.crs, crsTransform=coarse_transform,
+                                       bestEffort=False, maxPixels=m_pixels)
+
+        cfactor_rough = ee.Image([c0, c1, c2, c3, c4, c5]).reduce(ee.Reducer.firstNonNull())
+
+        # testing_only = ee.Image([tcorr_
+
+        # as testing we return both, from a development standpoint and code perspective, a single layer would be
+        # returned from the function.
+        return cfactor_rough, tcorr_0, tcorr_1, tcorr_2, tcorr_3, tcorr_4, tcorr_5
+
+        # zero_img = tcorr.multiply(0).updateMask(1)
+        #
+        # ## ===== SCORING =====
+        # # == now only used for QUALITY purposes ==
+        # # 0 - Empty: there was no c factor of any interpolation that covers the cell
+        # # 1 - 500 X 500 zonal filled the cell
+        # # 2 - 75 X 75 and 500 X 500 coverage
+        # # 3 - 9 X 9, 75 X 75 and 500 X 500 coverage
+        # # 4 - 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # # 5 - 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # # 6 - 3 X 3, 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # # 7 - Original coarse c factor - a final 3 X 3 smoothing is done on this layer at the end.
+        #
+        # # We make a series of binary images to map the
+        # # extent of each layer's c factor
+        # score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        # score_01 = zero_img.add(tcorr_rn01.gt(0)).updateMask(1)
+        # score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        # score_03 = zero_img.add(tcorr_rn03.gt(0)).updateMask(1)
+        # score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        # score_37 = zero_img.add(tcorr_rn37.gt(0)).updateMask(1)
+        # score_249 = zero_img.add(tcorr_rn249.gt(0)).updateMask(1)
+
+        # todo - continue
+        tcorr = ee.Image([tcorr_coarse, tcorr_rn01, tcorr_rn02, tcorr_rn03, tcorr_rn04, tcorr_rn37, tcorr_rn249]) \
+            .reduce(ee.Reducer.firstNonNull())
+        # todo - make a quality band.
+
+
+
+        # # TODO
+        # # Remove low LST and low NDVI
+        # tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
+        #
+        # return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+        #     .set({'system:index': self._index,
+        #           'system:time_start': self._time_start,
+        #           'tmax_source': tmax.get('tmax_source'),
+        #           'tmax_version': tmax.get('tmax_version')})
+
+    @lazy_property
+    def tcorr_FANO(self):
+        """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
+            to simulate true cold cfactor
+
+            FANO: Forcing And Normalizing Operation
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+
+        coarse_transform = [5000, 0, 15, 0, -5000, 15]
+        coarse_transform25 = [25000, 0, 15, 0, -25000, 15]
+        dt_coeff = 0.125
+        ndwi_threshold = -0.15
+        high_ndvi_threshold = 0.9
+        water_pct = 10
+        # max pixels argument for .reduceResolution()
+        m_pixels = 65535
+
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+        tmax = ee.Image(self.tmax)
+        dt = ee.Image(self.dt)
+        ndwi = ee.Image(self.ndwi)
+        watermask = ndwi.lt(ndwi_threshold)
+        watermask_for_coarse = ndwi.updateMask(ndwi.lt(ndwi_threshold))
+
+        ## GELP - changes slightly here reproject self.crs and self.transform
+        # should be equivalent to: landsat_crs, ndvi_transform.
+        watermask_coarse_count = watermask_for_coarse\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.count(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1).select([0], ['count'])
+        total_pixels_count = ndvi\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.count(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1).select([0], ['count'])
+
+        percentage_bad = watermask_coarse_count.divide(total_pixels_count)
+        pct_value = (1 - (water_pct / 100))
+        wet_region_mask_5km = percentage_bad.lte(pct_value)
+
+        ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform)
+        ndvi_avg_masked25 = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform25)
+        ndvi_avg_unmasked = ndvi.reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform).updateMask(1)
+        lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform)
+        lst_avg_masked25 = lst.updateMask(watermask).reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform25)
+        lst_avg_unmasked = lst.reproject(self.crs, self.transform)\
+                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+                                                    .reproject(self.crs, coarse_transform).updateMask(1)
+
+        # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
+        dt_avg = dt.reproject(self.crs, coarse_transform)
+        dt_avg25 = dt.reproject(self.crs, coarse_transform25).updateMask(1)
+        tmax_avg = tmax.reproject(self.crs, coarse_transform)
+
+        # FANO expression as a function of dT, calculated at the coarse resolution(s)
+        Tc_warm = lst_avg_unmasked.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
+                                      {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
+                                       'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+
+        Tc_warm25 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+                                             {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+                                              'ndvi': ndvi_avg_masked25, 'dt': dt_avg25, 'lst': lst_avg_masked25})
+
+        # In places where NDVI is really high, use the masked original lst at those places.
+        # In places where NDVI is really low (water) use the unmasked original lst.
+        # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
+        # In places where there is too much land covered by water 10% or greater,
+        #   use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
+        Tc_cold = lst_avg_unmasked \
+            .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
+            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \
+            .where(wet_region_mask_5km, Tc_warm25)
+
+        c_factor = Tc_cold.divide(tmax_avg)
+
+        # bilinearly smooth the gridded c factor
+        c_factor_bilinear = c_factor.resample('bilinear')
+
+        return c_factor_bilinear.rename(['tcorr']) \
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
@@ -1396,6 +1707,7 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
+        # print('gridded tocorr lazy prop activated')
 
         # TODO: Define coarse cell-size/transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
@@ -1650,6 +1962,7 @@ class Image():
         ee.Image of Tcorr values
 
         """
+        # print('cold gridded tcorr activated')
         # TODO: Define coarse cellsize or transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
         #   but this may not be necessary
@@ -1783,6 +2096,141 @@ class Image():
                                 kernel=ee.Kernel.square(radius=1, units='pixels'),
                                 skipMasked=False)\
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
+            .updateMask(1)
+
+        # Set tcorr index to 9 if coarse count is 0
+        # This "if" should be fast but the calculation approach works also
+        tcorr_index = ee.Algorithms.If(tcorr_count.gt(0), 1, 9)
+        # tcorr_index = tcorr_count.multiply(-1).max(-1).add(1).multiply(8).add(1)
+
+        return ee.Image([tcorr, total_score_img]).rename(['tcorr', 'quality']) \
+            .set(self._properties) \
+            .set({'tcorr_index': tcorr_index,
+                  'tcorr_coarse_count': tcorr_count})
+
+    @lazy_property
+    def tcorr_gridded_cold_1km(self):
+        """Compute a continuous gridded Tcorr at 1km resolution for the current image
+
+        Returns
+        -------
+        ee.Image of Tcorr values
+
+        """
+        # NOTE: This transform is being snapped to the Landsat grid
+        #   but this may not be necessary
+
+        # print('1km gridded tcorr cold activated')
+        coarse_transform = [1000, 0, 15, 0, -1000, 15]
+
+        # Resample to 5km taking 2.5 percentile (equal to Mean-2StDev)
+        tcorr_coarse_img = self.tcorr_image \
+            .reproject(crs=self.crs, crsTransform=self.transform) \
+            .reduceResolution(
+            reducer=ee.Reducer.percentile(percentiles=[2.5])
+                .combine(reducer2=ee.Reducer.count(), sharedInputs=True),
+            bestEffort=True, maxPixels=65000) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .select([0, 1], ['tcorr', 'count'])
+
+        # Mask cells without enough fine resolution Tcorr cells
+        # The count band is dropped after it is used to mask
+        # tcorr_coarse = tcorr_coarse_img.select(['tcorr'])\
+        #     .updateMask(tcorr_coarse_img.select(['count'])
+        #                 .gte(self.min_pixels_per_grid_cell))
+
+        # Count the number of coarse resolution Tcorr cells
+        count_coarse = tcorr_coarse_img \
+            .reduceRegion(reducer=ee.Reducer.count(), crs=self.crs,
+                          crsTransform=coarse_transform,
+                          bestEffort=False, maxPixels=200000)
+        tcorr_count = ee.Number(count_coarse.get('tcorr'))
+
+        # select only the tcorr band.
+        tcorr_coarse = tcorr_coarse_img.select(['tcorr'])
+
+        # Do reduce neighborhood to interpolate c factor
+        # 3X3
+        tcorr_rn01 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 5X5
+        tcorr_rn02 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=2, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 7X7
+        tcorr_rn03 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=3, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 9X9
+        tcorr_rn04 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=4, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # 75 X 75
+        tcorr_rn37 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=37, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+        # added to make sure that the whole scene is covered
+        # 500 X 500
+        tcorr_rn249 = tcorr_coarse \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=249, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
+            .updateMask(1)
+
+        # --- In this section we build an image to weight the cfactor
+        #   proportionally to how close it is to the original c ---
+        tcorr = ee.Image([tcorr_coarse, tcorr_rn01, tcorr_rn02, tcorr_rn03, tcorr_rn04, tcorr_rn37, tcorr_rn249]) \
+            .reduce(ee.Reducer.firstNonNull())
+        zero_img = tcorr.multiply(0).updateMask(1)
+
+        ## ===== SCORING =====
+        # == now only used for QUALITY purposes ==
+        # 0 - Empty: there was no c factor of any interpolation that covers the cell
+        # 1 - 500 X 500 zonal filled the cell
+        # 2 - 75 X 75 and 500 X 500 coverage
+        # 3 - 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 4 - 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 5 - 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 6 - 3 X 3, 5 X 5, 7 X 7, 9 X 9, 75 X 75 and 500 X 500 coverage
+        # 7 - Original coarse c factor - a final 3 X 3 smoothing is done on this layer at the end.
+
+        # We make a series of binary images to map the
+        # extent of each layer's c factor
+        score_coarse = zero_img.add(tcorr_coarse.gt(0)).updateMask(1)
+        score_01 = zero_img.add(tcorr_rn01.gt(0)).updateMask(1)
+        score_02 = zero_img.add(tcorr_rn02.gt(0)).updateMask(1)
+        score_03 = zero_img.add(tcorr_rn03.gt(0)).updateMask(1)
+        score_04 = zero_img.add(tcorr_rn04.gt(0)).updateMask(1)
+        score_37 = zero_img.add(tcorr_rn37.gt(0)).updateMask(1)
+        score_249 = zero_img.add(tcorr_rn249.gt(0)).updateMask(1)
+
+        # This layer has a score of 0-5 based on where the binaries overlap.
+        total_score_img = ee.Image([score_coarse, score_01, score_02, score_03, score_04, score_37, score_249]) \
+            .reduce(ee.Reducer.sum())
+
+        # Do one more reduce neighborhood to smooth c factor
+        tcorr = tcorr \
+            .reduceNeighborhood(reducer=ee.Reducer.mean(),
+                                kernel=ee.Kernel.square(radius=1, units='pixels'),
+                                skipMasked=False) \
+            .reproject(crs=self.crs, crsTransform=coarse_transform) \
             .updateMask(1)
 
         # Set tcorr index to 9 if coarse count is 0
