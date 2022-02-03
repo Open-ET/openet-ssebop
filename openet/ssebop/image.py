@@ -41,7 +41,8 @@ class Image():
             et_reference_factor=None,
             et_reference_resample=None,
             et_reference_date_type=None,
-            dt_source='DAYMET_MEDIAN_V2',
+            dt_source=None,
+            # dt_scale_factor=None,
             elev_source=None,
             tcorr_source='DYNAMIC',
             tmax_source='DAYMET_MEDIAN_V2',
@@ -74,8 +75,11 @@ class Image():
         et_reference_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
-        dt_source : {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', or float}, optional
-            dT source keyword (the default is 'DAYMET_MEDIAN_V1').
+        dt_source : str, float, {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', 'DAYMET_MEDIAN_V2'}, optional
+            dT source  (the default is None).
+        dt_scale_factor : float, None, optional
+            dT scale factor. The default is None which is
+            equivalent to 1.0 (or no scaling)
         elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
             Elevation source keyword (the default is None).
         tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
@@ -172,6 +176,7 @@ class Image():
 
         # Model input parameters
         self._dt_source = dt_source
+        # self._dt_scale_factor = dt_scale_factor
         self._elev_source = elev_source
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
@@ -221,6 +226,8 @@ class Image():
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
+        # if 'dt_scale_factor' in kwargs.keys():
+        #     self._dt_scale_factor = kwargs['dt_scale_factor']
         if 'tmax_resample' in kwargs.keys():
             self._tmax_resample = kwargs['tmax_resample'].lower()
         else:
@@ -307,8 +314,12 @@ class Image():
         else:
             tmax = self.tmax
 
+        if (self._dt_resample and
+                self._dt_resample.lower() in ['bilinear', 'bicubic']):
+            dt = self.dt.resample(self._dt_resample)
+
         et_fraction = model.et_fraction(
-            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=self.dt)
+            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
@@ -492,25 +503,36 @@ class Image():
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
+        elif (self._dt_source.lower().startswith('projects/') or
+              self._dt_source.lower().startswith('users/')):
+            # Assumes a string source is an image collection ID (not an image ID), \
+            #   MF: and currently only supports a climatology 'DOY-based' dataset filter
+            dt_coll = ee.ImageCollection(self._dt_source) \
+                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
+            # MF: Optional scale factor only applied for string ID dT collections, and
+            #  no clamping used for string ID dT collections.
+            # dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
+            dt_img = ee.Image(dt_coll.first()).multiply(0.01)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first())
+            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first())
+            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V2':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v2')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first())        # Compute dT for the target date
+            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'CIMIS':
             input_img = ee.Image(
                 ee.ImageCollection('projects/earthengine-legacy/assets/'
                                    'projects/climate-engine/cimis/daily')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['Tx', 'Tn', 'Rs', 'Tdew'])
-                    .first())
+                    .select(['Tx', 'Tn', 'Rs', 'Tdew']) \
+                    .first()) \
+                    .clamp(self._dt_min, self._dt_max)
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Compute Ea from Tdew
             dt_img = model.dt(
@@ -526,8 +548,9 @@ class Image():
             input_img = ee.Image(
                 ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])
-                    .first())
+                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp']) \
+                    .first()) \
+                    .clamp(self._dt_min, self._dt_max)
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Solar unit conversion from DAYMET documentation:
             #   https://daymet.ornl.gov/overview.html
@@ -543,8 +566,9 @@ class Image():
             input_img = ee.Image(
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['tmmx', 'tmmn', 'srad', 'sph'])
-                    .first())
+                    .select(['tmmx', 'tmmn', 'srad', 'sph']) \
+                    .first()) \
+                    .clamp(self._dt_min, self._dt_max)
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             q = input_img.select(['sph'], ['q'])
             pair = self.elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
@@ -563,13 +587,14 @@ class Image():
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
-        if (self._dt_resample and
-                self._dt_resample.lower() in ['bilinear', 'bicubic']):
-            dt_img = dt_img.resample(self._dt_resample)
-        # TODO: A reproject call may be needed here also
-        # dt_img = dt_img.reproject(self.crs, self.transform)
+        ## MF: moved this resample to happen at the et_fraction function
+        # if (self._dt_resample and
+        #         self._dt_resample.lower() in ['bilinear', 'bicubic']):
+        #     dt_img = dt_img.resample(self._dt_resample)
+        # # TODO: A reproject call may be needed here also
+        # # dt_img = dt_img.reproject(self.crs, self.transform)
 
-        return dt_img.clamp(self._dt_min, self._dt_max).rename('dt')
+        return dt_img.rename('dt')
 
     @lazy_property
     def elev(self):
