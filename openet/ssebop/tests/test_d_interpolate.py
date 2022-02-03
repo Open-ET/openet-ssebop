@@ -168,6 +168,34 @@ def test_from_scene_et_fraction_monthly_et_reference_resample(tol=0.0001):
     assert output['count']['2017-07-01'] == 3
 
 
+def test_from_scene_et_fraction_t_interval_bad_value():
+    # Function should raise a ValueError if t_interval is not supported
+    with pytest.raises(ValueError):
+        output_coll = interpolate.from_scene_et_fraction(
+            scene_coll(['et', 'time', 'mask']),
+            start_date='2017-07-01', end_date='2017-08-01', variables=['et'],
+            interp_args={'interp_method': 'linear', 'interp_days': 32},
+            model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
+                        'et_reference_band': 'etr',
+                        'et_reference_factor': 0.5,
+                        'et_reference_resample': 'nearest'},
+            t_interval='deadbeef')
+
+
+def test_from_scene_et_fraction_t_interval_no_value():
+    # Function should raise an Exception if t_interval is not set
+    with pytest.raises(TypeError):
+        output_coll = interpolate.from_scene_et_fraction(
+            scene_coll(['et', 'time', 'mask']),
+            start_date='2017-07-01', end_date='2017-08-01',
+            variables=['et', 'et_reference', 'et_fraction', 'count'],
+            interp_args={'interp_method': 'linear', 'interp_days': 32},
+            model_args={'et_reference_source': 'IDAHO_EPSCOR/GRIDMET',
+                        'et_reference_band': 'etr',
+                        'et_reference_factor': 0.5,
+                        'et_reference_resample': 'nearest'})
+
+
 def test_from_scene_et_fraction_daily_et_reference_date_type_doy(tol=0.01):
     """Test interpolating a daily collection using a reference ET climatology"""
     output_coll = interpolate.from_scene_et_fraction(

@@ -337,12 +337,35 @@ def main(ini_path=None, overwrite_flag=False, delay_time=0, gee_key_file=None,
 
 
     # Get current running tasks
-    tasks = utils.get_ee_tasks()
-    ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
-    # ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
-    if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-        utils.print_ee_tasks(tasks)
-        input('ENTER')
+    if ready_task_max == -9999:
+        # CGM - Getting the task list can take awhile so set ready tasks to
+        #   -9999 to skip requesting it.  Only run this if you are going to
+        #   manually avoid running existing tasks.
+        # TODO: Check if this should disable delay_task() or set the
+        #   ready_task_max to a large value
+        tasks = {}
+        ready_task_count = 0
+    else:
+        logging.info('\nRequesting Task List')
+        tasks = utils.get_ee_tasks()
+        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+            utils.print_ee_tasks(tasks)
+            input('ENTER')
+        ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
+        # ready_task_count = len(tasks.keys())
+        logging.info(f'  Tasks: {ready_task_count}')
+        # CGM - I'm still not sure if it makes sense to hold here or after the
+        #   first task is started.
+        ready_task_count = delay_task(
+            delay_time=0, task_max=ready_task_max, task_count=ready_task_count)
+
+    # # Get current running tasks
+    # tasks = utils.get_ee_tasks()
+    # ready_task_count = sum(1 for t in tasks.values() if t['state'] == 'READY')
+    # # ready_task_count = delay_task(ready_task_count, delay_time, max_ready)
+    # if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+    #     utils.print_ee_tasks(tasks)
+    #     input('ENTER')
 
 
     # DEADBEEF - The asset list will be retrieved before each WRS2 tile is processed

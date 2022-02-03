@@ -32,9 +32,9 @@ with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='openet-{}'.format(model_name.lower()),
+    name=f'openet-{model_name.lower()}',
     version=version,
-    description='Earth Engine based {} Model'.format(model_name),
+    description=f'Earth Engine based {model_name} Model',
     long_description=long_description,
     long_description_content_type='text/x-rst',
     license='Apache',
@@ -47,8 +47,8 @@ setup(
                       'python-dateutil'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'pytest-cov'],
-    packages=['openet.{}'.format(model_name.lower())],
-    keywords='{} OpenET Evapotranspiration Earth Engine'.format(model_name),
+    packages=[f'openet.{model_name.lower()}'],
+    keywords=f'{model_name} OpenET Evapotranspiration Earth Engine',
     classifiers = [
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3.6'],
