@@ -151,13 +151,13 @@ def test_Image_init_default_parameters():
     assert m.et_reference_resample == None
     assert m.et_reference_date_type == None
     assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
-    assert m._elev_source == None
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
     assert m._dt_resample == 'bilinear'
+    assert m._elev_source == None
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
     assert m.reflectance_type == 'SR'
@@ -876,10 +876,9 @@ def test_Image_tcorr_image_band_name():
     assert output['bands'][0]['id'] == 'tcorr'
 
 
-def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
+def test_Image_tcorr_image_properties(tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'):
     """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(
-        tmax_source='DAYMET_MEDIAN_V2').tcorr_image)
+    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
@@ -889,12 +888,10 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
     'tcorr_source, tmax_source, image_id, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
-         [0.9529951246488714, 1]],
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
-         [0.9529951246488714, 1]],
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
@@ -904,9 +901,7 @@ def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
         image_id, tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
-    index = utils.getinfo(tcorr_img.get('tcorr_index'))
-    assert abs(tcorr['tcorr'] - expected[0]) <= tol
-    assert index == expected[1]
+    assert abs(tcorr['tcorr'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -1328,7 +1323,8 @@ def test_Image_tcorr_gridded_resample_exception(tcorr_source):
     with pytest.raises(ValueError):
         tcorr_img = ssebop.Image.from_image_id(
             image_id, tcorr_source=tcorr_source,
-            tmax_source='DAYMET_MEDIAN_V2', tcorr_resample='deadbeef').tcorr
+            tmax_source='DAYMET_MEDIAN_V2',
+            tcorr_resample='deadbeef').tcorr
 
 
 # TODO: Add check for Tcorr coarse count property
