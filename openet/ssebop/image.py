@@ -42,7 +42,6 @@ class Image():
             et_reference_resample=None,
             et_reference_date_type=None,
             dt_source='DAYMET_MEDIAN_V2',
-            # dt_source=None,
             # dt_scale_factor=None,
             elev_source=None,
             tcorr_source='DYNAMIC',
@@ -1291,14 +1290,14 @@ class Image():
 
         # Adjust NDVI
         if self.reflectance_type.upper() == 'SR':
-            ndvi_threshold = 0.75
+            # ndvi_threshold = 0.75
             # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            # ndvi_threshold = 0.85
+            ndvi_threshold = 0.85
         # elif self.reflectance_type.upper() == 'TOA':
         else:
-            ndvi_threshold = 0.7
+            # ndvi_threshold = 0.7
             # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            # ndvi_threshold = 0.8
+            ndvi_threshold = 0.8
 
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters')\
