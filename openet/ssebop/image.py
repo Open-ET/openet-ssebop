@@ -42,7 +42,6 @@ class Image():
             et_reference_resample=None,
             et_reference_date_type=None,
             dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
-            # dt_scale_factor=None,
             tcorr_source='FANO',
             tmax_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
             elr_flag=False,
@@ -103,6 +102,7 @@ class Image():
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
             tmax_resample : {'nearest', 'bilinear'}
+            dt_scale_factor : float
             elev_source : str or float
             min_pixels_per_image : int
             min_pixels_per_grid_cell : int
@@ -173,9 +173,10 @@ class Image():
 
         # Model input parameters
         self._dt_source = dt_source
-        # self._dt_scale_factor = dt_scale_factor
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
+
+        # TODO: Move into keyword args section below
         self._elr_flag = elr_flag
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
@@ -203,6 +204,8 @@ class Image():
         #     self.et_fraction_type = 'alfalfa'
 
         self.reflectance_type = reflectance_type
+        if reflectance_type not in ['SR', 'TOA']:
+            raise ValueError('reflectance_type must "SR" or "TOA"')
 
         # Image projection and geotransform
         self.crs = image.projection().crs()
@@ -215,20 +218,22 @@ class Image():
         # CGM - What is the right way to process kwargs with default values?
         self.kwargs = kwargs
 
+        if 'dt_scale_factor' in kwargs.keys():
+            self._dt_scale_factor = kwargs['dt_scale_factor']
+        else:
+            self._dt_scale_factor = None
+
+        if 'elev_source' in kwargs.keys():
+            self._elev_source = kwargs['elev_source']
+        else:
+            self._elev_source = None
+
         # CGM - Should these be checked in the methods they are used in instead?
         # Set the resample method as properties so they can be modified
         if 'dt_resample' in kwargs.keys():
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
-
-        # if 'dt_scale_factor' in kwargs.keys():
-        #     self._dt_scale_factor = kwargs['dt_scale_factor']
-
-        if 'elev_source' in kwargs.keys():
-            self._elev_source = kwargs['elev_source']
-        else:
-            self._elev_source = None
 
         if 'tmax_resample' in kwargs.keys():
             self._tmax_resample = kwargs['tmax_resample'].lower()
@@ -503,6 +508,20 @@ class Image():
             If `self._dt_source` is not supported.
 
         """
+        if self._dt_scale_factor is None:
+            if (type(self._dt_source) is str and
+                    'projects/usgs-ssebop/dt/daymet_median_v6' in self._dt_source):
+                self._dt_scale_factor = 0.01
+            else:
+                self._dt_scale_factor = 1.0
+        elif (type(self._dt_scale_factor) is str and
+              utils.is_number(self._dt_scale_factor)):
+            self._dt_scale_factor = float(self._dt_scale_factor)
+        elif utils.is_number(self._dt_scale_factor):
+            pass
+        else:
+            raise ValueError(f'Unsupported dt_scale_factor: {self._dt_scale_factor}')
+
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
@@ -514,8 +533,7 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             # MF: Optional scale factor only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
-            # dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
-            dt_img = ee.Image(dt_coll.first()).multiply(0.01)
+            dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
@@ -529,6 +547,9 @@ class Image():
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'CIMIS':
+            # CGM - Should we check this here or catch the exception in elev()
+            # if self._elev_source is None:
+            #     raise Exception('elev_source must be set if dt_source="CIMIS"')
             input_img = ee.Image(
                 ee.ImageCollection('projects/earthengine-legacy/assets/'
                                    'projects/climate-engine/cimis/daily')\

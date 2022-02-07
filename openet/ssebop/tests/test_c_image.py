@@ -75,15 +75,16 @@ def default_image_args(lst=305, ndvi=0.8,
                        et_reference_resample='nearest',
                        et_reference_date_type=None,
                        dt_source=18,
-                       elev_source=67,
-                       elr_flag=False,
                        tcorr_source=0.9744,
                        tmax_source=310.15,
+                       dt_scale_factor=None,
+                       elev_source=67,
+                       elr_flag=False,
+                       et_fraction_type='alfalfa',
+                       reflectance_type='TOA',
                        dt_resample='nearest',
                        tmax_resample='nearest',
                        tcorr_resample='nearest',
-                       et_fraction_type='alfalfa',
-                       reflectance_type='TOA',
                        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
@@ -93,15 +94,16 @@ def default_image_args(lst=305, ndvi=0.8,
         'et_reference_resample': et_reference_resample,
         'et_reference_date_type': et_reference_date_type,
         'dt_source': dt_source,
-        'elev_source': elev_source,
-        'elr_flag': elr_flag,
         'tcorr_source': tcorr_source,
         'tmax_source': tmax_source,
+        'dt_scale_factor': dt_scale_factor,
+        'elev_source': elev_source,
+        'elr_flag': elr_flag,
+        'et_fraction_type': et_fraction_type,
+        'reflectance_type': reflectance_type,
         'dt_resample': dt_resample,
         'tmax_resample': tmax_resample,
         'tcorr_resample': tcorr_resample,
-        'et_fraction_type': et_fraction_type,
-        'reflectance_type': reflectance_type,
     }
 
 
@@ -113,15 +115,16 @@ def default_image_obj(lst=305, ndvi=0.8,
                       et_reference_resample='nearest',
                       et_reference_date_type=None,
                       dt_source=18,
-                      elev_source=67,
-                      elr_flag=False,
                       tcorr_source=0.9744,
                       tmax_source=310.15,
+                      dt_scale_factor=None,
+                      elev_source=67,
+                      elr_flag=False,
+                      et_fraction_type='alfalfa',
+                      reflectance_type='TOA',
                       dt_resample='nearest',
                       tmax_resample='nearest',
                       tcorr_resample='nearest',
-                      et_fraction_type='alfalfa',
-                      reflectance_type='TOA',
                       ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
@@ -131,15 +134,16 @@ def default_image_obj(lst=305, ndvi=0.8,
         et_reference_resample=et_reference_resample,
         et_reference_date_type=et_reference_date_type,
         dt_source=dt_source,
-        elev_source=elev_source,
-        elr_flag=elr_flag,
         tcorr_source=tcorr_source,
         tmax_source=tmax_source,
+        dt_scale_factor=dt_scale_factor,
+        elev_source=elev_source,
+        elr_flag=elr_flag,
+        et_fraction_type=et_fraction_type,
+        reflectance_type=reflectance_type,
         dt_resample=dt_resample,
         tmax_resample=tmax_resample,
         tcorr_resample=tcorr_resample,
-        et_fraction_type=et_fraction_type,
-        reflectance_type=reflectance_type,
     ))
 
 
@@ -153,14 +157,15 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
-    assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
-    assert m._dt_resample == 'bilinear'
+    assert m._dt_scale_factor == None
     assert m._elev_source == None
+    assert m._elr_flag == False
+    assert m.reflectance_type == 'SR'
+    assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
-    assert m.reflectance_type == 'SR'
 
 
 # Todo: Break these up into separate functions?
@@ -222,7 +227,9 @@ def test_Image_lst_properties():
 
 @pytest.mark.parametrize(
     'elev_source',
-    [None, '', 'DEADBEEF']
+    [None],
+    # TODO: Non-image strings should raise an exception
+    # ['', 'DEADBEEF']
     # TODO: Check what happens if source is an image collection
     # [None, '', 'DEADBEEF']
 )
@@ -354,6 +361,27 @@ def test_Image_dt_source_calculated(dt_source, elev, date, xy, expected, tol=0.0
 def test_Image_dt_source_exception():
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(dt_source='').dt)
+
+
+@pytest.mark.parametrize(
+    'dt_source, factor, doy, xy, expected',
+    [
+        ['projects/usgs-ssebop/dt/daymet_median_v6', 0.01, SCENE_DOY, TEST_POINT, 20.77],
+        ['projects/usgs-ssebop/dt/daymet_median_v6', 1.0, SCENE_DOY, TEST_POINT, 2077],
+        # Scale factor is only applied to collection ID sources
+        ['projects/usgs-ssebop/dt/daymet_median_v2', 2.0, SCENE_DOY, TEST_POINT, 2 * 19.5982],
+        ['DAYMET_MEDIAN_V2', 2.0, SCENE_DOY, TEST_POINT, 19.5982],
+        # None will default to 0.01 for v6 and fall back to 1.0 for all other sources
+        ['projects/usgs-ssebop/dt/daymet_median_v6', None, SCENE_DOY, TEST_POINT, 20.77],
+        ['projects/usgs-ssebop/dt/daymet_median_v2', None, SCENE_DOY, TEST_POINT, 19.5982],
+    ]
+)
+def test_Image_dt_scale_factor(dt_source, factor, doy, xy, expected, tol=0.001):
+    """Test that dT scale factor changes the dT values"""
+    m = default_image_obj(dt_source=dt_source, dt_scale_factor=factor)
+    m._doy = doy
+    output = utils.point_image_value(ee.Image(m.dt), xy)
+    assert abs(output['dt'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
