@@ -223,6 +223,8 @@ def test_Image_lst_properties():
 @pytest.mark.parametrize(
     'elev_source',
     [None, '', 'DEADBEEF']
+    # TODO: Check what happens if source is an image collection
+    # [None, '', 'DEADBEEF']
 )
 def test_Image_elev_source_exception(elev_source):
     with pytest.raises(ValueError):
@@ -232,21 +234,14 @@ def test_Image_elev_source_exception(elev_source):
 @pytest.mark.parametrize(
     'elev_source, xy, expected',
     [
-        ['SRTM', TEST_POINT, 67.0],
-        ['SRTM', [-122.1622, 39.1968], 18.0],
-        ['ASSET', [-106.03249, 37.17777], 2369.0],
-        ['GTOPO', [-106.03249, 37.17777], 2369.0],
-        ['NED', [-106.03249, 37.17777], 2364.351],
-        ['SRTM', [-106.03249, 37.17777], 2362.0],
         # Check string/float constant values
         ['2364.351', [-106.03249, 37.17777], 2364.351],
         [2364.351, [-106.03249, 37.17777], 2364.351],
         # Check custom images
+        ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
          [-106.03249, 37.17777], 2369.0],
-        # ['projects/assets/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
-        # DEADBEEF - We should allow any EE image (not just users/projects)
-        # ['USGS/NED', [-106.03249, 37.17777], 2364.35],
+        ['USGS/NED', [-106.03249, 37.17777], 2364.351],
     ]
 )
 def test_Image_elev_source(elev_source, xy, expected, tol=0.001):

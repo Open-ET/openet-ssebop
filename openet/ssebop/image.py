@@ -43,7 +43,6 @@ class Image():
             et_reference_date_type=None,
             dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
             # dt_scale_factor=None,
-            elev_source=None,
             tcorr_source='FANO',
             tmax_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
             elr_flag=False,
@@ -79,8 +78,6 @@ class Image():
         dt_scale_factor : float, None, optional
             dT scale factor. The default is None which is
             equivalent to 1.0 (or no scaling)
-        elev_source : {'ASSET', 'GTOPO', 'NED', 'SRTM', or float}, optional
-            Elevation source keyword (the default is None).
         tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
@@ -103,9 +100,10 @@ class Image():
             Used to set the Tcorr NDVI thresholds
             (the default is 'SR').
         kwargs : dict, optional
-            tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
+            tmax_resample : {'nearest', 'bilinear'}
+            elev_source : str or float
             min_pixels_per_image : int
             min_pixels_per_grid_cell : int
             min_grid_cells_per_image : int
@@ -176,13 +174,13 @@ class Image():
         # Model input parameters
         self._dt_source = dt_source
         # self._dt_scale_factor = dt_scale_factor
-        self._elev_source = elev_source
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._elr_flag = elr_flag
         self._dt_min = float(dt_min)
         self._dt_max = float(dt_max)
 
+        # TODO: Move into keyword args section below
         # Convert elr_flag from string to bool IF necessary
         if type(self._elr_flag) is str:
             print('ELR given as string')
@@ -193,8 +191,6 @@ class Image():
             else:
                 raise ValueError('elr_flag "{}" could not be interpreted as '
                                  'bool'.format(self._elr_flag))
-
-        # print(f'ELR type is {self._elr_flag}')
 
         # ET fraction type
         # CGM - Should et_fraction_type be set as a kwarg instead?
@@ -225,12 +221,20 @@ class Image():
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
+
         # if 'dt_scale_factor' in kwargs.keys():
         #     self._dt_scale_factor = kwargs['dt_scale_factor']
+
+        if 'elev_source' in kwargs.keys():
+            self._elev_source = kwargs['elev_source']
+        else:
+            self._elev_source = None
+
         if 'tmax_resample' in kwargs.keys():
             self._tmax_resample = kwargs['tmax_resample'].lower()
         else:
             self._tmax_resample = 'bilinear'
+
         if 'tcorr_resample' in kwargs.keys():
             self._tcorr_resample = kwargs['tcorr_resample'].lower()
         else:
@@ -610,17 +614,11 @@ class Image():
             raise ValueError('elev_source was not set')
         elif utils.is_number(self._elev_source):
             elev_image = ee.Image.constant(float(self._elev_source))
-        elif self._elev_source.upper() == 'ASSET':
-            elev_image = ee.Image(PROJECT_FOLDER + '/srtm_1km')
-        elif self._elev_source.upper() == 'GTOPO':
-            elev_image = ee.Image('USGS/GTOPO30')
-        elif self._elev_source.upper() == 'NED':
-            elev_image = ee.Image('USGS/NED')
-        elif self._elev_source.upper() == 'SRTM':
-            elev_image = ee.Image('USGS/SRTMGL1_003')
-        elif (self._elev_source.lower().startswith('projects/') or
-              self._elev_source.lower().startswith('users/')):
+        elif type(self._elev_source) is str:
             elev_image = ee.Image(self._elev_source)
+        # elif (self._elev_source.lower().startswith('projects/') or
+        #       self._elev_source.lower().startswith('users/')):
+        #     elev_image = ee.Image(self._elev_source)
         else:
             raise ValueError('Unsupported elev_source: {}\n'.format(
                 self._elev_source))
