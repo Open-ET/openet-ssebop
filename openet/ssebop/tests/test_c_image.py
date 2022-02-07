@@ -150,10 +150,10 @@ def test_Image_init_default_parameters():
     assert m.et_reference_factor == None
     assert m.et_reference_resample == None
     assert m.et_reference_date_type == None
-    assert m._dt_source == 'DAYMET_MEDIAN_V2'
+    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
     assert m._elev_source == None
-    assert m._tcorr_source == 'DYNAMIC'
-    assert m._tmax_source == 'DAYMET_MEDIAN_V2'
+    assert m._tcorr_source == 'FANO'
+    assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
@@ -259,6 +259,22 @@ def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
 def test_Image_elev_band_name():
     output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
     assert output == 'elev'
+
+
+@pytest.mark.parametrize(
+    'dt_source, doy, xy, expected',
+    [
+        ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
+         SCENE_DOY, TEST_POINT, 20.77],
+    ]
+)
+def test_Image_dt_source_values(dt_source, doy, xy, expected, tol=0.001):
+    """Test getting dT values for a single date at a real point"""
+    m = default_image_obj(dt_source=dt_source)
+    m._doy = doy
+    output = utils.point_image_value(ee.Image(m.dt), xy)
+    assert abs(output['dt'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -767,34 +783,34 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     [
         # TOPOWX_MEDIAN_V0
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9929312773213419, 'tcorr_count': 2466713}],
+         {'tcorr_value': 0.9914826142535333, 'tcorr_count': 457876}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9819724043375294, 'tcorr_count': 746171}],
+         {'tcorr_value': 0.9810607908548545, 'tcorr_count': 21852}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9561832021931235, 'tcorr_count': 518067}],
+         {'tcorr_value': 0.9571767539172935, 'tcorr_count': 872}],
 
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 767445}],
+         {'tcorr_value': 0.9730285325301501, 'tcorr_count': 152720}],
         ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9870731706021387, 'tcorr_count': 2466713}],
+         {'tcorr_value': 0.9856133291233087, 'tcorr_count': 457876}],
         ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9799146240259888, 'tcorr_count': 746171}],
+         {'tcorr_value': 0.9798477638345092, 'tcorr_count': 21852}],
         ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.951809413760349, 'tcorr_count': 518067}],
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
+         {'tcorr_value': 0.9520737089446781, 'tcorr_count': 872}],
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
 
         # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9738927482041165, 'tcorr_count': 767445}],
+         {'tcorr_value': 0.9730285325301499, 'tcorr_count': 152720}],
         ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.974343145024715, 'tcorr_count': 1049672}],
+         {'tcorr_value': 0.9734596075858268, 'tcorr_count': 222111}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9768134772182919, 'tcorr_count': 1052360}],
+         {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
 
         # # DEADBEEF
         # # projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019
@@ -811,17 +827,17 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
         # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         {'tcorr_value': 0.9763274172196688, 'tcorr_count': 1052360}],
+         {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         {'tcorr_value': 0.9860930515490791, 'tcorr_count': 3771472}],
+         {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
          'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
-         {'tcorr_value': 0.9860930515490792, 'tcorr_count': 3771472}],
+         {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
-                                   tol=0.001):
+                                   tol=0.000001):
     output = utils.getinfo(ssebop.Image.from_image_id(
         image_id, tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
@@ -867,6 +883,30 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
+
+
+@pytest.mark.parametrize(
+    'tcorr_source, tmax_source, image_id, expected',
+    [
+        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         [0.9529951246488714, 1]],
+        ['FANO',
+         'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         [0.9529951246488714, 1]],
+    ]
+)
+def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
+                                 expected, tol=0.000001):
+    """Test getting Tcorr value and index for a single date at a real point"""
+    tcorr_img = ssebop.Image.from_image_id(
+        image_id, tcorr_source=tcorr_source,
+        tmax_source=tmax_source, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+    index = utils.getinfo(tcorr_img.get('tcorr_index'))
+    assert abs(tcorr['tcorr'] - expected[0]) <= tol
+    assert index == expected[1]
 
 
 @pytest.mark.parametrize(
