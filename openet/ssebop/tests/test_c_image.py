@@ -154,9 +154,6 @@ def test_Image_init_default_parameters():
     assert m._elev_source == None
     assert m._tcorr_source == 'DYNAMIC'
     assert m._tmax_source == 'DAYMET_MEDIAN_V2'
-    # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
-    # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019'
-    # assert m._tmax_source == 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'
     assert m._elr_flag == False
     assert m._dt_min == 5
     assert m._dt_max == 25
@@ -380,7 +377,7 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
         305,
     ]
 )
-def test_Image_tmax_source_(tmax_source):
+def test_Image_tmax_source(tmax_source):
     """Test that the tmax source is valid enough to instantiate the class"""
     assert default_image_obj(tmax_source=tmax_source).tmax
 
@@ -388,9 +385,10 @@ def test_Image_tmax_source_(tmax_source):
 @pytest.mark.parametrize(
     'tmax_source, xy, expected',
     [
+        ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', TEST_POINT, 310.0847],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         TEST_POINT, 310.0847],
         ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', TEST_POINT, 310.15],
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         TEST_POINT, 310.15],
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', TEST_POINT, 310.155],
         # ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', TEST_POINT, 310.155],
         ['DAYMET_V3', TEST_POINT, 307.65],
@@ -443,8 +441,9 @@ today_dt = datetime.datetime.today()
 @pytest.mark.parametrize(
     'tmax_source, expected',
     [
+        ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', {}],
+        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', {}],
         ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', {}],
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', {}],
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', {}],
         ['CIMIS', {}],
         ['DAYMET_V3', {}],
@@ -822,7 +821,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
-                                   tol=0.0000001):
+                                   tol=0.001):
     output = utils.getinfo(ssebop.Image.from_image_id(
         image_id, tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
@@ -906,7 +905,7 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2'):
     ]
 )
 def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
-                                    expected, tol=0.000001):
+                                    expected, tol=0.001):
     """Test getting Tcorr value and index for a single date at a real point"""
     tcorr_img = ssebop.Image.from_image_id(
         image_id, tcorr_source=tcorr_source,
@@ -1024,7 +1023,7 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
     ]
 )
 def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
+                                    clip, xy, expected, tol=0.001):
     """Test the tcorr_gridded method directly
 
     Clipping the input image is needed to get the test to finish in time
@@ -1073,7 +1072,7 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
     ]
 )
 def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
-                                         clip, xy, expected, tol=0.000001):
+                                         clip, xy, expected, tol=0.001):
     """Test the tcorr_gridded_cold method directly"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
@@ -1133,7 +1132,7 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
     ]
 )
 def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
-                                    clip, xy, expected, tol=0.000001):
+                                    clip, xy, expected, tol=0.001):
     """Test getting the gridded Tcorr values
 
     Clipping the input image is needed to get the test to finish in time
@@ -1170,7 +1169,7 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
     ]
 )
 def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
-                                 expected, tol=0.000001):
+                                 expected, tol=0.001):
     """Test that tcorr_resample with bilinear is different than with nearest"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
@@ -1183,8 +1182,8 @@ def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
     # index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected) <= tol
     # assert tcorr['tcorr_index'] == 1
-#
-#
+
+
 # @pytest.mark.parametrize(
 #     'tcorr_source, tmax_source, image_id, clip, xy, expected',
 #     [
@@ -1268,7 +1267,7 @@ def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
     ]
 )
 def test_Image_tcorr_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
-                                      image_id, clip, xy, expected, tol=0.000001):
+                                      image_id, clip, xy, expected, tol=0.001):
     """Test that tcorr_resample with bilinear is different than with nearest"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
