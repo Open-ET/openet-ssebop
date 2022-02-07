@@ -41,7 +41,8 @@ class Image():
             et_reference_factor=None,
             et_reference_resample=None,
             et_reference_date_type=None,
-            dt_source=None,
+            dt_source='DAYMET_MEDIAN_V2',
+            # dt_source=None,
             # dt_scale_factor=None,
             elev_source=None,
             tcorr_source='DYNAMIC',
@@ -50,7 +51,6 @@ class Image():
             dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
-            # reflectance_type='TOA',
             reflectance_type='SR',
             **kwargs,
         ):
@@ -101,8 +101,8 @@ class Image():
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction  (the default is 'alfalfa').
         reflectance_type : {'SR', 'TOA'}, optional
-            Used to select the set the Tcorr NDVI thresholds
-            (the default is 'TOA').
+            Used to set the Tcorr NDVI thresholds
+            (the default is 'SR').
         kwargs : dict, optional
             tmax_resample : {'nearest', 'bilinear'}
             dt_resample : {'nearest', 'bilinear'}
@@ -305,17 +305,18 @@ class Image():
         # =========================================================
         if self._elr_flag:
             tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
-
-        if self._tcorr_source.upper() == 'FANO':
-            # bilinearly resample tmax at 1km (smoothed).
-            tmax = self.tmax.resample('bilinear')
-
         else:
             tmax = self.tmax
 
-        if (self._dt_resample and
+        if type(self._tcorr_source) is str and self._tcorr_source.upper() == 'FANO':
+            # bilinearly resample tmax at 1km (smoothed).
+            tmax = tmax.resample('bilinear')
+
+        if (self._dt_resample and type(self._dt_resample) is str and
                 self._dt_resample.lower() in ['bilinear', 'bicubic']):
             dt = self.dt.resample(self._dt_resample)
+        else:
+            dt = self.dt
 
         et_fraction = model.et_fraction(
             lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
@@ -1290,14 +1291,14 @@ class Image():
 
         # Adjust NDVI
         if self.reflectance_type.upper() == 'SR':
-            # ndvi_threshold = 0.75
+            ndvi_threshold = 0.75
             # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            ndvi_threshold = 0.85
+            # ndvi_threshold = 0.85
         # elif self.reflectance_type.upper() == 'TOA':
         else:
-            # ndvi_threshold = 0.7
+            ndvi_threshold = 0.7
             # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            ndvi_threshold = 0.8
+            # ndvi_threshold = 0.8
 
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = ndvi.focal_mean(radius=90, units='meters')\
