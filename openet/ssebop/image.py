@@ -530,8 +530,7 @@ class Image():
                                    'projects/climate-engine/cimis/daily')\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['Tx', 'Tn', 'Rs', 'Tdew']) \
-                    .first()) \
-                    .clamp(self._dt_min, self._dt_max)
+                    .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Compute Ea from Tdew
             dt_img = model.dt(
@@ -542,14 +541,13 @@ class Image():
                     .multiply(input_img.select(['Tdew']))\
                     .multiply(17.27).exp().multiply(0.6108).rename(['ea']),
                 elev=self.elev,
-                doy=self._doy)
+                doy=self._doy).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET':
             input_img = ee.Image(
                 ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['tmax', 'tmin', 'srad', 'dayl', 'vp']) \
-                    .first()) \
-                    .clamp(self._dt_min, self._dt_max)
+                    .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Solar unit conversion from DAYMET documentation:
             #   https://daymet.ornl.gov/overview.html
@@ -560,14 +558,13 @@ class Image():
                     .multiply(input_img.select(['dayl'])).divide(1000000),
                 ea=input_img.select(['vp'], ['ea']).divide(1000),
                 elev=self.elev,
-                doy=self._doy)
+                doy=self._doy).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'GRIDMET':
             input_img = ee.Image(
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                     .filterDate(self._start_date, self._end_date)\
                     .select(['tmmx', 'tmmn', 'srad', 'sph']) \
-                    .first()) \
-                    .clamp(self._dt_min, self._dt_max)
+                    .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             q = input_img.select(['sph'], ['q'])
             pair = self.elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
@@ -582,7 +579,7 @@ class Image():
                 ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q)\
                     .multiply(pair).rename(['ea']),
                 elev=self.elev,
-                doy=self._doy)
+                doy=self._doy).clamp(self._dt_min, self._dt_max)
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
