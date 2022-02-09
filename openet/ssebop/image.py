@@ -74,9 +74,6 @@ class Image():
             to nearest neighbor resampling.
         dt_source : str, float, {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', 'DAYMET_MEDIAN_V2'}, optional
             dT source  (the default is None).
-        dt_scale_factor : float, None, optional
-            dT scale factor. The default is None which is
-            equivalent to 1.0 (or no scaling)
         tcorr_source : {'DYNAMIC', 'GRIDDED', 'SCENE_GRIDDED',
                         'SCENE', 'SCENE_DAILY', 'SCENE_MONTHLY',
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
@@ -102,7 +99,6 @@ class Image():
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
             tmax_resample : {'nearest', 'bilinear'}
-            dt_scale_factor : float
             elev_source : str or float
             min_pixels_per_image : int
             min_pixels_per_grid_cell : int
@@ -217,11 +213,6 @@ class Image():
         """Keyword arguments"""
         # CGM - What is the right way to process kwargs with default values?
         self.kwargs = kwargs
-
-        if 'dt_scale_factor' in kwargs.keys():
-            self._dt_scale_factor = kwargs['dt_scale_factor']
-        else:
-            self._dt_scale_factor = None
 
         if 'elev_source' in kwargs.keys():
             self._elev_source = kwargs['elev_source']
@@ -508,20 +499,6 @@ class Image():
             If `self._dt_source` is not supported.
 
         """
-        if self._dt_scale_factor is None:
-            if (type(self._dt_source) is str and
-                    'projects/usgs-ssebop/dt/daymet_median_v6' in self._dt_source):
-                self._dt_scale_factor = 0.01
-            else:
-                self._dt_scale_factor = 1.0
-        elif (type(self._dt_scale_factor) is str and
-              utils.is_number(self._dt_scale_factor)):
-            self._dt_scale_factor = float(self._dt_scale_factor)
-        elif utils.is_number(self._dt_scale_factor):
-            pass
-        else:
-            raise ValueError(f'Unsupported dt_scale_factor: {self._dt_scale_factor}')
-
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
         # Use precomputed dT median assets
@@ -531,9 +508,12 @@ class Image():
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
             dt_coll = ee.ImageCollection(self._dt_source) \
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            # MF: Optional scale factor only applied for string ID dT collections, and
+            # MF: scale factor property only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
-            dt_img = ee.Image(dt_coll.first()).multiply(self._dt_scale_factor)
+            dt_img = ee.Image(dt_coll.first())
+            dt_scale_factor = ee.Dictionary({'scale_factor': dt_img.get('scale_factor')})\
+                .combine({'scale_factor': '1.0'}, overwrite=False)
+            dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
