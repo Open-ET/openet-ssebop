@@ -1396,7 +1396,7 @@ class Image():
         """
 
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
-        coarse_transform25 = [25000, 0, 15, 0, -25000, 15]
+        coarse_transform25 = [100000, 0, 15, 0, -100000, 15]
         dt_coeff = 0.125
         ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
