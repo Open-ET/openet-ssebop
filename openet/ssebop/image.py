@@ -1396,7 +1396,7 @@ class Image():
         """
 
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
-        coarse_transform25 = [100000, 0, 15, 0, -100000, 15]
+        coarse_transform100 = [100000, 0, 15, 0, -100000, 15]
         dt_coeff = 0.125
         ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
@@ -1432,25 +1432,25 @@ class Image():
         ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
                                                     .reproject(self.crs, coarse_transform)
-        ndvi_avg_masked25 = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
+        ndvi_avg_masked100 = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform25)
+                                                    .reproject(self.crs, coarse_transform100)
         ndvi_avg_unmasked = ndvi.reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
                                                     .reproject(self.crs, coarse_transform).updateMask(1)
         lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
                                                     .reproject(self.crs, coarse_transform)
-        lst_avg_masked25 = lst.updateMask(watermask).reproject(self.crs, self.transform)\
+        lst_avg_masked100 = lst.updateMask(watermask).reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform25)
+                                                    .reproject(self.crs, coarse_transform100)
         lst_avg_unmasked = lst.reproject(self.crs, self.transform)\
                                                     .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
                                                     .reproject(self.crs, coarse_transform).updateMask(1)
 
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_avg = dt.reproject(self.crs, coarse_transform)
-        dt_avg25 = dt.reproject(self.crs, coarse_transform25).updateMask(1)
+        dt_avg100 = dt.reproject(self.crs, coarse_transform100).updateMask(1)
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
@@ -1458,9 +1458,9 @@ class Image():
                                       {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
                                        'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
 
-        Tc_warm25 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+        Tc_warm100 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
                                              {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                                              'ndvi': ndvi_avg_masked25, 'dt': dt_avg25, 'lst': lst_avg_masked25})
+                                              'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
@@ -1471,7 +1471,7 @@ class Image():
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
             .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \
-            .where(wet_region_mask_5km, Tc_warm25)
+            .where(wet_region_mask_5km, Tc_warm100)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
