@@ -40,8 +40,8 @@ setup(
     license='Apache',
     author='Gabe Parrish, Mac Friedrichs, Gabriel Senay',
     author_email='gparrish@contractor.usgs.gov',
-    url='https://github.com/Open-ET/openet-{}-beta'.format(model_name.lower()),
-    download_url='https://github.com/Open-ET/openet-{}-beta/archive/v{}.tar.gz'.format(
+    url='https://github.com/Open-ET/openet-{}'.format(model_name.lower()),
+    download_url='https://github.com/Open-ET/openet-{}/archive/v{}.tar.gz'.format(
 		model_name.lower(), version),
     install_requires=['earthengine-api', 'openet-core', 'openet-refet-gee',
                       'python-dateutil'],
@@ -51,6 +51,9 @@ setup(
     keywords=f'{model_name} OpenET Evapotranspiration Earth Engine',
     classifiers = [
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.6'],
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+    ],
     zip_safe=False,
 )

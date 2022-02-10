@@ -38,7 +38,7 @@ def main(ini_path=None, overwrite_flag=False, delay=0, key=None):
 
     # Hardcoding for now...
     tcorr_stats_path = r'C:\Users\mortonc\Google Drive\SSEBop\tcorr_realtime\tcorr_stats.csv'
-    # tcorr_stats_path = r'C:\Projects\openet-ssebop-beta\tcorr\tcorr_stats.csv'
+    # tcorr_stats_path = r'C:\Projects\openet-ssebop\tcorr\tcorr_stats.csv'
 
     ini = utils.read_ini(ini_path)
 
