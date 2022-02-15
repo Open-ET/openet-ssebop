@@ -232,7 +232,7 @@ class Collection():
             self.collections = [c for c in self.collections if 'LT05' not in c]
         if self.end_date <= '1999-01-01':
             self.collections = [c for c in self.collections if 'LE07' not in c]
-        if self.end_date >= '2022-01-01':
+        if self.start_date >= '2022-01-01':
             self.collections = [c for c in self.collections if 'LE07' not in c]
         if self.end_date <= '2013-01-01':
             self.collections = [c for c in self.collections if 'LC08' not in c]
