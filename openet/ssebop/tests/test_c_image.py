@@ -10,7 +10,7 @@ import openet.ssebop.utils as utils
 # import openet.core.utils as utils
 
 
-COLL_ID = 'LANDSAT/LC08/C01/T1_TOA'
+COLL_ID = 'LANDSAT/LC08/C02/T1_L2'
 SCENE_ID = 'LC08_042035_20150713'
 SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
 SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
@@ -26,30 +26,30 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     ee.Image(f'{COLL_ID}/{SCENE_ID}').geometry().centroid())['coordinates']
 
 
-# Should these be test fixtures instead?
-# I'm not sure how to make them fixtures and allow input parameters
-def toa_image(red=0.1, nir=0.9, bt=305):
-    """Construct a fake Landsat 8 TOA image with renamed bands"""
-    mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['B3']).multiply(0)
-    return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
-        .rename(['red', 'nir', 'tir'])\
-        .set({
-            'system:time_start': SCENE_TIME,
-            'k1_constant': ee.Number(607.76),
-            'k2_constant': ee.Number(1260.56),
-        })
-    # return ee.Image.constant([red, nir, bt])\
-    #     .rename(['red', 'nir', 'lst']) \
-    #     .set({
-    #         'system:time_start': ee.Date(SCENE_DATE).millis(),
-    #         'k1_constant': ee.Number(607.76),
-    #         'k2_constant': ee.Number(1260.56),
-    #     })
+# # Should these be test fixtures instead?
+# # I'm not sure how to make them fixtures and allow input parameters
+# def sr_image(red=0.1, nir=0.9, bt=305):
+#     """Construct a fake Landsat 8 TOA image with renamed bands"""
+#     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
+#     return ee.Image([mask_img.add(red), mask_img.add(nir), mask_img.add(bt)]) \
+#         .rename(['red', 'nir', 'tir'])\
+#         .set({
+#             'system:time_start': SCENE_TIME,
+#             'k1_constant': ee.Number(607.76),
+#             'k2_constant': ee.Number(1260.56),
+#         })
+#     # return ee.Image.constant([red, nir, bt])\
+#     #     .rename(['red', 'nir', 'lst']) \
+#     #     .set({
+#     #         'system:time_start': ee.Date(SCENE_DATE).millis(),
+#     #         'k1_constant': ee.Number(607.76),
+#     #         'k2_constant': ee.Number(1260.56),
+#     #     })
 
 
 def default_image(lst=305, ndvi=0.8):
     # First construct a fake 'prepped' input image
-    mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['B3']).multiply(0)
+    mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
     return ee.Image([mask_img.add(lst), mask_img.add(ndvi)]) \
         .rename(['lst', 'ndvi']) \
         .set({
@@ -67,7 +67,7 @@ def default_image(lst=305, ndvi=0.8):
 
 # Setting et_reference_source and et_reference_band on the default image to
 #   simplify testing but these do not have defaults in the Image class init
-def default_image_args(lst=305, ndvi=0.8,
+def default_image_args(lst=305, ndvi=0.85,
                        # et_reference_source='IDAHO_EPSCOR/GRIDMET',
                        et_reference_source=9.5730,
                        et_reference_band='etr',
@@ -80,7 +80,7 @@ def default_image_args(lst=305, ndvi=0.8,
                        elev_source=67,
                        elr_flag=False,
                        et_fraction_type='alfalfa',
-                       reflectance_type='TOA',
+                       reflectance_type='SR',
                        dt_resample='nearest',
                        tmax_resample='nearest',
                        tcorr_resample='nearest',
@@ -105,7 +105,7 @@ def default_image_args(lst=305, ndvi=0.8,
     }
 
 
-def default_image_obj(lst=305, ndvi=0.8,
+def default_image_obj(lst=305, ndvi=0.85,
                       # et_reference_source='IDAHO_EPSCOR/GRIDMET',
                       et_reference_source=9.5730,
                       et_reference_band='etr',
@@ -118,7 +118,7 @@ def default_image_obj(lst=305, ndvi=0.8,
                       elev_source=67,
                       elr_flag=False,
                       et_fraction_type='alfalfa',
-                      reflectance_type='TOA',
+                      reflectance_type='SR',
                       dt_resample='nearest',
                       tmax_resample='nearest',
                       tcorr_resample='nearest',
@@ -771,19 +771,10 @@ def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2'):
 
 
 # CGM - Then test tcorr_stats since it is called by the other tcorr functions
-def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
+def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857,
                                     tol=0.00000001):
     output = utils.getinfo(default_image_obj(
-        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).tcorr_stats)
-    assert abs(output['tcorr_value'] - tcorr) <= tol
-    assert output['tcorr_count'] == count
-
-
-def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=41479998,
-                                    tol=0.00000001):
-    output = utils.getinfo(default_image_obj(
-        ndvi=0.8, lst=308, dt_source=10, elev_source=50,
+        ndvi=0.85, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).tcorr_stats)
     assert abs(output['tcorr_value'] - tcorr) <= tol
     assert output['tcorr_count'] == count
@@ -860,7 +851,7 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     #         expected['tcorr_count']) <= 0.0000001
 
 
-def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
+def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804,
                                   tol=0.0001):
     output_img = default_image_obj(
         lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
@@ -900,10 +891,17 @@ def test_Image_tcorr_image_properties(tmax_source='projects/usgs-ssebop/tmax/day
     'tcorr_source, tmax_source, image_id, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803092611960063],
+        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713', 0.9691267889719843],
+        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
+        # TODO: Figure out why this image fails
+        # ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.LC08_042035_20161206],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
@@ -914,6 +912,9 @@ def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
         tmax_source=tmax_source, tmax_resample='nearest').tcorr
     tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
     assert abs(tcorr['tcorr'] - expected) <= tol
+
+
+# TODO: Add a test for a point where FANO should be using a coarse fallback value
 
 
 @pytest.mark.parametrize(
