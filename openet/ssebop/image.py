@@ -1344,7 +1344,7 @@ class Image():
             ndvi_threshold = 0.25
 
         # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
-        ndvi_smooth = ndvi.focal_mean(radius=90, units='meters') \
+        ndvi_smooth = ndvi.focal_mean(radius=90, units='meters')\
             .reproject(crs=self.crs, crsTransform=self.transform)
         ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
 
@@ -1356,7 +1356,7 @@ class Image():
         # No longer worry about low LST. Filter out high NDVI vals and mask out areas that aren't 'Barren'
         tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)
 
-        return tcorr.updateMask(tcorr_mask).rename(['tcorr']) \
+        return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
@@ -1364,17 +1364,16 @@ class Image():
 
     @lazy_property
     def tcorr_FANO(self):
-        """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
-            to simulate true cold cfactor
+        """Compute the scene wide Tcorr for the current image adjusting tcorr
+            temps based on NDVI thresholds to simulate true cold cfactor
 
-            FANO: Forcing And Normalizing Operation
+        FANO: Forcing And Normalizing Operation
 
         Returns
         -------
         ee.Image of Tcorr values
 
         """
-
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
         coarse_transform100 = [100000, 0, 15, 0, -100000, 15]
         dt_coeff = 0.125
@@ -1409,24 +1408,36 @@ class Image():
         pct_value = (1 - (water_pct / 100))
         wet_region_mask_5km = percentage_bad.lte(pct_value)
 
-        ndvi_avg_masked = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform)
-        ndvi_avg_masked100 = ndvi.updateMask(watermask).reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform100)
-        ndvi_avg_unmasked = ndvi.reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform).updateMask(1)
-        lst_avg_masked = lst.updateMask(watermask).reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform)
-        lst_avg_masked100 = lst.updateMask(watermask).reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform100)
-        lst_avg_unmasked = lst.reproject(self.crs, self.transform)\
-                                                    .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-                                                    .reproject(self.crs, coarse_transform).updateMask(1)
+        ndvi_avg_masked = ndvi\
+            .updateMask(watermask)\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)
+        ndvi_avg_masked100 = ndvi\
+            .updateMask(watermask)\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform100)
+        ndvi_avg_unmasked = ndvi\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1)
+        lst_avg_masked = lst\
+            .updateMask(watermask)\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)
+        lst_avg_masked100 = lst\
+            .updateMask(watermask)\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform100)
+        lst_avg_unmasked = lst\
+            .reproject(self.crs, self.transform)\
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+            .reproject(self.crs, coarse_transform)\
+            .updateMask(1)
 
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_avg = dt.reproject(self.crs, coarse_transform)
@@ -1434,23 +1445,25 @@ class Image():
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        Tc_warm = lst_avg_unmasked.expression(f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
-                                      {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
-                                       'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+        Tc_warm = lst_avg_unmasked.expression(
+            f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
+            {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
+             'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
 
-        Tc_warm100 = lst_avg_masked.expression('(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
-                                             {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                                              'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
+        Tc_warm100 = lst_avg_masked.expression(
+            '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+            {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+             'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
         # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
         # In places where there is too much land covered by water 10% or greater,
         #   use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
-        Tc_cold = lst_avg_unmasked \
+        Tc_cold = lst_avg_unmasked\
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
-            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked) \
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)\
             .where(wet_region_mask_5km, Tc_warm100)
 
         c_factor = Tc_cold.divide(tmax_avg)
@@ -1458,7 +1471,7 @@ class Image():
         # bilinearly smooth the gridded c factor
         c_factor_bilinear = c_factor.resample('bilinear')
 
-        return c_factor_bilinear.rename(['tcorr']) \
+        return c_factor_bilinear.rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
