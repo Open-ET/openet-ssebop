@@ -258,6 +258,7 @@ class Image():
 
         # print(f'this is the tcorr source passed to the image class {tcorr_source}')
 
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -294,6 +295,20 @@ class Image():
                 raise ValueError('unsupported variable: {}'.format(v))
 
         return ee.Image(output_images).set(self._properties)
+
+    @lazy_property
+    def landsat_c2_qa_water_mask(self):
+        """
+        Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
+        :return: ee.Image
+        """
+
+        # TODO - make a test function.
+
+        img = self.image
+        qa_img = img.select(['QA_PIXEL'])
+        water_mask = qa_img.rightShift(7).bitwiseAnd(1).neq(0)
+        return water_mask
 
     @lazy_property
     def et_fraction(self):
@@ -1384,13 +1399,24 @@ class Image():
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
+
         lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
+        ndvi = ee.Image(self.ndvi).clamp(-1.0, 1.0)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
         ndwi = ee.Image(self.ndwi)
+        # Getting Landsat QA PIXEL watermask
+        qa_watermask = ee.Image(self.landsat_c2_qa_water_mask)
+
+        # setting NDVI to negative values where Landsat QA Pixel detects water.
+        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0), ndvi.multiply(-1)))
+
         watermask = ndwi.lt(ndwi_threshold)
-        watermask_for_coarse = ndwi.updateMask(ndwi.lt(ndwi_threshold))
+        # combining ndwi mask with QA Pixel watermask.
+        # - MF; Is this the correct way to combine masks?
+        watermask = watermask.multiply(qa_watermask).eq(0)
+        # returns ndwi masked by ndwi threshold to get a count of valid pixels
+        watermask_for_coarse = ndwi.updateMask(watermask)
 
         ## GELP - changes slightly here reproject self.crs and self.transform
         # should be equivalent to: landsat_crs, ndvi_transform.

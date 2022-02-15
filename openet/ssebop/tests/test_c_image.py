@@ -1710,6 +1710,22 @@ def test_Image_time_properties():
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
+def test_landsat_c2_qa_water_mask():
+    """Test if qa pixel waterband exists and is correct"""
+
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    output_img = ssebop.Image.from_landsat_c2_sr(
+        image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
+    mask_img = output_img.landsat_c2_qa_water_mask
+    output = utils.point_image_value(mask_img, TEST_POINT)
+    assert output == 0
+
+    # output_img = default_image_obj(
+    #     dt_source=10, elev_source=50,
+    #     tcorr_source=0.98, tmax_source=310,
+    #     et_fraction_type=et_fraction_type).et_fraction
+    # output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
+    # assert output['QA_PIXEL'] == 0
 
 def test_Image_time_values():
     # The time band should be the 0 UTC datetime, not the system:time_start
