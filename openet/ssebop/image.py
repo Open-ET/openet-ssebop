@@ -301,7 +301,8 @@ class Image():
         Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
         :return: ee.Image
         """
-        self.image.select(['qa_water']).set(self._properties)
+
+        return self.image.select(['qa_water']).set(self._properties)
 
     @lazy_property
     def et_fraction(self):
@@ -1266,7 +1267,7 @@ class Image():
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
-            landsat.landsat_c2_qa_water_mask(prep_image)
+            landsat.qa_water_mask(prep_image)
         ])
 
         # Apply the cloud mask and add properties

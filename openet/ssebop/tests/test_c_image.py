@@ -1720,12 +1720,6 @@ def test_landsat_c2_qa_water_mask():
     output = utils.point_image_value(mask_img, TEST_POINT)
     assert output == 0
 
-    # output_img = default_image_obj(
-    #     dt_source=10, elev_source=50,
-    #     tcorr_source=0.98, tmax_source=310,
-    #     et_fraction_type=et_fraction_type).et_fraction
-    # output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
-    # assert output['QA_PIXEL'] == 0
 
 def test_Image_time_values():
     # The time band should be the 0 UTC datetime, not the system:time_start
