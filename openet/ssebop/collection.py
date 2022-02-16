@@ -324,7 +324,7 @@ class Collection():
                         'system:time_start', ee.Date('2013-04-01').millis()))
                 elif 'LC09' in coll_id:
                     input_coll = input_coll.filter(ee.Filter.gt(
-                        'system:time_start', ee.Date('2022-01-01').millis()))
+                        'system:time_start', ee.Date('2021-11-01').millis()))
 
                 def compute_lsr(image):
                     model_obj = Image.from_landsat_c2_sr(
