@@ -1267,7 +1267,7 @@ class Image():
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
-            landsat.qa_water_mask(prep_image)
+            landsat.landsat_c2_qa_water_mask(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1409,7 +1409,7 @@ class Image():
         watermask = ndwi.lt(ndwi_threshold)
         # combining ndwi mask with QA Pixel watermask.
         # - MF; Is this the correct way to combine masks?
-        watermask = watermask.multiply(qa_watermask).eq(0)
+        watermask = watermask.multiply(qa_watermask.eq(0))
         # returns ndwi masked by ndwi threshold to get a count of valid pixels
         watermask_for_coarse = ndwi.updateMask(watermask)
 

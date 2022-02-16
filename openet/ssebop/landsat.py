@@ -140,7 +140,7 @@ def ndwi(landsat_image):
 
 
 
-def qa_water_mask(landsat_image):
+def landsat_c2_qa_water_mask(landsat_image):
     """
     Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
     :return: ee.Image
