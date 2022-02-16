@@ -236,7 +236,7 @@ class Collection():
             self.collections = [c for c in self.collections if 'LE07' not in c]
         if self.end_date <= '2013-01-01':
             self.collections = [c for c in self.collections if 'LC08' not in c]
-        if self.end_date <= '2022-01-01':
+        if self.end_date <= '2021-11-01':
             self.collections = [c for c in self.collections if 'LC09' not in c]
 
     def _build(self, variables=None, start_date=None, end_date=None):
