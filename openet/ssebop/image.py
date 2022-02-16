@@ -11,7 +11,6 @@ from openet.ssebop import landsat
 from openet.ssebop import model
 from openet.ssebop import utils
 
-
 PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
 # PROJECT_FOLDER = 'projects/usgs-ssebop'
 
@@ -57,7 +56,7 @@ class Image():
         ----------
         image : ee.Image
             A "prepped" SSEBop input image.
-            Image must have bands: "ndvi" and "lst".
+            Image must have bands: "ndvi" and "lst" and "ndwi" and "qa_water"
             Image must have properties: 'system:id', 'system:index', and
                 'system:time_start'.
         et_reference_source : str, float, optional
@@ -297,18 +296,12 @@ class Image():
         return ee.Image(output_images).set(self._properties)
 
     @lazy_property
-    def landsat_c2_qa_water_mask(self):
+    def qa_water_mask(self):
         """
         Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
         :return: ee.Image
         """
-
-        # TODO - make a test function.
-
-        img = self.image
-        qa_img = img.select(['QA_PIXEL'])
-        water_mask = qa_img.rightShift(7).bitwiseAnd(1).neq(0)
-        return water_mask
+        self.image.select(['qa_water']).set(self._properties)
 
     @lazy_property
     def et_fraction(self):
@@ -1272,7 +1265,8 @@ class Image():
             prep_image.select(['tir'], ['lst']),
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            landsat.landsat_c2_qa_water_mask(prep_image)
         ])
 
         # Apply the cloud mask and add properties
@@ -1406,10 +1400,10 @@ class Image():
         dt = ee.Image(self.dt)
         ndwi = ee.Image(self.ndwi)
         # Getting Landsat QA PIXEL watermask
-        qa_watermask = ee.Image(self.landsat_c2_qa_water_mask)
+        qa_watermask = ee.Image(self.qa_water_mask)
 
         # setting NDVI to negative values where Landsat QA Pixel detects water.
-        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0), ndvi.multiply(-1)))
+        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
         watermask = ndwi.lt(ndwi_threshold)
         # combining ndwi mask with QA Pixel watermask.

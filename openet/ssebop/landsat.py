@@ -137,3 +137,18 @@ def ndwi(landsat_image):
 """
     return ee.Image(landsat_image).normalizedDifference(['green', 'swir1'])\
         .rename(['ndwi'])
+
+
+
+def landsat_c2_qa_water_mask(landsat_image):
+    """
+    Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
+    :return: ee.Image
+    """
+
+    # TODO - make a test function.
+
+    img = ee.Image(landsat_image)
+    qa_img = img.select(['QA_PIXEL'])
+    water_mask = qa_img.rightShift(7).bitwiseAnd(1).neq(0)
+    return water_mask.rename(['qa_water'])
