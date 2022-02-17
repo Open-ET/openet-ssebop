@@ -110,6 +110,7 @@ def test_Collection_init_cloud_cover_max_str():
         ['LANDSAT/LE07/C02/T1_L2', '1998-01-01', '1999-01-01'],
         ['LANDSAT/LE07/C02/T1_L2', '2022-01-01', '2023-01-01'],
         ['LANDSAT/LC08/C02/T1_L2', '2012-01-01', '2013-01-01'],
+        ['LANDSAT/LC09/C02/T1_L2', '2021-01-01', '2021-11-01'],
     ]
 )
 def test_Collection_init_collection_filter(coll_id, start_date, end_date):
