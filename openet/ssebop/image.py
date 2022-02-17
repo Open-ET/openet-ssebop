@@ -1374,7 +1374,7 @@ class Image():
 
     @lazy_property
     def tcorr_FANO(self):
-        """Compute the scene wide Tcorr for the current image adjusting tcorr temps based on NDVI thresholds
+        """Compute the scene wide Tcorr for the current image adjusting Tcorr temps based on NDVI thresholds
             to simulate true cold cfactor
 
             FANO: Forcing And Normalizing Operation
@@ -1400,21 +1400,17 @@ class Image():
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
         ndwi = ee.Image(self.ndwi)
-        # Getting Landsat QA PIXEL watermask
         qa_watermask = ee.Image(self.qa_water_mask)
 
         # setting NDVI to negative values where Landsat QA Pixel detects water.
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
         watermask = ndwi.lt(ndwi_threshold)
-        # combining ndwi mask with QA Pixel watermask.
-        # - MF; Is this the correct way to combine masks?
+        # combining NDWI mask with QA Pixel watermask.
         watermask = watermask.multiply(qa_watermask.eq(0))
-        # returns ndwi masked by ndwi threshold to get a count of valid pixels
+        # returns NDWI masked by ndwi threshold to get a count of valid pixels
         watermask_for_coarse = ndwi.updateMask(watermask)
 
-        ## GELP - changes slightly here reproject self.crs and self.transform
-        # should be equivalent to: landsat_crs, ndvi_transform.
         watermask_coarse_count = watermask_for_coarse\
             .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
@@ -1425,6 +1421,11 @@ class Image():
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1).select([0], ['count'])
+
+        # Doing a layering mosaic check to fill any remaining Null watermask coarse pixels with valid mask data.
+        #   This can happen if the reduceResolution count contained exclusively water pixels from 30 meters.
+        watermask_coarse_count = ee.Image([watermask_coarse_count, total_pixels_count.multiply(0).add(1)]) \
+            .reduce(ee.Reducer.firstNonNull())
 
         percentage_bad = watermask_coarse_count.divide(total_pixels_count)
         pct_value = (1 - (water_pct / 100))
