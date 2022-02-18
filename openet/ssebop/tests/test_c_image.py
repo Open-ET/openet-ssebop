@@ -900,10 +900,15 @@ def test_Image_tcorr_image_properties(tmax_source='projects/usgs-ssebop/tmax/day
     'tcorr_source, tmax_source, image_id, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 0.9529951246488714],
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
+        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713', 0.9691267889719843],
+        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
+
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
@@ -1710,15 +1715,25 @@ def test_Image_time_properties():
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
-def test_landsat_c2_qa_water_mask():
-    """Test if qa pixel waterband exists and is correct"""
 
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output_img = ssebop.Image.from_landsat_c2_sr(
-        image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
-    mask_img = output_img.landsat_c2_qa_water_mask
-    output = utils.point_image_value(mask_img, TEST_POINT)
-    assert output == 0
+@pytest.mark.parametrize(
+    'image_id, test_point, expected',
+    [
+        # Collection 1 water masks are set currently set to 0 for all pixels
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', (-122.15, 38.6153), 0],
+        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', (-122.2571, 38.6292), 0],
+        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.15, 38.6153), 0],
+        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.2571, 38.6292), 0],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.15, 38.6153), 0],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292), 1],
+    ]
+)
+def test_Image_qa_water_mask(image_id, test_point, expected):
+    """Test if qa pixel waterband exists"""
+    output_img = ssebop.Image.from_image_id(image_id)
+    mask_img = output_img.qa_water_mask
+    output = utils.point_image_value(mask_img, test_point)
+    assert output['qa_water'] == expected
 
 
 def test_Image_time_values():

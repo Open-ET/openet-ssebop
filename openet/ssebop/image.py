@@ -1104,7 +1104,9 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            # CGM - use a blank image for the water mask for now
+            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
         ])
 
         # Apply the cloud mask and add properties
@@ -1189,7 +1191,9 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            # CGM - use a blank image for the water mask for now
+            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
         ])
 
         # Apply the cloud mask and add properties
@@ -1267,7 +1271,7 @@ class Image():
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
-            landsat.landsat_c2_qa_water_mask(prep_image)
+            landsat.landsat_c2_qa_water_mask(prep_image),
         ])
 
         # Apply the cloud mask and add properties
