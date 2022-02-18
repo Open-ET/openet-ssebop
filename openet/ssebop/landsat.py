@@ -44,7 +44,8 @@ def emissivity(landsat_image):
         .where(ndvi_img.gt(0.5), 0.99)\
         .where(ndvi_img.gte(0.2).And(ndvi_img.lte(0.5)), RangeEmiss)\
         .clamp(0.977, 0.99)\
-        .rename(['emissivity'])\
+        .rename(['emissivity'])
+
 
 
 def lst(landsat_image):
