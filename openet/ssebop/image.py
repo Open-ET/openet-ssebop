@@ -1491,9 +1491,9 @@ class Image():
         #   use a FANO adjusted Tc_warm from a coarser resolution (100km) that ignored masked water pixels.
         Tc_cold = lst_avg_unmasked\
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
-            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
-            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)\
-            .where(wet_region_mask_5km, Tc_warm100)
+            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked) \
+            .where(wet_region_mask_5km, Tc_warm100) \
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
