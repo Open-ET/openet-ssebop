@@ -11,7 +11,6 @@ from openet.ssebop import landsat
 from openet.ssebop import model
 from openet.ssebop import utils
 
-
 PROJECT_FOLDER = 'projects/earthengine-legacy/assets/projects/usgs-ssebop'
 # PROJECT_FOLDER = 'projects/usgs-ssebop'
 
@@ -57,7 +56,7 @@ class Image():
         ----------
         image : ee.Image
             A "prepped" SSEBop input image.
-            Image must have bands: "ndvi" and "lst".
+            Image must have bands: "ndvi" and "lst" and "ndwi" and "qa_water"
             Image must have properties: 'system:id', 'system:index', and
                 'system:time_start'.
         et_reference_source : str, float, optional
@@ -258,6 +257,7 @@ class Image():
 
         # print(f'this is the tcorr source passed to the image class {tcorr_source}')
 
+
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -294,6 +294,15 @@ class Image():
                 raise ValueError('unsupported variable: {}'.format(v))
 
         return ee.Image(output_images).set(self._properties)
+
+    @lazy_property
+    def qa_water_mask(self):
+        """
+        Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
+        :return: ee.Image
+        """
+
+        return self.image.select(['qa_water']).set(self._properties)
 
     @lazy_property
     def et_fraction(self):
@@ -359,7 +368,7 @@ class Image():
                 .multiply(openet.refetgee.Hourly.nldas(nldas_img).etr)\
                 .divide(openet.refetgee.Hourly.nldas(nldas_img).eto)
 
-        return et_fraction.set(self._properties) \
+        return et_fraction.set(self._properties)\
             .set({'tcorr_index': self.tcorr.get('tcorr_index'),
                   'et_fraction_type': self.et_fraction_type.lower()})
 
@@ -396,13 +405,13 @@ class Image():
                 #     image_date = ee.Algorithms.Date(image.get("system:time_start"))
                 #     doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
                 #     coll_doy = ee.ImageCollection(self.et_reference_source)\
-                #         .filter(ee.Filter.rangeContains('DOY', doy, doy)) \
+                #         .filter(ee.Filter.rangeContains('DOY', doy, doy))\
                 #         .select([self.et_reference_band]).mean() #.first() returns a FC not IC
                 #     return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
                 # # Map over the GRIDMET collection to get a collection with the
                 # #   a single image for the target date
-                # et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET')) \
-                #     .filterDate(self._start_date, self._end_date) \
+                # et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET'))\
+                #     .filterDate(self._start_date, self._end_date)\
                 #     .select([self.et_reference_band])\
                 #     .map(et_reference_replace_daily)
             else:
@@ -447,7 +456,7 @@ class Image():
     @lazy_property
     def et(self):
         """Actual ET as fraction of reference times"""
-        return self.et_fraction.multiply(self.et_reference) \
+        return self.et_fraction.multiply(self.et_reference)\
             .rename(['et']).set(self._properties)
 
     @lazy_property
@@ -504,9 +513,9 @@ class Image():
         # Use precomputed dT median assets
         elif (self._dt_source.lower().startswith('projects/') or
               self._dt_source.lower().startswith('users/')):
-            # Assumes a string source is an image collection ID (not an image ID), \
+            # Assumes a string source is an image collection ID (not an image ID),\
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
-            dt_coll = ee.ImageCollection(self._dt_source) \
+            dt_coll = ee.ImageCollection(self._dt_source)\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             # MF: scale factor property only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
@@ -534,7 +543,7 @@ class Image():
                 ee.ImageCollection('projects/earthengine-legacy/assets/'
                                    'projects/climate-engine/cimis/daily')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['Tx', 'Tn', 'Rs', 'Tdew']) \
+                    .select(['Tx', 'Tn', 'Rs', 'Tdew'])\
                     .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Compute Ea from Tdew
@@ -551,7 +560,7 @@ class Image():
             input_img = ee.Image(
                 ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp']) \
+                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])\
                     .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Solar unit conversion from DAYMET documentation:
@@ -568,7 +577,7 @@ class Image():
             input_img = ee.Image(
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                     .filterDate(self._start_date, self._end_date)\
-                    .select(['tmmx', 'tmmn', 'srad', 'sph']) \
+                    .select(['tmmx', 'tmmn', 'srad', 'sph'])\
                     .first())
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             q = input_img.select(['sph'], ['q'])
@@ -819,7 +828,6 @@ class Image():
 
             return tcorr_img.rename(['tcorr'])
 
-        # is FANO being called as expected here when we use export tools in SSEBop Workflows - YES
         elif 'FANO' == self._tcorr_source.upper():
 
             tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
@@ -957,7 +965,7 @@ class Image():
             tmax_image = ee.Image(tmax_coll.first())\
                 .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() == 'CIMIS':
-            tmax_coll_id = 'projects/earthengine-legacy/assets/' \
+            tmax_coll_id = 'projects/earthengine-legacy/assets/'\
                            'projects/climate-engine/cimis/daily'
             tmax_coll = ee.ImageCollection(tmax_coll_id)\
                 .filterDate(self._start_date, self._end_date)\
@@ -1096,7 +1104,9 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            # CGM - use a blank image for the water mask for now
+            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
         ])
 
         # Apply the cloud mask and add properties
@@ -1181,7 +1191,9 @@ class Image():
         input_image = ee.Image([
             landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            # CGM - use a blank image for the water mask for now
+            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
         ])
 
         # Apply the cloud mask and add properties
@@ -1234,8 +1246,8 @@ class Image():
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
                         'tir', 'QA_PIXEL']
 
-        prep_image = sr_image \
-            .select(input_bands.get(spacecraft_id), output_bands) \
+        prep_image = sr_image\
+            .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0000275, 0.0000275, 0.0000275, 0.0000275,
                        0.0000275, 0.0000275, 0.00341802, 1])\
             .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 1])\
@@ -1260,7 +1272,8 @@ class Image():
             prep_image.select(['tir'], ['lst']),
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image)
+            landsat.ndwi(prep_image),
+            landsat.landsat_c2_qa_water_mask(prep_image),
         ])
 
         # Apply the cloud mask and add properties
@@ -1386,16 +1399,23 @@ class Image():
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
+
         lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
+        ndvi = ee.Image(self.ndvi).clamp(-1.0, 1.0)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
         ndwi = ee.Image(self.ndwi)
-        watermask = ndwi.lt(ndwi_threshold)
-        watermask_for_coarse = ndwi.updateMask(ndwi.lt(ndwi_threshold))
+        qa_watermask = ee.Image(self.qa_water_mask)
 
-        ## GELP - changes slightly here reproject self.crs and self.transform
-        # should be equivalent to: landsat_crs, ndvi_transform.
+        # setting NDVI to negative values where Landsat QA Pixel detects water.
+        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
+
+        watermask = ndwi.lt(ndwi_threshold)
+        # combining NDWI mask with QA Pixel watermask.
+        watermask = watermask.multiply(qa_watermask.eq(0))
+        # returns qa_watermask layer masked by combined watermask to get a count of valid pixels
+        watermask_for_coarse = qa_watermask.updateMask(watermask)
+
         watermask_coarse_count = watermask_for_coarse\
             .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
@@ -1406,6 +1426,11 @@ class Image():
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1).select([0], ['count'])
+
+        # Doing a layering mosaic check to fill any remaining Null watermask coarse pixels with valid mask data.
+        #   This can happen if the reduceResolution count contained exclusively water pixels from 30 meters.
+        watermask_coarse_count = ee.Image([watermask_coarse_count, total_pixels_count.multiply(0).add(1)])\
+            .reduce(ee.Reducer.firstNonNull())
 
         percentage_bad = watermask_coarse_count.divide(total_pixels_count)
         pct_value = (1 - (water_pct / 100))
@@ -1448,26 +1473,26 @@ class Image():
         tmax_avg = tmax.reproject(self.crs, coarse_transform)
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        Tc_warm = lst_avg_unmasked.expression(
-            f'(lst - (dt_coeff * dt * (high_thresh - ndvi) * 10))',
-            {'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
-             'dt_coeff': dt_coeff, 'high_thresh': high_ndvi_threshold})
+        Tc_warm = lst_avg_masked.expression(
+            f'(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+            {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+             'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked})
 
-        Tc_warm100 = lst_avg_masked.expression(
+        Tc_warm100 = lst_avg_masked100.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-             'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
+              'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
         # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
         # In places where there is too much land covered by water 10% or greater,
-        #   use a FANO adjusted Tc_warm from a coarse 25km resolution that ignores masked water pixels.
+        #   use a FANO adjusted Tc_warm from a coarser resolution (100km) that ignored masked water pixels.
         Tc_cold = lst_avg_unmasked\
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
-            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)\
-            .where(wet_region_mask_5km, Tc_warm100)
+            .where(wet_region_mask_5km, Tc_warm100)\
+            .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)
 
         c_factor = Tc_cold.divide(tmax_avg)
 
