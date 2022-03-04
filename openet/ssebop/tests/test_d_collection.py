@@ -9,9 +9,10 @@ import openet.ssebop.utils as utils
 # import openet.core.utils as utils
 
 
-COLLECTIONS = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
-SCENE_ID_LIST = sorted(['LC08_044033_20170716', 'LE07_044033_20170708',
-                        'LE07_044033_20170724'])
+C01_COLLECTIONS = ['LANDSAT/LC08/C01/T1_RT_TOA', 'LANDSAT/LE07/C01/T1_RT_TOA']
+C02_COLLECTIONS = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
+C01_SCENE_ID_LIST = ['LC08_044033_20170716', 'LE07_044033_20170708',
+                     'LE07_044033_20170724']
 # Image LE07_044033_20170724 is not (yet?) in LANDSAT/LE07/C02/T1_L2
 C02_SCENE_ID_LIST = ['LC08_044033_20170716', 'LE07_044033_20170708']
 START_DATE = '2017-07-01'
@@ -23,7 +24,7 @@ TEST_POINT = (-121.5265, 38.7399)
 
 
 default_coll_args = {
-    'collections': COLLECTIONS,
+    'collections': C02_COLLECTIONS,
     'geometry': ee.Geometry.Point(SCENE_POINT),
     'start_date': START_DATE,
     'end_date': END_DATE,
@@ -76,7 +77,7 @@ def test_Collection_init_default_parameters():
     assert set(m._interp_vars) == {'ndvi', 'et_fraction'}
 
 
-def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C01/T1_TOA'):
+def test_Collection_init_collection_str(coll_id='LANDSAT/LC08/C02/T1_L2'):
     """Test if a single coll_id str is converted to a single item list"""
     assert default_coll_obj(collections=coll_id).collections == [coll_id]
 
@@ -181,14 +182,42 @@ def test_Collection_init_cloud_cover_exception():
 def test_Collection_build_default():
     output = utils.getinfo(default_coll_obj()._build())
     assert output['type'] == 'ImageCollection'
-    assert parse_scene_id(output) == SCENE_ID_LIST
-    # For the default build, check that the target variables are returned also
+    assert parse_scene_id(output) == C02_SCENE_ID_LIST
+    # Check that the variables being set in the default collection object are returned
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
-def test_Collection_build_variables():
-    output = utils.getinfo(default_coll_obj()._build(variables=['ndvi']))
-    assert {y['id'] for x in output['features'] for y in x['bands']} == {'ndvi'}
+def test_Collection_build_variables_custom(variable='ndvi'):
+    # Check that setting the build variables overrides the collection variables
+    output = utils.getinfo(default_coll_obj()._build(variables=[variable])
+                           .first().bandNames())
+    assert set(output) == {variable}
+
+
+def test_Collection_build_variables_none():
+    """Test for exception if variables is set to None in method call"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj(variables=None)._build(variables=None))
+
+
+def test_Collection_build_variables_not_set():
+    """Test for exception if variables is not set in method since default is None"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj(variables=None)._build())
+
+
+def test_Collection_build_variables_empty_list():
+    # Setting variables to an empty list should return the merged Landsat collection
+    output = utils.getinfo(
+        default_coll_obj(collections=C02_COLLECTIONS, variables=None)
+            ._build(variables=[]).first().bandNames())
+    assert 'SR_B3' in output
+
+
+def test_Collection_build_invalid_variable_exception():
+    """Test if Exception is raised for an invalid variable"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_coll_obj()._build(variables=['FOO']))
 
 
 def test_Collection_build_dates():
@@ -204,7 +233,7 @@ def test_Collection_build_landsat_c1_toa():
     coll_obj = default_coll_obj(
         collections=['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA'])
     output = utils.getinfo(coll_obj._build())
-    assert parse_scene_id(output) == SCENE_ID_LIST
+    assert parse_scene_id(output) == C01_SCENE_ID_LIST
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
@@ -213,7 +242,7 @@ def test_Collection_build_landsat_c1_sr():
     coll_obj = default_coll_obj(
         collections=['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR'])
     output = utils.getinfo(coll_obj._build())
-    assert parse_scene_id(output) == SCENE_ID_LIST
+    assert parse_scene_id(output) == C01_SCENE_ID_LIST
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
@@ -292,7 +321,7 @@ def test_Collection_build_filter_dates_lc08(collection, start_date, end_date):
 
 def test_Collection_build_filter_args_keyword():
     # Need to test with two collections to catch bug when deepcopy isn't used
-    collections = ['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR']
+    collections = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
     wrs2_filter = [
         {'type': 'equals', 'leftField': 'WRS_PATH', 'rightValue': 44},
         {'type': 'equals', 'leftField': 'WRS_ROW', 'rightValue': 33}]
@@ -306,7 +335,7 @@ def test_Collection_build_filter_args_keyword():
 
 def test_Collection_build_filter_args_eeobject():
     # Need to test with two collections to catch bug when deepcopy isn't used
-    collections = ['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR']
+    collections = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
     wrs2_filter = ee.Filter.And(ee.Filter.equals('WRS_PATH', 44),
                                 ee.Filter.equals('WRS_ROW', 33))
     coll_obj = default_coll_obj(
@@ -333,24 +362,11 @@ def test_Collection_build_filter_args_eeobject():
 #     assert {x[5:11] for x in parse_scene_id(output)} == {'044033'}
 
 
-
-def test_Collection_build_invalid_variable_exception():
-    """Test if Exception is raised for an invalid variable"""
-    with pytest.raises(ValueError):
-        utils.getinfo(default_coll_obj()._build(variables=['FOO']))
-
-
-def test_Collection_build_no_variables_exception():
-    """Test if Exception is raised if variables is not set in init or method"""
-    with pytest.raises(ValueError):
-        utils.getinfo(default_coll_obj(variables=[])._build())
-
-
 def test_Collection_overpass_default():
     """Test overpass method with default values (variables from Class init)"""
     output = utils.getinfo(default_coll_obj().overpass())
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
-    assert parse_scene_id(output) == SCENE_ID_LIST
+    assert parse_scene_id(output) == C02_SCENE_ID_LIST
 
 
 def test_Collection_overpass_class_variables():
@@ -563,7 +579,7 @@ def test_Collection_interpolate_only_interpolate_images():
     """Test if count band is returned if no images in the date range"""
     variables = {'et', 'count'}
     output = utils.getinfo(default_coll_obj(
-        collections=['LANDSAT/LC08/C01/T1_RT_TOA'],
+        collections=['LANDSAT/LC08/C02/T1_L2'],
         geometry=ee.Geometry.Point(-123.623, 44.745),
         start_date='2017-04-01', end_date='2017-04-30',
         variables=list(variables), cloud_cover_max=70).interpolate())
@@ -598,3 +614,19 @@ def test_Collection_interpolate_monthly_et_reference_date_type_doy(tol=0.01):
         ).interpolate(t_interval='monthly')
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
     assert abs(output['et_reference'][START_DATE] - 291.56) <= tol
+
+
+@pytest.mark.parametrize(
+    'collections, scene_id_list',
+    [
+        [['LANDSAT/LC08/C01/T1_TOA', 'LANDSAT/LE07/C01/T1_TOA'], C01_SCENE_ID_LIST],
+        [['LANDSAT/LC08/C01/T1_SR', 'LANDSAT/LE07/C01/T1_SR'], C01_SCENE_ID_LIST],
+        [['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2'], C02_SCENE_ID_LIST],
+    ]
+)
+def test_Collection_get_image_ids(collections, scene_id_list):
+    # get_image_ids method makes a getInfo call internally
+    output = default_coll_obj(collections=collections, variables=None)\
+        .get_image_ids()
+    assert type(output) is list
+    assert set(x.split('/')[-1] for x in output) == set(scene_id_list)

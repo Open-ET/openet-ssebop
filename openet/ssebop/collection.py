@@ -264,11 +264,16 @@ class Collection():
 
         """
         # Override the class parameters if necessary
-        if not variables:
+        # Distinguish between variables defaulting to None, and variables being
+        #   set to an empty list, in which case the merged landsat collection
+        #   should be returned.
+        if variables is None:
             if self.variables:
                 variables = self.variables
             else:
                 raise ValueError('variables parameter must be set')
+        elif not variables:
+            pass
         if not start_date:
             start_date = self.start_date
         if not end_date:
@@ -326,13 +331,17 @@ class Collection():
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2022-01-01').millis()))
 
-                def compute_lsr(image):
+                def compute_vars(image):
                     model_obj = Image.from_landsat_c2_sr(
                         sr_image=ee.Image(image), **self.model_args)
                     return model_obj.calculate(variables)
 
-                variable_coll = variable_coll.merge(
-                    ee.ImageCollection(input_coll.map(compute_lsr)))
+                # Skip going into image class if variables is not set so raw
+                #   landsat collection can be returned for getting image_id_list
+                if variables:
+                    input_coll = ee.ImageCollection(input_coll.map(compute_vars))
+
+                variable_coll = variable_coll.merge(input_coll)
 
             elif coll_id in self._landsat_c1_toa_collections:
                 input_coll = ee.ImageCollection(coll_id)\
@@ -378,13 +387,17 @@ class Collection():
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2013-04-01').millis()))
 
-                def compute_ltoa(image):
+                def compute_vars(image):
                     model_obj = Image.from_landsat_c1_toa(
                         toa_image=ee.Image(image), **self.model_args)
                     return model_obj.calculate(variables)
 
-                variable_coll = variable_coll.merge(
-                    ee.ImageCollection(input_coll.map(compute_ltoa)))
+                # Skip going into image class if variables is not set so raw
+                #   landsat collection can be returned for getting image_id_list
+                if variables:
+                    input_coll = ee.ImageCollection(input_coll.map(compute_vars))
+
+                variable_coll = variable_coll.merge(input_coll)
 
             elif coll_id in self._landsat_c1_sr_collections:
                 input_coll = ee.ImageCollection(coll_id)\
@@ -428,13 +441,17 @@ class Collection():
                     input_coll = input_coll.filter(ee.Filter.gt(
                         'system:time_start', ee.Date('2013-04-01').millis()))
 
-                def compute_lsr(image):
+                def compute_vars(image):
                     model_obj = Image.from_landsat_c1_sr(
                         sr_image=ee.Image(image), **self.model_args)
                     return model_obj.calculate(variables)
 
-                variable_coll = variable_coll.merge(
-                    ee.ImageCollection(input_coll.map(compute_lsr)))
+                # Skip going into image class if variables is not set so raw
+                #   landsat collection can be returned for getting image_id_list
+                if variables:
+                    input_coll = ee.ImageCollection(input_coll.map(compute_vars))
+
+                variable_coll = variable_coll.merge(input_coll)
 
             else:
                 raise ValueError(f'unsupported collection: {coll_id}')
@@ -831,5 +848,9 @@ class Collection():
         not include all of the images used for interpolation.
 
         """
-        return sorted(list(self._build(variables=['ndvi'])\
-            .aggregate_array('image_id').getInfo()))
+        # CGM - Setting variables to None bypasses the Image class, so image_id
+        #   is not set and merge indices must be removed from the system:index
+        return list(utils.getinfo(self._build(variables=[])
+                                  .aggregate_array('system:id')))
+        # return list(utils.getinfo(self._build(variables=['ndvi'])
+        #                           .aggregate_array('image_id')))
