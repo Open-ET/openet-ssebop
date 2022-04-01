@@ -1417,12 +1417,10 @@ class Image():
         watermask_for_coarse = qa_watermask.updateMask(watermask)
 
         watermask_coarse_count = watermask_for_coarse\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1).select([0], ['count'])
         total_pixels_count = ndvi\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.count(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1).select([0], ['count'])
@@ -1438,31 +1436,25 @@ class Image():
 
         ndvi_avg_masked = ndvi\
             .updateMask(watermask)\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)
         ndvi_avg_masked100 = ndvi\
             .updateMask(watermask)\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform100)
         ndvi_avg_unmasked = ndvi\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1)
         lst_avg_masked = lst\
             .updateMask(watermask)\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)
         lst_avg_masked100 = lst\
             .updateMask(watermask)\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform100)
         lst_avg_unmasked = lst\
-            .reproject(self.crs, self.transform)\
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
             .reproject(self.crs, coarse_transform)\
             .updateMask(1)
