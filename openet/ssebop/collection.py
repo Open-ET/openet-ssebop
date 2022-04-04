@@ -290,6 +290,7 @@ class Collection():
                     .filterMetadata('CLOUD_COVER_LAND', 'less_than',
                                     self.cloud_cover_max)\
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
+
                 # TODO: Check if PROCESSING_LEVEL needs to be filtered on
                 #     .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
 
@@ -353,9 +354,9 @@ class Collection():
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
 
                  # TODO: Move this to a separate function (maybe in utils.py?)
-                #   since  it is identical for all the supported collections
+                #   since it is identical for all the supported collections
                 if (self.filter_args is None or
-                        not isinstance(self.filter_args, list) or
+                        not isinstance(self.filter_args, dict) or
                         coll_id not in self.filter_args.keys()):
                     pass
                 elif isinstance(self.filter_args[coll_id], ee.ComputedObject):
@@ -364,7 +365,7 @@ class Collection():
                     # TODO: This generic dictionary based filtering should
                     #   probably be removed since only the "equals" filter
                     #   has been implemented and the functionality is better
-                    #   handled with the other two options.
+                    #   handled with the other approach.
                     for f in copy.deepcopy(self.filter_args[coll_id]):
                         try:
                             filter_type = f.pop('type')
@@ -700,7 +701,8 @@ class Collection():
         daily_coll = openet.core.interpolate.daily(
             target_coll=daily_et_ref_coll,
             source_coll=scene_coll.select(interp_vars),
-            interp_method=interp_method,  interp_days=interp_days,
+            interp_method=interp_method,
+            interp_days=interp_days,
         )
 
         # Compute ET from ET fraction and reference ET (if necessary)
