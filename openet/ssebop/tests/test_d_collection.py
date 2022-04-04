@@ -319,6 +319,22 @@ def test_Collection_build_filter_dates_lc08(collection, start_date, end_date):
     assert parse_scene_id(output) == []
 
 
+@pytest.mark.parametrize(
+    'collection, start_date, end_date',
+    [
+        ['LANDSAT/LC09/C02/T1_L2', '2021-11-01', '2022-01-01'],
+    ]
+)
+def test_Collection_build_filter_dates_lc09(collection, start_date, end_date):
+    """Test that Landsat 9 images before 2022-01-01 are filtered"""
+    output = utils.getinfo(default_coll_obj(
+        collections=[collection], start_date=start_date, end_date=end_date,
+        geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))._build(variables=['et']))
+    assert not [x for x in parse_scene_id(output)
+                if x.split('_')[-1] < end_date.replace('-', '')]
+    assert parse_scene_id(output) == []
+
+
 def test_Collection_build_filter_args_keyword():
     # Need to test with two collections to catch bug when deepcopy isn't used
     collections = ['LANDSAT/LC08/C02/T1_L2', 'LANDSAT/LE07/C02/T1_L2']
