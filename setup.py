@@ -40,9 +40,9 @@ setup(
     license='Apache',
     author='Gabe Parrish, Mac Friedrichs, Gabriel Senay',
     author_email='gparrish@contractor.usgs.gov',
-    url='https://github.com/Open-ET/openet-{}'.format(model_name.lower()),
-    download_url='https://github.com/Open-ET/openet-{}/archive/v{}.tar.gz'.format(
-		model_name.lower(), version),
+    url=f'https://github.com/Open-ET/openet-{model_name.lower()}',
+    download_url=f'https://github.com/Open-ET/openet-{model_name.lower()}/'
+                 f'archive/v{version}.tar.gz',
     install_requires=['earthengine-api', 'openet-core', 'openet-refet-gee',
                       'python-dateutil'],
     setup_requires=['pytest-runner'],
