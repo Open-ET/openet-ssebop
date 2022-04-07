@@ -639,9 +639,9 @@ def test_Image_from_landsat_c2_sr_scaling():
     sr_img = ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
     # CGM - These reflectances should correspond to 0.1 for RED and 0.2 for NIR
     input_img = ee.Image.constant([10909, 10909, 10909, 14545, 10909, 10909,
-                                   44177.6, 21824]) \
+                                   44177.6, 21824, 0]) \
         .rename(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                 'ST_B10', 'QA_PIXEL']) \
+                 'ST_B10', 'QA_PIXEL', 'QA_RADSAT']) \
         .set({'SPACECRAFT_ID': ee.String(sr_img.get('SPACECRAFT_ID')),
               'system:id': ee.String(sr_img.get('system:id')),
               'system:index': ee.String(sr_img.get('system:index')),

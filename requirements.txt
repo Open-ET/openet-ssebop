@@ -1,4 +1,4 @@
 earthengine-api>=0.1.232
 openet-refet-gee>=0.2.0
-openet-core>=0.0.22
+openet-core>=0.0.29
 python-dateutil

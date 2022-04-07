@@ -1233,24 +1233,24 @@ class Image():
         # Rename bands to generic names
         input_bands = ee.Dictionary({
             'LANDSAT_4': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL'],
+                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
             'LANDSAT_5': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL'],
+                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
             'LANDSAT_7': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL'],
+                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
             'LANDSAT_8': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                          'ST_B10', 'QA_PIXEL'],
+                          'ST_B10', 'QA_PIXEL', 'QA_RADSAT'],
             'LANDSAT_9': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                          'ST_B10', 'QA_PIXEL'],
+                          'ST_B10', 'QA_PIXEL', 'QA_RADSAT'],
         })
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
-                        'tir', 'QA_PIXEL']
+                        'tir', 'QA_PIXEL', 'QA_RADSAT']
 
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0000275, 0.0000275, 0.0000275, 0.0000275,
-                       0.0000275, 0.0000275, 0.00341802, 1])\
-            .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 1])\
+                       0.0000275, 0.0000275, 0.00341802, 1, 1])\
+            .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0])\
 
         # Default the cloudmask flags to True if they were not
         # Eventually these will probably all default to True in openet.core
@@ -1262,6 +1262,8 @@ class Image():
             cloudmask_args['shadow_flag'] = True
         if 'snow_flag' not in cloudmask_args.keys():
             cloudmask_args['snow_flag'] = True
+        # if 'saturated_flag' not in cloudmask_args.keys():
+        #     cloudmask_args['saturated_flag'] = True
 
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(
             sr_image, **cloudmask_args)
