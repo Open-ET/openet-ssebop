@@ -10,7 +10,7 @@ This repository provides `Google Earth Engine <https://earthengine.google.com/>`
 
 The Operational Simplified Surface Energy Balance (SSEBop) model computes daily total actual evapotranspiration (ETa) using land surface temperature (Ts), maximum air temperature (Ta) and reference ET (ETr or ETo).
 The SSEBop model does not solve all the energy balance terms explicitly; rather, it defines the limiting conditions based on "gray-sky" net radiation balance principles and an air temperature parameter.
-This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel, allowing an operational model setup and a relatively shorter compute time.
+This approach predefines unique sets of "hot/dry" and "cold/wet" limiting values for each pixel, allowing an operational model setup and a relatively shorter compute time. More information on the GEE implementation of SSEBop is published in Senay2022_ and Senay2023_ with additional details and model assessment.
 
 *Basic SSEBop model implementation in Earth Engine:*
 
@@ -26,6 +26,7 @@ Input Collections
 
 SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) images and Landsat Collection 1 Top-Of-Atmosphere (TOA) images from the following Earth Engine image collections:
 
+ * LANDSAT/LC09/C02/T1_L2
  * LANDSAT/LC08/C02/T1_L2
  * LANDSAT/LE07/C02/T1_L2
  * LANDSAT/LT05/C02/T1_L2
@@ -34,7 +35,7 @@ SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) ima
  * LANDSAT/LT05/C01/T1_TOA
 
 
-**Note:** Users are encouraged to prioritize use of Collection 2 data where available. Collection 1 will be produced by USGS until 2022-01-01, and maintained by Earth Engine until 2023-01-01. [`More Information <https://developers.google.com/earth-engine/guides/landsat#landsat-collection-status>`__]
+**Note:** Users are encouraged to prioritize use of Collection 2 data where available. Collection 1 was produced by USGS until 2022-01-01, and maintained by Earth Engine until 2023-01-01. [`More Information <https://developers.google.com/earth-engine/guides/landsat#landsat-collection-status>`__]
 
 Landsat Collection 2 SR/ST Input Image
 --------------------------------------
@@ -49,6 +50,7 @@ SPACECRAFT_ID      Band Names
 LANDSAT_5          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B7, ST_B6, QA_PIXEL
 LANDSAT_7          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B7, ST_B6, QA_PIXEL
 LANDSAT_8          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7, ST_B10, QA_PIXEL
+LANDSAT_9          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7, ST_B10, QA_PIXEL
 =================  ======================================
 
 Landsat Collection 1 TOA Input Image
@@ -71,7 +73,7 @@ Property           Description
 =================  =============================================
 system:index       - Landsat Scene ID
                    - Must be in the Earth Engine format (e.g. LC08_044033_20170716)
-                   - Used to lookup the scene specific c-factor
+                   - Used to lookup the scene specific c-factor (DEPRECATED)
 system:time_start  Image datetime in milliseconds since 1970
 SPACECRAFT_ID      - Used to determine which Landsat type
                    - Must be: LANDSAT_5, LANDSAT_7, or LANDSAT_8
@@ -131,7 +133,7 @@ Maximum Daily Air Temperature (Tmax)
 The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay2017_.
 Support for source options includes CIMIS, GRIDMET, DAYMET, and other custom Image Collections. See the model Image class docstrings for more information.
 
-Default Asset ID: *projects/usgs-ssebop/tmax/daymet_median_v2* (Daily median from 1980-2018)
+Default Asset ID: *projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010* (Daily median from 1981-2010)
 
 Land Surface Temperature (LST)
 ------------------------------
@@ -146,33 +148,24 @@ Temperature Difference (dT)
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
 In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under "gray-sky" conditions and assumed not to change from year to year, but is unique for each day and location.
 
-Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v2*
-
-Elevation
----------
-The default elevation dataset is the USGS SRTM global image asset.
-
-Default Asset ID: `USGS/SRTMGL1_003 <https://developers.google.com/earth-engine/datasets/catalog/USGS_SRTMGL1_003>`__
-
-The elevation parameter will accept any Earth Engine image.
+Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v6*
 
 Temperature Correction (*c factor*)
 -----------------------------------
-In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene from well-watered/vegetated pixels.
-This temperature correction component is based on a ratio of Tmax and LST that has passed through several conditions such as NDVI limits. The SSEBop model utilizes the *c factor* as a function of the maximum air temperature, so the data source of the *c factor* collection needs to match the data source of the air temperature. **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid or scene-wide value.
+In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene.
+This temperature correction component is uniquely developed for SSEBop using a Forcing and Normalizing Operation (FANO) method featuring a linear relation between a normalized land surface temperature difference and NDVI difference using the dT parameter and a proportionality constant.
+ **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid size (or larger) value.
 
-.. image:: docs/GriddedCfactor_example.png
+More information on parameter design and model improvements using the FANO method can be found in Senay2023_. Additional SSEBop model algorithm theoretical basis documentation can be found `here <https://www.usgs.gov/media/files/landsat-4-9-collection-2-level-3-provisional-actual-evapotranspiration-algorithm>`__.
 
-This parameter can be implemented dynamically as a scene-based single *c factor* (this is the default) or using precomputed spatially varying Image Assets where a gridded *c factor* is generated for every 5-km (advanced setting).
+The 'FANO' parameter (default) can be implemented dynamically for each Landsat scene within the SSEBop Image object using the following Tcorr source:
 
-* Using either DYNAMIC or SCENE_GRIDDED settings, the *c factor* parameter is read from precomputed Earth Engine image collections based on the Landsat scene ID (from the system:index property). Monthly/annual climatology values are used if Tcorr cannot be determined for a given Landsat scene. If fallback values have not been computed for the target path/row, a default value of 0.978 will be used.
-* Currently, SCENE_GRIDDED is only supported for Landsat Collection 2 across CONUS (since model version 0.1.5x) and requires a matching Tmax source. See `this example notebook <examples/tcorr_gridded.ipynb>`__ for more information.
+.. code-block:: python
 
-Default Asset IDs
+    model_obj = model.Image.from_landsat_c2_sr(
+        tcorr_source='FANO',
 
-Scene ID: projects/usgs-ssebop/tcorr_scene/daymet_median_v2_scene
-
-Monthly ID: projects/usgs-ssebop/tcorr_scene/daymet_median_v2_monthly
+The FANO parameterization allows the establishment of the cold boundary condition regardless of vegetation cover density, improving the performance and operational implementation of the SSEBop ET model in sparsely vegetated landscapes, dynamic growing seasons, and varying locations around the world.
 
 Installation
 ============
@@ -226,6 +219,12 @@ References
 .. [Schauer2019]
  | Schauer, M.,Senay, G. (2019). Characterizing Crop Water Use Dynamics in the Central Valley of California Using Landsat-Derived Evapotranspiration. *Remote Sensing*, 11(15):1782.
  | `https://doi.org/10.3390/rs11151782 <https://doi.org/10.3390/rs11151782>`__
+.. [Senay2022]
+ | Senay, G.B., Friedrichs, M., Morton, C., Parrish, G. E., Schauer, M., Khand, K., ... & Huntington, J. (2022). Mapping actual evapotranspiration using Landsat for the conterminous United States: Google Earth Engine implementation and assessment of the SSEBop model. *Remote Sensing of Environment*, 275, 113011
+ | `https://doi.org/10.1016/j.rse.2022.113011 <https://doi.org/10.1016/j.rse.2022.113011>`__
+.. [Senay2023]
+ | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, Under Review.
+ |
 
 .. |build| image:: https://github.com/Open-ET/openet-ssebop/workflows/build/badge.svg
    :alt: Build status
