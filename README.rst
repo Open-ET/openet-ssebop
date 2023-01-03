@@ -164,7 +164,7 @@ The 'FANO' parameter (default) can be implemented dynamically for each Landsat s
 
     model_obj = model.Image.from_landsat_c2_sr(
         tcorr_source='FANO',
-
+        )
 The FANO parameterization allows the establishment of the cold boundary condition regardless of vegetation cover density, improving the performance and operational implementation of the SSEBop ET model in sparsely vegetated landscapes, dynamic growing seasons, and varying locations around the world.
 
 Installation
@@ -223,8 +223,8 @@ References
  | Senay, G.B., Friedrichs, M., Morton, C., Parrish, G. E., Schauer, M., Khand, K., ... & Huntington, J. (2022). Mapping actual evapotranspiration using Landsat for the conterminous United States: Google Earth Engine implementation and assessment of the SSEBop model. *Remote Sensing of Environment*, 275, 113011
  | `https://doi.org/10.1016/j.rse.2022.113011 <https://doi.org/10.1016/j.rse.2022.113011>`__
 .. [Senay2023]
- | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, Under Review.
- |
+ | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, 15(1):260.
+ | `https://doi.org/10.3390/rs15010260 <https://doi.org/10.3390/rs15010260>`__
 
 .. |build| image:: https://github.com/Open-ET/openet-ssebop/workflows/build/badge.svg
    :alt: Build status
