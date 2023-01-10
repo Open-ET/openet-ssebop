@@ -2,7 +2,7 @@
 OpenET - SSEBop
 ===============
 
-|version| |build| |codecov|
+|version| |build|
 
 **WARNING: This code is in development, is being provided without support, and is subject to change at any time without notification**
 
@@ -217,7 +217,7 @@ References
  | Senay, G., Schauer, M., Velpuri, N.M., Singh, R.K., Kagone, S., Friedrichs, M., Litvak, M.E., Douglas-Mankin, K.R. (2019). Long-Term (1986–2015) Crop Water Use Characterization over the Upper Rio Grande Basin of United States and Mexico Using Landsat-Based Evapotranspiration. *Remote Sensing*, 11(13):1587.
  | `https://doi.org/10.3390/rs11131587 <https://doi.org/10.3390/rs11131587>`__
 .. [Schauer2019]
- | Schauer, M.,Senay, G. (2019). Characterizing Crop Water Use Dynamics in the Central Valley of California Using Landsat-Derived Evapotranspiration. *Remote Sensing*, 11(15):1782.
+ | Schauer, M., Senay, G. (2019). Characterizing Crop Water Use Dynamics in the Central Valley of California Using Landsat-Derived Evapotranspiration. *Remote Sensing*, 11(15):1782.
  | `https://doi.org/10.3390/rs11151782 <https://doi.org/10.3390/rs11151782>`__
 .. [Senay2022]
  | Senay, G.B., Friedrichs, M., Morton, C., Parrish, G. E., Schauer, M., Khand, K., ... & Huntington, J. (2022). Mapping actual evapotranspiration using Landsat for the conterminous United States: Google Earth Engine implementation and assessment of the SSEBop model. *Remote Sensing of Environment*, 275, 113011
@@ -232,6 +232,3 @@ References
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
    :alt: Latest version on PyPI
    :target: https://badge.fury.io/py/openet-ssebop
-.. |codecov| image:: https://codecov.io/gh/Open-ET/openet-ssebop/branch/main/graphs/badge.svg
-   :alt: Coverage Status
-   :target: https://codecov.io/gh/Open-ET/openet-ssebop
