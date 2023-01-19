@@ -604,17 +604,22 @@ def test_Collection_interpolate_only_interpolate_images():
 
 def test_Collection_interpolate_daily_et_reference_date_type_doy(tol=0.01):
     """Test interpolating a daily collection using a reference ET climatology"""
+    print('\n')
     output_coll = default_coll_obj(
         collections=['LANDSAT/LC08/C02/T1_L2'],
         geometry=ee.Geometry.Point(TEST_POINT),
-        start_date=START_DATE, end_date=END_DATE,
+        # CGM - Testing the full month returns a memory error
+        start_date='2017-07-01', end_date='2017-07-10',
+        # start_date=START_DATE, end_date=END_DATE,
         variables=['et_reference'],
         et_reference_source='projects/usgs-ssebop/pet/gridmet_median_v1',
         et_reference_band='etr', et_reference_factor=1.0,
         et_reference_resample='nearest', et_reference_date_type='doy',
         ).interpolate(t_interval='daily')
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
-    assert abs(output['et_reference'][START_DATE] - 8.75) <= tol
+    pprint.pprint(output)
+    assert abs(output['et_reference']['2017-07-01'] - 8.75) <= tol
+    # assert abs(output['et_reference'][START_DATE] - 8.75) <= tol
 
 
 def test_Collection_interpolate_monthly_et_reference_date_type_doy(tol=0.01):
