@@ -277,8 +277,6 @@ def test_Image_dt_source_values(dt_source, doy, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
-        ['DAYMET_MEDIAN_V0', SCENE_DOY, TEST_POINT, 19.4612],
-        ['DAYMET_MEDIAN_V0', 194, [-120.113, 36.336], 19.262],
         ['DAYMET_MEDIAN_V1', SCENE_DOY, TEST_POINT, 18],
         ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
         ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
@@ -298,8 +296,6 @@ def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
-        ['DAYMET_MEDIAN_V0', 1, [-120.113, 36.336], 5],
-        ['DAYMET_MEDIAN_V0', 194, [-119.0, 37.5], 25],
         ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 5],
         # ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 25],
         ['DAYMET_MEDIAN_V2', 1, [-96.6255, 43.7359], 5],
@@ -428,16 +424,12 @@ def test_Image_tmax_source(tmax_source):
         ['GRIDMET', [-120.113, 36.336], 306.969],
         # ['TOPOWX', [-120.113, 36.336], 301.67],
         ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
-        ['DAYMET_MEDIAN_V0', [-120.113, 36.336], 310.150],
         ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
         ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
         # Added extra test point where DAYMET median values differ
         # TEST_POINT, [-119.0, 37.5], [-122.1622, 39.1968], [-106.03249, 37.17777]
-        ['DAYMET_MEDIAN_V0', [-122.1622, 39.1968], 308.15],
         ['DAYMET_MEDIAN_V1', [-122.1622, 39.1968], 308.4],
         ['DAYMET_MEDIAN_V2', [-122.1622, 39.1968], 308.65],
-        ['GRIDMET_MEDIAN_V1', [-120.113, 36.336], 310.436],
-        ['TOPOWX_MEDIAN_V0', [-120.113, 36.336], 310.430],
         # Check string/float constant values
         ['305', [-120.113, 36.336], 305],
         [305, [-120.113, 36.336], 305],
@@ -479,11 +471,8 @@ today_dt = datetime.datetime.today()
         ['GRIDMET', {}],
         # ['TOPOWX', {}],
         ['CIMIS_MEDIAN_V1', {}],
-        ['DAYMET_MEDIAN_V0', {}],
         ['DAYMET_MEDIAN_V1', {}],
         ['DAYMET_MEDIAN_V2', {}],
-        ['GRIDMET_MEDIAN_V1', {}],
-        ['TOPOWX_MEDIAN_V0', {}],
         ['305', {'tmax_source': 'custom_305'}],
         [305, {'tmax_source': 'custom_305'}],
     ]
@@ -785,14 +774,6 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857,
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # TOPOWX_MEDIAN_V0
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9914826142535333, 'tcorr_count': 457876}],
-        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9810607908548545, 'tcorr_count': 21852}],
-        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'TOPOWX_MEDIAN_V0',
-         {'tcorr_value': 0.9571767539172935, 'tcorr_count': 872}],
-
         # DAYMET_MEDIAN_V2
         ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
          {'tcorr_value': 0.9730285325301501, 'tcorr_count': 152720}],
@@ -967,12 +948,6 @@ def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id,
 # @pytest.mark.parametrize(
 #     'tcorr_source, tmax_source, scene_id, expected',
 #     [
-#         # TOPOWX_MEDIAN_V0
-#         ['IMAGE', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
-#         ['IMAGE_DAILY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9752, 0]],
-#         ['IMAGE_MONTHLY', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9723, 1]],
-#         ['IMAGE_ANNUAL', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.9786, 2]],
-#         ['IMAGE_DEFAULT', 'TOPOWX_MEDIAN_V0', 'LC08_042035_20150713', [0.978, 3]],
 #         # DAYMET_MEDIAN_V2
 #         ['IMAGE', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9744, 0]],
 #         ['IMAGE_DAILY', 'DAYMET_MEDIAN_V2', 'LC08_042035_20150713', [0.9744, 0]],

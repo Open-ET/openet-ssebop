@@ -78,7 +78,7 @@ class Image():
                         'SCENE_ANNUAL', 'SCENE_DEFAULT', or float}, optional
             Tcorr source keyword (the default is 'DYNAMIC').
         tmax_source : {'CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET',
-                       'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1', 'GRIDMET_MEDIAN_V1',
+                       'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1',
                        collection ID, or float}, optional
             Maximum air temperature source.  The default is
             'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'.
