@@ -604,7 +604,6 @@ def test_Collection_interpolate_only_interpolate_images():
 
 def test_Collection_interpolate_daily_et_reference_date_type_doy(tol=0.01):
     """Test interpolating a daily collection using a reference ET climatology"""
-    print('\n')
     output_coll = default_coll_obj(
         collections=['LANDSAT/LC08/C02/T1_L2'],
         geometry=ee.Geometry.Point(TEST_POINT),
@@ -617,7 +616,6 @@ def test_Collection_interpolate_daily_et_reference_date_type_doy(tol=0.01):
         et_reference_resample='nearest', et_reference_date_type='doy',
         ).interpolate(t_interval='daily')
     output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
-    pprint.pprint(output)
     assert abs(output['et_reference']['2017-07-01'] - 8.75) <= tol
     # assert abs(output['et_reference'][START_DATE] - 8.75) <= tol
 
