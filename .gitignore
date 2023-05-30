@@ -22,6 +22,9 @@ dist/
 # PyCharm project settings
 .idea
 
+# MacOS
+.DS_Store
+
 # Earth Engine keys
 privatekey.json
 privatekey.b64

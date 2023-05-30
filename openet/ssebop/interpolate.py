@@ -158,8 +158,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         # et_reference_date_type = 'daily'
 
     if type(et_reference_source) is str:
-        # Assume a string source is an single image collection ID
-        #   not an list of collection IDs or ee.ImageCollection
+        # Assume a string source is a single image collection ID
+        #   not a list of collection IDs or ee.ImageCollection
         if (et_reference_date_type is None or
                 et_reference_date_type.lower() == 'daily'):
             daily_et_ref_coll = ee.ImageCollection(et_reference_source) \
@@ -241,7 +241,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     daily_coll = openet.core.interpolate.daily(
         target_coll=daily_et_ref_coll,
         source_coll=scene_coll.select(interp_vars),
-        interp_method=interp_method, interp_days=interp_days,
+        interp_method=interp_method,
+        interp_days=interp_days,
         use_joins=use_joins,
     )
 
@@ -250,8 +251,7 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     # if 'et' in variables or 'et_fraction' in variables:
     def compute_et(img):
         """This function assumes ETr and ETf are present"""
-        et_img = img.select(['et_fraction']) \
-            .multiply(img.select(['et_reference']))
+        et_img = img.select(['et_fraction']).multiply(img.select(['et_reference']))
         return img.addBands(et_img.double().rename('et'))
 
     daily_coll = daily_coll.map(compute_et)
@@ -295,8 +295,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         if 'et_fraction' in variables:
             # Compute average et fraction over the aggregation period
             image_list.append(
-                et_img.divide(et_reference_img).rename(
-                    ['et_fraction']).float())
+                et_img.divide(et_reference_img).rename(['et_fraction']).float()
+            )
         if 'ndvi' in variables:
             # Compute average ndvi over the aggregation period
             ndvi_img = daily_coll \
@@ -326,7 +326,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
             return aggregate_image(
                 agg_start_date=agg_start_date,
                 agg_end_date=ee.Date(agg_start_date).advance(1, 'day'),
-                date_format='YYYYMMdd')
+                date_format='YYYYMMdd',
+            )
 
         return ee.ImageCollection(daily_coll.map(agg_daily))
 
@@ -344,7 +345,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
             return aggregate_image(
                 agg_start_date=agg_start_date,
                 agg_end_date=ee.Date(agg_start_date).advance(1, 'month'),
-                date_format='YYYYMM')
+                date_format='YYYYMM',
+            )
 
         return ee.ImageCollection(month_list.map(agg_monthly))
 
@@ -361,7 +363,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
             return aggregate_image(
                 agg_start_date=agg_start_date,
                 agg_end_date=ee.Date(agg_start_date).advance(1, 'year'),
-                date_format='YYYY')
+                date_format='YYYY',
+            )
 
         return ee.ImageCollection(year_list.map(agg_annual))
 
@@ -369,4 +372,5 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         # Returning an ImageCollection to be consistent
         return ee.ImageCollection(aggregate_image(
             agg_start_date=start_date, agg_end_date=end_date,
-            date_format='YYYYMMdd'))
+            date_format='YYYYMMdd',
+        ))
