@@ -224,7 +224,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     if 'count' in variables:
         aggregate_coll = openet.core.interpolate.aggregate_to_daily(
             image_coll = scene_coll.select(['mask']),
-            start_date=start_date, end_date=end_date)
+            start_date=start_date, end_date=end_date,
+        )
 
         # The following is needed because the aggregate collection can be
         #   empty if there are no scenes in the target date range but there
@@ -233,7 +234,8 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         #   bands will be which causes a non-homogeneous image collection.
         aggregate_coll = aggregate_coll.merge(
             ee.Image.constant(0).rename(['mask'])
-                .set({'system:time_start': ee.Date(start_date).millis()}))
+                .set({'system:time_start': ee.Date(start_date).millis()})
+        )
 
     # Interpolate to a daily time step
     # NOTE: the daily function is not computing ET (ETf x ETr)
