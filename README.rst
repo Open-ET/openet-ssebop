@@ -154,6 +154,7 @@ Temperature Correction (*c factor*)
 -----------------------------------
 In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene.
 This temperature correction component is uniquely developed for SSEBop using a Forcing and Normalizing Operation (FANO) method featuring a linear relation between a normalized land surface temperature difference and NDVI difference using the dT parameter and a proportionality constant.
+
  **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid size (or larger) value.
 
 More information on parameter design and model improvements using the FANO method can be found in Senay2023_. Additional SSEBop model algorithm theoretical basis documentation can be found `here <https://www.usgs.gov/media/files/landsat-4-9-collection-2-level-3-provisional-actual-evapotranspiration-algorithm>`__.
@@ -165,6 +166,7 @@ The 'FANO' parameter (default) can be implemented dynamically for each Landsat s
     model_obj = model.Image.from_landsat_c2_sr(
         tcorr_source='FANO',
         )
+
 The FANO parameterization allows the establishment of the cold boundary condition regardless of vegetation cover density, improving the performance and operational implementation of the SSEBop ET model in sparsely vegetated landscapes, dynamic growing seasons, and varying locations around the world.
 
 Installation
