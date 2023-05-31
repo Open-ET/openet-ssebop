@@ -10,6 +10,17 @@ def test_getinfo():
     assert utils.getinfo(ee.Number(1)) == 1
 
 
+def test_getinfo_exception():
+    with pytest.raises(Exception):
+        utils.getinfo('deadbeef')
+
+
+# # CGM - Not sure how to trigger an EEException to test that the output is None
+# #   This fails before it is sent to the getinfo function
+# def test_getinfo_eeexception():
+#     assert utils.getinfo(ee.Number('deadbeef')) is None
+
+
 def test_constant_image_value(tol=0.000001):
     expected = 10.123456789
     input_img = ee.Image.constant(expected)

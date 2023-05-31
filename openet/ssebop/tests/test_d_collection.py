@@ -411,6 +411,14 @@ def test_Collection_interpolate_default():
     assert {y['id'] for x in output['features'] for y in x['bands']} == VARIABLES
 
 
+@pytest.mark.parametrize('use_joins', [True, False])
+def test_Collection_interpolate_use_joins(use_joins):
+    """Only checking if the parameter is accepted and runs for now"""
+    output = utils.getinfo(default_coll_obj().interpolate(use_joins=use_joins))
+    assert output['type'] == 'ImageCollection'
+    assert parse_scene_id(output) == ['20170701']
+
+
 def test_Collection_interpolate_variables_custom():
     output = utils.getinfo(default_coll_obj().interpolate(variables=['et']))
     assert [y['id'] for x in output['features'] for y in x['bands']] == ['et']

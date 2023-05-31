@@ -257,7 +257,6 @@ class Image():
 
         # print(f'this is the tcorr source passed to the image class {tcorr_source}')
 
-
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
 
@@ -327,7 +326,8 @@ class Image():
             dt = self.dt
 
         et_fraction = model.et_fraction(
-            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
+            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt
+        )
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
@@ -345,12 +345,16 @@ class Image():
             # CGM - Need to check if the NLDAS images are instantaneous
             #   or some sort of average of the previous or next hour
             time_start = ee.Number(self._time_start)
-            nldas_prev_img = ee.Image(nldas_coll
+            nldas_prev_img = ee.Image(
+                nldas_coll
                 .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
-                .limit(1, 'system:time_start', False).first())
-            nldas_next_img = ee.Image(nldas_coll
+                .limit(1, 'system:time_start', False).first()
+            )
+            nldas_next_img = ee.Image(
+                nldas_coll
                 .filterDate(time_start, time_start.add(2 * 60 * 60 * 1000))
-                .first())
+                .first()
+            )
             nldas_prev_time = ee.Number(nldas_prev_img.get('system:time_start'))
             nldas_next_time = ee.Number(nldas_next_img.get('system:time_start'))
             time_ratio = time_start.subtract(nldas_prev_time)\
@@ -394,7 +398,7 @@ class Image():
                     .filter(ee.Filter.rangeContains('DOY', self._doy, self._doy))\
                     .select([self.et_reference_band])
                 #     .limit(1, 'system:time_start', True)
-
+                # DEADBEEF
                 # # CGM - Is this mapped function over GRIDMET really needed?
                 # #   Couldn't you just filter the source to the image DOY
                 # def et_reference_replace_daily(image):
@@ -541,10 +545,11 @@ class Image():
             #     raise Exception('elev_source must be set if dt_source="CIMIS"')
             input_img = ee.Image(
                 ee.ImageCollection('projects/earthengine-legacy/assets/'
-                                   'projects/climate-engine/cimis/daily')\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select(['Tx', 'Tn', 'Rs', 'Tdew'])\
-                    .first())
+                                   'projects/climate-engine/cimis/daily')
+                .filterDate(self._start_date, self._end_date)
+                .select(['Tx', 'Tn', 'Rs', 'Tdew'])
+                .first()
+            )
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Compute Ea from Tdew
             dt_img = model.dt(
@@ -552,48 +557,56 @@ class Image():
                 tmin=input_img.select(['Tn']).add(273.15),
                 rs=input_img.select(['Rs']),
                 ea=input_img.select(['Tdew']).add(237.3).pow(-1)
-                    .multiply(input_img.select(['Tdew']))\
-                    .multiply(17.27).exp().multiply(0.6108).rename(['ea']),
+                    .multiply(input_img.select(['Tdew']))
+                    .multiply(17.27).exp().multiply(0.6108),
                 elev=self.elev,
-                doy=self._doy).clamp(self._dt_min, self._dt_max)
+                doy=self._doy,
+            )
+            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET':
             input_img = ee.Image(
-                ee.ImageCollection('NASA/ORNL/DAYMET_V3')\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])\
-                    .first())
+                ee.ImageCollection('NASA/ORNL/DAYMET_V3')
+                .filterDate(self._start_date, self._end_date)
+                .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])
+                .first()
+            )
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             # Solar unit conversion from DAYMET documentation:
             #   https://daymet.ornl.gov/overview.html
             dt_img = model.dt(
                 tmax=input_img.select(['tmax']).add(273.15),
                 tmin=input_img.select(['tmin']).add(273.15),
-                rs=input_img.select(['srad'])\
-                    .multiply(input_img.select(['dayl'])).divide(1000000),
+                rs=input_img.select(['srad']).multiply(input_img.select(['dayl']))
+                    .divide(1000000),
                 ea=input_img.select(['vp'], ['ea']).divide(1000),
                 elev=self.elev,
-                doy=self._doy).clamp(self._dt_min, self._dt_max)
+                doy=self._doy,
+            )
+            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'GRIDMET':
             input_img = ee.Image(
-                ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
-                    .filterDate(self._start_date, self._end_date)\
-                    .select(['tmmx', 'tmmn', 'srad', 'sph'])\
-                    .first())
+                ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')
+                .filterDate(self._start_date, self._end_date)
+                .select(['tmmx', 'tmmn', 'srad', 'sph'])
+                .first()
+            )
             # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
             q = input_img.select(['sph'], ['q'])
             pair = self.elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
                 .multiply(101.3)
             # pair = self.elev.expression(
             #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
-            #     {'elev': self.elev})
+            #     {'elev': self.elev}
+            # )
             dt_img = model.dt(
                 tmax=input_img.select(['tmmx']),
                 tmin=input_img.select(['tmmn']),
                 rs=input_img.select(['srad']).multiply(0.0864),
-                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q)\
-                    .multiply(pair).rename(['ea']),
+                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q).multiply(pair),
                 elev=self.elev,
-                doy=self._doy).clamp(self._dt_min, self._dt_max)
+                doy=self._doy,
+            )
+            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
