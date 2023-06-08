@@ -33,12 +33,15 @@ def et_fraction(lst, tmax, tcorr, dt):
 
     et_fraction = lst.expression(
         '(lst * (-1) + tmax * tcorr + dt) / dt',
-        {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr})
+        {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr}
+    )
 
-    return et_fraction\
-        .updateMask(et_fraction.lte(2.0))\
-        .clamp(0, 1.0)\
+    return (
+        et_fraction
+        .updateMask(et_fraction.lte(2.0))
+        .clamp(0, 1.0)
         .rename(['et_fraction'])
+    )
 
 
 def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
@@ -95,14 +98,14 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
     doy = tmax.multiply(0).add(doy)
 
     # Extraterrestrial radiation (Ra) (FAO56 Eqns 24, 25, 23, 21)
-    delta = doy.multiply(2 * math.pi / 365).subtract(1.39).sin()\
-        .multiply(0.409)
+    delta = doy.multiply(2 * math.pi / 365).subtract(1.39).sin().multiply(0.409)
     ws = phi.tan().multiply(-1).multiply(delta.tan()).acos()
     dr = doy.multiply(2 * math.pi / 365).cos().multiply(0.033).add(1)
-    ra = ws.multiply(phi.sin()).multiply(delta.sin())\
-        .add(phi.cos().multiply(delta.cos()).multiply(ws.sin()))\
-        .multiply(dr)\
-        .multiply((1367.0 / math.pi) * 0.0820)
+    ra = (
+        ws.multiply(phi.sin()).multiply(delta.sin())
+        .add(phi.cos().multiply(delta.cos()).multiply(ws.sin()))
+        .multiply(dr).multiply((1367.0 / math.pi) * 0.0820)
+    )
 
     # Simplified clear sky solar formulation (Rso) [MJ m-2 d-1] (Eqn 37)
     rso = elev.multiply(2E-5).add(0.75).multiply(ra)
@@ -121,24 +124,27 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
 
     # Actual vapor pressure [kPa] (FAO56 Eqn 14)
     if ea is None:
-        ea = tmin.subtract(273.15).multiply(17.27)\
-            .divide(tmin.subtract(273.15).add(237.3)).exp().multiply(0.6108)
+        ea = (
+            tmin.subtract(273.15).multiply(17.27)
+            .divide(tmin.subtract(273.15).add(237.3))
+            .exp().multiply(0.6108)
+        )
 
     # Net longwave radiation [MJ m-2 d-1] (FAO56 Eqn 39)
-    rnl = tmax.pow(4).add(tmin.pow(4))\
-        .multiply(ea.sqrt().multiply(-0.14).add(0.34))\
+    rnl = (
+        tmax.pow(4).add(tmin.pow(4))
+        .multiply(ea.sqrt().multiply(-0.14).add(0.34))
         .multiply(4.901E-9 * 0.5).multiply(fcd)
+    )
 
     # Net radiation [MJ m-2 d-1] (FAO56 Eqn 40)
     rn = rns.subtract(rnl)
 
     # Air pressure [kPa] (FAO56 Eqn 7)
-    pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
-        .multiply(101.3)
+    pair = elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26).multiply(101.3)
 
     # Air density [Kg m-3] (Senay2018 A.11 & A.13)
-    den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair)\
-        .multiply(3.486 / 1.01)
+    den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair).multiply(3.486 / 1.01)
 
     # Temperature difference [K] (Senay2018 A.5)
     dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
@@ -165,10 +171,9 @@ def lapse_adjust(temperature, elev, lapse_threshold=1500):
     """
     elr_adjust = ee.Image(temperature).expression(
         '(temperature - (0.003 * (elev - threshold)))',
-        {
-            'temperature': temperature, 'elev': elev,
-            'threshold': lapse_threshold
-        })
+        {'temperature': temperature, 'elev': elev, 'threshold': lapse_threshold}
+    )
+
     return ee.Image(temperature).where(elev.gt(lapse_threshold), elr_adjust)
 
 
@@ -209,11 +214,12 @@ def elr_adjust(temperature, elevation, radius=80):
     #     .reproject(crs=tmax_projection)
 
     # Then generate the smoothed elevation image
-    elev_tmax_smoothed = elev_tmax_fine\
+    elev_tmax_smoothed = (
+        elev_tmax_fine
         .reduceNeighborhood(reducer=ee.Reducer.median(),
-                            kernel=ee.Kernel.square(radius=radius,
-                                                    units='pixels'))\
+                            kernel=ee.Kernel.square(radius=radius, units='pixels'))
         .reproject(crs=tmax_projection)
+    )
 
     # Final ELR mask: (DEM-(medDEM.add(100)).gt(0))
     elev_diff = elev_tmax_fine.subtract(elev_tmax_smoothed.add(100))

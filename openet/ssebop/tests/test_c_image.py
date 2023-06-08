@@ -1568,6 +1568,9 @@ def test_Image_et_reference_properties():
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
         ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
          'ETr_ASCE', 1, TEST_POINT, 10.0220],
+        # CGM - Why are these not the same?
+        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/daily',
+         'etr_asce', 1, TEST_POINT, 10.0760],
         [10, 'FOO', 1, TEST_POINT, 10.0],
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]
