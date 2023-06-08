@@ -33,6 +33,10 @@ def lazy_property(fn):
 class Image():
     """Earth Engine based SSEBop Image"""
 
+    # Smoothed soil emissivity collection ID
+    _SOIL_EMIS_COLL_ID = 'projects/earthengine-legacy/assets/projects/openet/soil_emissivity/aster/landsat/v1'
+    _C2_LST_CORRECT = True  # Enable (True) C2 LST correction to recalculate LST
+
     def __init__(
             self, image,
             et_reference_source=None,
@@ -1225,6 +1229,20 @@ class Image():
         Image
 
         """
+        # Check if passing c2_lst_correct or soil_emis_coll_id arguments
+        if "c2_lst_correct" in kwargs.keys():
+            assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
+            # Remove from kwargs since it is not a valid argument for Image init
+            c2_lst_correct = kwargs.pop('c2_lst_correct')
+        else:
+            c2_lst_correct = cls._C2_LST_CORRECT
+        if "soil_emis_coll_id" in kwargs.keys():
+            assert isinstance(kwargs['soil_emis_coll_id'], str), "selection type must be a string"
+            # Remove from kwargs since it is not a valid argument for Image init
+            soil_emis_coll_id = kwargs.pop('soil_emis_coll_id')
+        else:
+            soil_emis_coll_id = cls._SOIL_EMIS_COLL_ID
+
         sr_image = ee.Image(sr_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
@@ -1268,10 +1286,17 @@ class Image():
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(
             sr_image, **cloudmask_args)
 
+        if c2_lst_correct:
+            lst = openet.core.common.landsat_c2_sr_lst_correct(
+                sr_image, landsat.ndvi(prep_image), soil_emis_coll_id=soil_emis_coll_id)
+            lst = lst.rename(['lst'])
+        else:
+            lst = prep_image.select(['tir'], ['lst'])
+
         # Build the input image
         # Don't compute LST since it is being provided
         input_image = ee.Image([
-            prep_image.select(['tir'], ['lst']),
+           lst,
             # landsat.lst(prep_image),
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
