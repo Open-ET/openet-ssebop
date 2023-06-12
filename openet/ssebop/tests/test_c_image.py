@@ -145,22 +145,23 @@ def default_image_obj(lst=305, ndvi=0.85,
 
 def test_Image_init_default_parameters():
     m = ssebop.Image(default_image())
-    assert m.et_reference_source == None
-    assert m.et_reference_band == None
-    assert m.et_reference_factor == None
-    assert m.et_reference_resample == None
-    assert m.et_reference_date_type == None
+    assert m.et_reference_source is None
+    assert m.et_reference_band is None
+    assert m.et_reference_factor is None
+    assert m.et_reference_resample is None
+    assert m.et_reference_date_type is None
     assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     assert m._dt_min == 5
     assert m._dt_max == 25
-    assert m._elev_source == None
-    assert m._elr_flag == False
+    assert m._elev_source is None
+    assert m._elr_flag is False
     assert m.reflectance_type == 'SR'
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
+    assert m._C2_LST_CORRECT is False
 
 
 # Todo: Break these up into separate functions?
@@ -650,6 +651,22 @@ def test_Image_from_landsat_c2_sr_cloud_mask_args():
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
     output = ssebop.Image.from_landsat_c2_sr(
         image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
+    assert type(output) == type(default_image_obj())
+
+
+def test_Image_from_landsat_c2_sr_c2_lst_correct_arg():
+    """Test if the c2_lst_correct parameter can be set (not if it works)"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    output = ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True)
+    assert type(output) == type(default_image_obj())
+
+
+def test_Image_from_landsat_c2_sr_soil_emis_coll_id_arg():
+    """Test if the soil_emis_coll_id parameter can be set (c2_lst_correct=True)"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    output = ssebop.Image.from_landsat_c2_sr(
+        image_id, c2_lst_correct=True,
+        soil_emis_coll_id='projects/openet/soil_emissivity/aster/landsat/v')
     assert type(output) == type(default_image_obj())
 
 
