@@ -1310,7 +1310,7 @@ class Image():
         # Build the input image
         # Don't compute LST since it is being provided
         input_image = ee.Image([
-           lst.rename(['lst']),
+            lst.rename(['lst']),
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),

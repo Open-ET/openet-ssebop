@@ -49,7 +49,7 @@ setup(
     tests_require=['pytest', 'pytest-cov'],
     packages=[f'openet.{model_name.lower()}'],
     keywords=f'{model_name} OpenET Evapotranspiration Earth Engine',
-    classifiers = [
+    classifiers=[
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
