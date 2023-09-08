@@ -1,5 +1,5 @@
 import datetime
-import pprint
+# import pprint
 
 import ee
 import pytest
@@ -197,8 +197,8 @@ def test_Image_init_scene_id_property():
 
 def test_Image_init_elr_flag_str():
     """Test that the elr_flag can be read as a string"""
-    assert default_image_obj(elr_flag='FALSE')._elr_flag == False
-    assert default_image_obj(elr_flag='true')._elr_flag == True
+    assert default_image_obj(elr_flag='FALSE')._elr_flag is False
+    assert default_image_obj(elr_flag='true')._elr_flag is True
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(elr_flag='FOO')._elr_flag)
 
@@ -344,8 +344,7 @@ def test_Image_dt_source_calculated(dt_source, elev, date, xy, expected, tol=0.0
     m._start_date = ee.Date.parse('yyyy-MM-dd', date)
     m._end_date = ee.Date.parse('yyyy-MM-dd', date).advance(1, 'day')
     # DOY is needed in dT calculation
-    m._doy = ee.Date.parse('yyyy-MM-dd', date).getRelative('day', 'year')\
-        .int().add(1)
+    m._doy = ee.Date.parse('yyyy-MM-dd', date).getRelative('day', 'year').int().add(1)
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
 
@@ -384,9 +383,11 @@ def test_Image_dt_clamping(doy, dt_min, dt_max):
     m._dt_max = dt_max
     m._doy = doy
     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
-    output = utils.getinfo(ee.Image(m.dt)\
+    output = utils.getinfo(
+        ee.Image(m.dt)
         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
-                      geometry=ee.Geometry.Rectangle(-125, 25, -65, 50)))
+                      geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))
+    )
     assert output['dt_min'] >= dt_min
     assert output['dt_max'] <= dt_max
 
@@ -446,10 +447,10 @@ def test_Image_tmax_source_values(tmax_source, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'tmax_source',
     [
-        'projects/usgs-ssebop/tmax/daymet_v3_max_1980_2018', # Unsupported statistic
-        'projects/usgs-ssebop/dt/daymet_v3_median_1980_2018', # tmax must be in ID
-        'daymet_median_v2', # Don't support lowercase keywords
-        'deadbeef'
+        'projects/usgs-ssebop/tmax/daymet_v3_max_1980_2018',  # Unsupported statistic
+        'projects/usgs-ssebop/dt/daymet_v3_median_1980_2018',  # tmax must be in ID
+        'daymet_median_v2',  # Don't support lowercase keywords
+        'deadbeef',
         '',
     ]
 )
@@ -458,7 +459,6 @@ def test_Image_tmax_source_exception(tmax_source):
         utils.getinfo(default_image_obj(tmax_source=tmax_source).tmax)
 
 
-today_dt = datetime.datetime.today()
 @pytest.mark.parametrize(
     'tmax_source, expected',
     [
@@ -515,8 +515,7 @@ def test_Image_from_landsat_c1_toa_image_id(image_id):
 def test_Image_from_landsat_c1_toa_image():
     """Test instantiating the class from a Landsat TOA ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        ee.Image(image_id)).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -555,8 +554,7 @@ def test_Image_from_landsat_c1_sr_image_id(image_id):
 def test_Image_from_landsat_c1_sr_image():
     """Test instantiating the class from a Landsat SR ee.Image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
-        ee.Image(image_id)).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -582,8 +580,7 @@ def test_Image_from_landsat_c1_sr_scaling():
               'system:id': ee.String(sr_img.get('system:id')),
               'system:index': ee.String(sr_img.get('system:index')),
               'system:time_start': ee.Number(sr_img.get('system:time_start'))})
-    output = utils.constant_image_value(
-        ssebop.Image.from_landsat_c1_sr(input_img).lst)
+    output = utils.constant_image_value(ssebop.Image.from_landsat_c1_sr(input_img).lst)
     # Won't be exact because of emissivity correction
     assert abs(output['lst'] - 300) <= 10
 
@@ -699,10 +696,9 @@ def test_Image_from_method_kwargs():
 
 
 # CGM - Test tcorr_image since it is called by tcorr_stats
-def test_Image_tcorr_image_values(lst=300, ndvi=0.8, tmax=306, expected=0.9804,
+def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804,
                                   tol=0.0001):
-    output_img = default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+    output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
     output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
 
@@ -729,11 +725,10 @@ def test_Image_tcorr_image_band_name():
     assert output['bands'][0]['id'] == 'tcorr'
 
 
-def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
-                                      expected={'tmax_version': 'median_v2'}):
+def test_Image_tcorr_image_properties():
     """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(
-        tmax_source=tmax_source).tcorr_image)
+    tmax_source = 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
+    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tcorr_image)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
@@ -741,8 +736,7 @@ def test_Image_tcorr_image_properties(tmax_source='DAYMET_MEDIAN_V2',
 
 def test_Image_tcorr_image_hot_values(lst=300, ndvi=0.2, tmax=306,
                                       expected=0.92157, tol=0.0001):
-    output_img = default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image_hot
+    output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image_hot
     output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
 
@@ -770,16 +764,14 @@ def test_Image_tcorr_image_hot_band_name():
 
 def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2'):
     """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(
-        tmax_source=tmax_source).tcorr_image_hot)
+    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tcorr_image_hot)
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['tmax_source'] == tmax_source
 
 
 # CGM - Then test tcorr_stats since it is called by the other tcorr functions
-def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857,
-                                    tol=0.00000001):
+def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.00000001):
     output = utils.getinfo(default_image_obj(
         ndvi=0.85, lst=308, dt_source=10, elev_source=50,
         tcorr_source=0.98, tmax_source=310).tcorr_stats)
@@ -850,42 +842,6 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     #         expected['tcorr_count']) <= 0.0000001
 
 
-def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804,
-                                  tol=0.0001):
-    output_img = default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
-    output = utils.point_image_value(output_img, TEST_POINT)
-    assert abs(output['tcorr'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
-    # Note: These are made up values
-    'lst, ndvi, tmax, expected',
-    [
-        [300, 0.69, 306, None],  # NDVI < 0.7
-        [269, 0.69, 306, None],  # LST < 270
-        # TODO: Add a test for the NDVI smoothing
-    ]
-)
-def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
-    output = utils.constant_image_value(default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
-    assert output['tcorr'] is None and expected is None
-
-
-def test_Image_tcorr_image_band_name():
-    output = utils.getinfo(default_image_obj().tcorr_image)
-    assert output['bands'][0]['id'] == 'tcorr'
-
-
-def test_Image_tcorr_image_properties(tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'):
-    """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tcorr_image)
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['tmax_source'] == tmax_source
-
-
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, expected',
     [
@@ -895,9 +851,9 @@ def test_Image_tcorr_image_properties(tmax_source='projects/usgs-ssebop/tmax/day
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
          'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713', 0.9691267889719843],
+         'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713', 0.9691267889719843],
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
@@ -918,7 +874,7 @@ def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
     [
         # Check the keyword source
         ['DYNAMIC', 'DAYMET_MEDIAN_V2',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
          [0.9798917542625591, 1]],
         # Check that the short collection ID
         ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
@@ -1069,8 +1025,8 @@ def test_Image_tcorr_gridded_method(tcorr_source, tmax_source, image_id,
     """
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
+    point_xy = utils.getinfo(
+        ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
     tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
@@ -1114,8 +1070,8 @@ def test_Image_tcorr_gridded_cold_method(tcorr_source, tmax_source, image_id,
     """Test the tcorr_gridded_cold method directly"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
+    point_xy = utils.getinfo(
+        ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
     tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
@@ -1177,8 +1133,8 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
     """
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
+    point_xy = utils.getinfo(
+        ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
     tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
@@ -1187,8 +1143,6 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
     index = utils.getinfo(tcorr_img.get('tcorr_index'))
     assert abs(tcorr['tcorr'] - expected[0]) <= tol
     assert index == expected[1]
-
-
 
 
 @pytest.mark.parametrize(
@@ -1206,13 +1160,13 @@ def test_Image_tcorr_gridded_source(tcorr_source, tmax_source, image_id,
          0.9917099881538578],
     ]
 )
-def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
-                                 expected, tol=0.001):
-    """Test that tcorr_resample with bilinear is different than with nearest"""
+def test_Image_tcorr_source_collection_id(tcorr_source, tmax_source, image_id, clip, xy,
+                                          expected, tol=0.001):
+    """"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
+    point_xy = utils.getinfo(
+        ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
     tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source).tcorr
@@ -1242,13 +1196,13 @@ def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
 #          sum([0.9779135, 0.9814665, 0.9814665, 0.9823752]) * 0.25],
 #     ]
 # )
-# def test_Image_tcorr_gridded_values(tcorr_source, tmax_source, image_id,
-#                                     clip, xy, expected, tol=0.000001):
+# def test_Image_tcorr_soruce_gridded_values(tcorr_source, tmax_source, image_id,
+#                                            clip, xy, expected, tol=0.000001):
 #     """Test getting the gridded Tcorr values"""
 #     image_crs = ee.Image(image_id).select([3]).projection().crs()
 #     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-#     point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-#         .coordinates().getInfo()
+#     point_xy = utils.getinfo(
+#         ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
 #     tcorr_img = ssebop.Image.from_landsat_c1_toa(
 #         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
 #         tmax_source=tmax_source, tmax_resample='nearest').tcorr
@@ -1304,13 +1258,13 @@ def test_Image_tcorr_scene_daily(tcorr_source, tmax_source, image_id, clip, xy,
          0.991406257393843],
     ]
 )
-def test_Image_tcorr_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
-                                      image_id, clip, xy, expected, tol=0.001):
+def test_Image_tcorr_soruce_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
+                                             image_id, clip, xy, expected, tol=0.001):
     """Test that tcorr_resample with bilinear is different than with nearest"""
     image_crs = ee.Image(image_id).select([3]).projection().crs()
     clip_geom = ee.Geometry.Rectangle(clip, image_crs, False)
-    point_xy = ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1)\
-        .coordinates().getInfo()
+    point_xy = utils.getinfo(
+        ee.Geometry.Point(xy, image_crs).transform('EPSG:4326', 1).coordinates())
     tcorr_img = ssebop.Image.from_landsat_c2_sr(
         ee.Image(image_id).clip(clip_geom), tcorr_source=tcorr_source,
         tmax_source=tmax_source, tmax_resample='nearest',
@@ -1320,13 +1274,12 @@ def test_Image_tcorr_gridded_resample(tcorr_resample, tcorr_source, tmax_source,
 
 
 @pytest.mark.parametrize('tcorr_source', ['GRIDDED', 'GRIDDED_COLD'])
-def test_Image_tcorr_gridded_resample_exception(tcorr_source):
+def test_Image_tcorr_soruce_gridded_resample_exception(tcorr_source):
     # """Test that an exception is raised for unsupported tcorr_resample values"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711'
     with pytest.raises(ValueError):
-        tcorr_img = ssebop.Image.from_image_id(
-            image_id, tcorr_source=tcorr_source,
-            tmax_source='DAYMET_MEDIAN_V2',
+        ssebop.Image.from_image_id(
+            image_id, tcorr_source=tcorr_source, tmax_source='DAYMET_MEDIAN_V2',
             tcorr_resample='deadbeef').tcorr
 
 
@@ -1352,8 +1305,8 @@ def test_Image_tcorr_gridded_resample_exception(tcorr_source):
          [0.978, 3]],
     ]
 )
-def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
-                                  expected, tol=0.000001):
+def test_Image_tcorr_source_scene_keywords(tcorr_source, tmax_source, scene_id,
+                                           expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
     scene_date = datetime.datetime.strptime(scene_id.split('_')[-1], '%Y%m%d') \
         .strftime('%Y-%m-%d')
@@ -1372,7 +1325,7 @@ def test_Image_tcorr_scene_source(tcorr_source, tmax_source, scene_id,
     assert index == expected[1]
 
 
-def test_Image_tcorr_scene_month(expected=[0.9700734316155846, 1], tol=0.000001):
+def test_Image_tcorr_source_scene_from_month(expected=[0.9700734316155846, 1], tol=0.000001):
     """Test getting monthly Tcorr from composite when daily is missing"""
     # Setting start date to well before beginning of daily Tcorr images
     input_image = ee.Image.constant(1).set({
@@ -1388,7 +1341,7 @@ def test_Image_tcorr_scene_month(expected=[0.9700734316155846, 1], tol=0.000001)
     assert index == expected[1]
 
 
-def test_Image_tcorr_scene_annual(expected=[0.9762643456613403, 2], tol=0.000001):
+def test_Image_tcorr_source_scene_from_annual(expected=[0.9762643456613403, 2], tol=0.000001):
     """Test getting annual Tcorr from composite when monthly/daily are missing"""
     input_image = ee.Image.constant(1).set({
         'system:index': 'LC08_042035_20150713',
@@ -1405,7 +1358,7 @@ def test_Image_tcorr_scene_annual(expected=[0.9762643456613403, 2], tol=0.000001
 
 
 # CGM - I'm not quite sure how to test this condition
-# def test_Image_tcorr_scene_default(expected=[0.978, 3], tol=0.0001):
+# def test_Image_tcorr_source_scene_default(expected=[0.978, 3], tol=0.0001):
 #     """Test getting default Tcorr from composite"""
 #     input_image = ee.Image.constant(1).set({
 #         'system:index': 'LC08_042035_20150713',
@@ -1420,7 +1373,7 @@ def test_Image_tcorr_scene_annual(expected=[0.9762643456613403, 2], tol=0.000001
 #     assert index['index'] == expected[1]
 
 
-def test_Image_tcorr_scene_daily():
+def test_Image_tcorr_source_scene_daily():
     """Tcorr should be masked for date outside range with SCENE_DAILY"""
     input_image = ee.Image.constant(1).set({
         'system:index': 'LC08_042035_20150713',
@@ -1525,24 +1478,21 @@ def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
 def test_Image_from_landsat_c1_toa_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        image_id).et_fraction)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c1_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
-        image_id).et_fraction)
+    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c2_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
-        image_id).et_fraction)
+    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -1571,7 +1521,7 @@ def test_Image_et_fraction_type_exception():
 
 def test_Image_et_reference_properties():
     """Test if properties are set on the ETr image"""
-    output =  utils.getinfo(default_image_obj().et_reference)
+    output = utils.getinfo(default_image_obj().et_reference)
     assert output['bands'][0]['id'] == 'et_reference'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
@@ -1637,7 +1587,7 @@ def test_Image_et_reference_source_exception():
 
 def test_Image_et_properties():
     """Test if properties are set on the ET image"""
-    output =  utils.getinfo(default_image_obj().et)
+    output = utils.getinfo(default_image_obj().et)
     assert output['bands'][0]['id'] == 'et'
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
@@ -1738,7 +1688,7 @@ def test_Image_time_values():
 
 def test_Image_calculate_properties():
     """Test if properties are set on the output image"""
-    output =  utils.getinfo(default_image_obj().calculate(['ndvi']))
+    output = utils.getinfo(default_image_obj().calculate(['ndvi']))
     assert output['properties']['system:index'] == SCENE_ID
     assert output['properties']['system:time_start'] == SCENE_TIME
     assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
@@ -1771,6 +1721,7 @@ def test_Image_calculate_values(tol=0.0001):
     assert abs(output['et'] - 5.8) <= tol
     assert abs(output['et_reference'] - 10) <= tol
     assert abs(output['et_fraction'] - 0.58) <= tol
+
 
 def test_Image_calculate_variables_valueerror():
     """Test if calculate method raises a valueerror for invalid variables"""

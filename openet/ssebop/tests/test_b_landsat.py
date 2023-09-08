@@ -1,4 +1,4 @@
-import datetime
+# import datetime
 # import pprint
 
 import ee
@@ -32,6 +32,7 @@ def sr_image(red=1000, nir=9000, bt=305):
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
+
 
 @pytest.mark.parametrize(
     'red, nir, expected',
@@ -75,8 +76,7 @@ def test_ndvi_band_name():
     ]
 )
 def test_emissivity_calculation(red, nir, expected, tol=0.000001):
-    output = utils.constant_image_value(
-        landsat.emissivity(toa_image(red=red, nir=nir)))
+    output = utils.constant_image_value(landsat.emissivity(toa_image(red=red, nir=nir)))
     assert abs(output['emissivity'] - expected) <= tol
 
 
@@ -92,8 +92,7 @@ def test_emissivity_band_name():
     ]
 )
 def test_lst_calculation(red, nir, bt, expected, tol=0.000001):
-    output = utils.constant_image_value(
-        landsat.lst(toa_image(red=red, nir=nir, bt=bt)))
+    output = utils.constant_image_value(landsat.lst(toa_image(red=red, nir=nir, bt=bt)))
     assert abs(output['lst'] - expected) <= tol
 
 

@@ -1,4 +1,4 @@
-import pprint
+# import pprint
 
 import ee
 import pytest
@@ -35,6 +35,8 @@ def scene_coll(variables, et_fraction=0.4, et=5, ndvi=0.6):
     #   and images are unscaled just before interpolating in the export tool
     scene_img = ee.Image([img.add(et_fraction), img.add(et), img.add(ndvi), mask])\
         .rename(['et_fraction', 'et', 'ndvi', 'mask'])
+    # CGM - I was having issues when I removed these backslashes,
+    #   even though they shouldn't be needed
     scene_coll = ee.ImageCollection([
         scene_img.addBands([img.add(time1).rename('time')]) \
             .set({'system:index': 'LE07_044033_20170708',
@@ -171,7 +173,7 @@ def test_from_scene_et_fraction_monthly_et_reference_resample(tol=0.0001):
 def test_from_scene_et_fraction_t_interval_bad_value():
     # Function should raise a ValueError if t_interval is not supported
     with pytest.raises(ValueError):
-        output_coll = interpolate.from_scene_et_fraction(
+        interpolate.from_scene_et_fraction(
             scene_coll(['et', 'time', 'mask']),
             start_date='2017-07-01', end_date='2017-08-01', variables=['et'],
             interp_args={'interp_method': 'linear', 'interp_days': 32},
@@ -185,7 +187,7 @@ def test_from_scene_et_fraction_t_interval_bad_value():
 def test_from_scene_et_fraction_t_interval_no_value():
     # Function should raise an Exception if t_interval is not set
     with pytest.raises(TypeError):
-        output_coll = interpolate.from_scene_et_fraction(
+        interpolate.from_scene_et_fraction(
             scene_coll(['et', 'time', 'mask']),
             start_date='2017-07-01', end_date='2017-08-01',
             variables=['et', 'et_reference', 'et_fraction', 'count'],

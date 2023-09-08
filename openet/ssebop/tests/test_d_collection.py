@@ -1,4 +1,4 @@
-import pprint
+# import pprint
 
 import ee
 import pytest
@@ -41,6 +41,7 @@ default_coll_args = {
     'filter_args': {},
 }
 
+
 def default_coll_obj(**kwargs):
     args = default_coll_args.copy()
     args.update(kwargs)
@@ -65,12 +66,12 @@ def test_Collection_init_default_parameters():
     del args['variables']
 
     m = ssebop.Collection(**args)
-    assert m.variables == None
-    assert m.et_reference_source == None
-    assert m.et_reference_band == None
-    assert m.et_reference_factor == None
-    assert m.et_reference_resample == None
-    assert m.et_reference_date_type == None
+    assert m.variables is None
+    assert m.et_reference_source is None
+    assert m.et_reference_band is None
+    assert m.et_reference_factor is None
+    assert m.et_reference_resample is None
+    assert m.et_reference_date_type is None
     assert m.cloud_cover_max == 70
     assert m.model_args == {'tcorr_source': 0.99}
     assert m.filter_args == {}
@@ -210,7 +211,8 @@ def test_Collection_build_variables_empty_list():
     # Setting variables to an empty list should return the merged Landsat collection
     output = utils.getinfo(
         default_coll_obj(collections=C02_COLLECTIONS, variables=None)
-            ._build(variables=[]).first().bandNames())
+        ._build(variables=[]).first().bandNames()
+    )
     assert 'SR_B3' in output
 
 
@@ -592,11 +594,11 @@ def test_Collection_interpolate_output_type_default():
     output = utils.getinfo(default_coll_obj(variables=test_vars).interpolate())
     output = output['features'][0]['bands']
     bands = {info['id']: i for i, info in enumerate(output)}
-    assert(output[bands['et']]['data_type']['precision'] == 'float')
-    assert(output[bands['et_reference']]['data_type']['precision'] == 'float')
-    assert(output[bands['et_fraction']]['data_type']['precision'] == 'float')
-    assert(output[bands['ndvi']]['data_type']['precision'] == 'float')
-    assert(output[bands['count']]['data_type']['precision'] == 'int')
+    assert output[bands['et']]['data_type']['precision'] == 'float'
+    assert output[bands['et_reference']]['data_type']['precision'] == 'float'
+    assert output[bands['et_fraction']]['data_type']['precision'] == 'float'
+    assert output[bands['ndvi']]['data_type']['precision'] == 'float'
+    assert output[bands['count']]['data_type']['precision'] == 'int'
 
 
 def test_Collection_interpolate_only_interpolate_images():
@@ -653,7 +655,6 @@ def test_Collection_interpolate_monthly_et_reference_date_type_doy(tol=0.01):
 )
 def test_Collection_get_image_ids(collections, scene_id_list):
     # get_image_ids method makes a getInfo call internally
-    output = default_coll_obj(collections=collections, variables=None)\
-        .get_image_ids()
+    output = default_coll_obj(collections=collections, variables=None).get_image_ids()
     assert type(output) is list
     assert set(x.split('/')[-1] for x in output) == set(scene_id_list)

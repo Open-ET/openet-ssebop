@@ -33,8 +33,7 @@ import openet.ssebop.utils as utils
 )
 def test_Model_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.0001):
     output = utils.constant_image_value(model.et_fraction(
-        lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
-        tcorr=tcorr, dt=dt))
+        lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax), tcorr=tcorr, dt=dt))
     assert abs(output['et_fraction'] - expected) <= tol
 
 
@@ -42,20 +41,19 @@ def test_Model_et_fraction_values(lst, ndvi, dt, tcorr, tmax, expected, tol=0.00
     'lst, dt, tcorr, tmax, expected',
     [
         # The ETf mask limit was changed from 1.5 to 2.0 for gridded Tcorr
-        [304, 10, 0.98, 310, 0.98], # 0.98 ETf will not be clamped
-        [303, 10, 0.98, 310, 1.00], # 1.08 ETf will be clamped to 1.0
-        [293, 10, 0.98, 310, None], # 2.08 ETf should be set to None (>2.0)
+        [304, 10, 0.98, 310, 0.98],  # 0.98 ETf will not be clamped
+        [303, 10, 0.98, 310, 1.00],  # 1.08 ETf will be clamped to 1.0
+        [293, 10, 0.98, 310, None],  # 2.08 ETf should be set to None (>2.0)
         # The ETf mask limit was changed from 1.3 to 1.5 for gridded Tcorr
-        # [302, 10, 0.98, 310, 1.05], # 1.18 ETf should be clamped to 1.05
-        # [300, 10, 0.98, 310, 1.05], # 1.38 ETf should be clamped to 1.05
-        # [298, 10, 0.98, 310, None], # 1.58 ETf should be set to None (>1.5)
+        # [302, 10, 0.98, 310, 1.05],  # 1.18 ETf should be clamped to 1.05
+        # [300, 10, 0.98, 310, 1.05],  # 1.38 ETf should be clamped to 1.05
+        # [298, 10, 0.98, 310, None],  # 1.58 ETf should be set to None (>1.5)
     ]
 )
 def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
     """Test that ETf is set to nodata for ETf > 2.0"""
     output_img = model.et_fraction(
-        lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax),
-        tcorr=tcorr, dt=dt)
+        lst=ee.Image.constant(lst), tmax=ee.Image.constant(tmax), tcorr=tcorr, dt=dt)
     output = utils.constant_image_value(ee.Image(output_img))
     if expected is None:
         assert output['et_fraction'] is None
@@ -80,8 +78,7 @@ def test_Model_et_fraction_clamp_nodata(lst, dt, tcorr, tmax, expected):
 
     ]
 )
-def test_Model_dt_calc_rso_no_ea(tmax, tmin, elev, doy, lat, expected,
-                                 tol=0.0001):
+def test_Model_dt_calc_rso_no_ea(tmax, tmin, elev, doy, lat, expected, tol=0.0001):
     """Test dt calculation using Rso and Ea from Tmin"""
     dt = utils.getinfo(model.dt(
         tmax=ee.Number(tmax), tmin=ee.Number(tmin),
@@ -100,8 +97,7 @@ def test_Model_dt_calc_rso_no_ea(tmax, tmin, elev, doy, lat, expected,
         [312.3927, 293.2107, 18, 197, 39.1968, 30.2915, 19.7663],  # GRIDMET
     ]
 )
-def test_Model_dt_calc_rs_no_ea(tmax, tmin, elev, doy, lat, rs, expected,
-                                tol=0.0001):
+def test_Model_dt_calc_rs_no_ea(tmax, tmin, elev, doy, lat, rs, expected, tol=0.0001):
     """Test dt calculation using measured Rs and Ea from Tmin"""
     dt = utils.getinfo(model.dt(
         tmax=ee.Number(tmax), tmin=ee.Number(tmin), elev=ee.Number(elev),
@@ -120,8 +116,7 @@ def test_Model_dt_calc_rs_no_ea(tmax, tmin, elev, doy, lat, rs, expected,
         [312.3927, 293.2107, 18, 197, 39.1968, 1.6384, 17.0965],  # GRIDMET
     ]
 )
-def test_Model_dt_calc_rso_ea(tmax, tmin, elev, doy, lat, ea, expected,
-                              tol=0.0001):
+def test_Model_dt_calc_rso_ea(tmax, tmin, elev, doy, lat, ea, expected, tol=0.0001):
     """Test dt calculation using 'measured' Ea (from Tdew, sph, vp) and Rso"""
     dt = utils.getinfo(model.dt(
         tmax=ee.Number(tmax), tmin=ee.Number(tmin), elev=ee.Number(elev),
@@ -140,8 +135,7 @@ def test_Model_dt_calc_rso_ea(tmax, tmin, elev, doy, lat, ea, expected,
         [312.3927, 293.2107, 18, 197, 39.1968, 30.2915, 1.6384, 18.1711],  # GRIDMET
     ]
 )
-def test_Model_dt_calc_rs_ea(tmax, tmin, elev, doy, lat, rs, ea, expected,
-                             tol=0.0001):
+def test_Model_dt_calc_rs_ea(tmax, tmin, elev, doy, lat, rs, ea, expected, tol=0.0001):
     """Test dt calculation using 'measured' Rs and Ea (from Tdew, sph, vp)"""
     dt = utils.getinfo(model.dt(
         tmax=ee.Number(tmax), tmin=ee.Number(tmin), elev=ee.Number(elev),
@@ -182,7 +176,7 @@ def test_Model_elr_adjust(xy, adjusted):
     This test can't be done with constant images since there are reduce and
     reproject calls in the function.
     """
-    tmax = ee.Image(f'NASA/ORNL/DAYMET_V4/20170701').select(['tmax']).add(273.15)
+    tmax = ee.Image('NASA/ORNL/DAYMET_V4/20170701').select(['tmax']).add(273.15)
     elev = ee.Image('CGIAR/SRTM90_V4')
 
     # Use a small radius to make the test run faster

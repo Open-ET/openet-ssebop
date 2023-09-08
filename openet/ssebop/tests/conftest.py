@@ -5,6 +5,11 @@ import os
 import ee
 import pytest
 
+logging.getLogger('earthengine-api').setLevel(logging.INFO)
+logging.getLogger('googleapiclient').setLevel(logging.INFO)
+logging.getLogger('requests').setLevel(logging.INFO)
+logging.getLogger('urllib3').setLevel(logging.INFO)
+
 
 def pytest_configure():
     # Called before tests are collected

@@ -54,8 +54,6 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
 
     ]
 )
-
-
 def test_date_to_time_0utc(input, expected):
     input_img = ee.Date(input)
     assert utils.getinfo(utils.date_to_time_0utc(input_img)) == expected
@@ -72,7 +70,6 @@ def test_date_to_time_0utc(input, expected):
         ['a', False],
     ]
 )
-
 def test_is_number(input, expected):
     assert utils.is_number(input) == expected
 
@@ -82,8 +79,8 @@ def test_millis():
 
 
 def test_valid_date():
-    assert utils.valid_date('2015-07-13') == True
-    assert utils.valid_date('2015-02-30') == False
-    assert utils.valid_date('20150713') == False
-    assert utils.valid_date('07/13/2015') == False
-    assert utils.valid_date('07-13-2015', '%m-%d-%Y') == True
+    assert utils.valid_date('2015-07-13') is True
+    assert utils.valid_date('2015-02-30') is False
+    assert utils.valid_date('20150713') is False
+    assert utils.valid_date('07/13/2015') is False
+    assert utils.valid_date('07-13-2015', '%m-%d-%Y') is True
