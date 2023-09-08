@@ -653,18 +653,24 @@ def test_Image_from_landsat_c2_sr_cloud_mask_args():
 
 def test_Image_from_landsat_c2_sr_c2_lst_correct_arg():
     """Test if the c2_lst_correct parameter can be set (not if it works)"""
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
     output = ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True)
     assert type(output) == type(default_image_obj())
 
 
-def test_Image_from_landsat_c2_sr_soil_emis_coll_id_arg():
-    """Test if the soil_emis_coll_id parameter can be set (c2_lst_correct=True)"""
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = ssebop.Image.from_landsat_c2_sr(
-        image_id, c2_lst_correct=True,
-        soil_emis_coll_id='projects/openet/soil_emissivity/aster/landsat/v')
-    assert type(output) == type(default_image_obj())
+def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
+    """Test if the c2_lst_correct fills the LST holes in Nebraska"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+    point_xy = [-102.08284, 37.81728]
+    # CGM - Is the uncorrected test needed?
+    uncorrected = utils.point_image_value(
+        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=False).lst, point_xy)
+    assert uncorrected['lst'] is None
+    corrected = utils.point_image_value(
+        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True).lst, point_xy)
+    assert corrected['lst'] > 0
+    # # Exact test values copied from openet-core
+    # assert abs(corrected['lst'] - 306.83) <= 0.25
 
 
 @pytest.mark.parametrize(

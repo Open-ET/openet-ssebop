@@ -33,8 +33,6 @@ def lazy_property(fn):
 class Image():
     """Earth Engine based SSEBop Image"""
 
-    # Smoothed soil emissivity collection ID
-    # _SOIL_EMIS_COLL_ID = 'projects/earthengine-legacy/assets/projects/openet/soil_emissivity/aster/landsat/v1'
     _C2_LST_CORRECT = False  # Enable (True) C2 LST correction to recalculate LST
 
     def __init__(
@@ -183,7 +181,6 @@ class Image():
         # TODO: Move into keyword args section below
         # Convert elr_flag from string to bool IF necessary
         if type(self._elr_flag) is str:
-            print('ELR given as string')
             if self._elr_flag.upper() in ['TRUE']:
                 self._elr_flag = True
             elif self._elr_flag.upper() in ['FALSE']:
@@ -1292,18 +1289,8 @@ class Image():
         else:
             c2_lst_correct = cls._C2_LST_CORRECT
 
-        if c2_lst_correct and "soil_emis_coll_id" in kwargs.keys():
-            assert isinstance(kwargs['soil_emis_coll_id'], str), "selection type must be a string"
-            # Remove from kwargs since it is not a valid argument for Image init
-            soil_emis_coll_id = kwargs.pop('soil_emis_coll_id')
-        else:
-            # This will use the default collection ID set in openet-core
-            soil_emis_coll_id = None
-
         if c2_lst_correct:
-            lst = openet.core.common.landsat_c2_sr_lst_correct(
-                sr_image, landsat.ndvi(prep_image), soil_emis_coll_id=soil_emis_coll_id
-            )
+            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
         else:
             lst = prep_image.select(['tir'])
 
