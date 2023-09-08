@@ -1,6 +1,6 @@
 import copy
 import datetime
-import pprint
+# import pprint
 
 from dateutil.relativedelta import *
 import ee
@@ -10,8 +10,11 @@ import openet.core.interpolate
 
 from . import utils
 from .image import Image
-# Importing to get version number, is there a better way?
-import openet.ssebop
+
+try:
+    from importlib import metadata
+except ImportError:  # for Python<3.8
+    import importlib_metadata as metadata
 
 
 def lazy_property(fn):
@@ -730,8 +733,10 @@ class Collection():
             'collections': ', '.join(self.collections),
             'interp_days': interp_days,
             'interp_method': interp_method,
-            'model_name': openet.ssebop.MODEL_NAME,
-            'model_version': openet.ssebop.__version__,
+            'model_name': metadata.metadata('openet-ssebop')['Name'],
+            'model_version': metadata.metadata('openet-ssebop')['Version'],
+            # 'model_name': openet.ssebop.MODEL_NAME,
+            # 'model_version': openet.ssebop.__version__,
         }
         interp_properties.update(self.model_args)
 
