@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "earthengine-api>=0.1.310",
     "openet-core>=0.1.1",
+    "openet-refet-gee>=0.2.0",
     "python-dateutil",
     "importlib-metadata; python_version <= '3.7'",
 ]
