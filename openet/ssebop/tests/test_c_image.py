@@ -634,12 +634,10 @@ def test_Image_from_landsat_c2_sr_scaling():
               'system:index': ee.String(sr_img.get('system:index')),
               'system:time_start': ee.Number(sr_img.get('system:time_start'))})
 
-    output = utils.constant_image_value(
-        ssebop.Image.from_landsat_c2_sr(input_img).ndvi)
+    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(input_img).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
 
-    output = utils.constant_image_value(
-        ssebop.Image.from_landsat_c2_sr(input_img).lst)
+    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(input_img).lst)
     assert abs(output['lst'] - 300) <= 0.1
 
 
@@ -1548,8 +1546,7 @@ def test_Image_et_reference_properties():
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]
 )
-def test_Image_et_reference_source(source, band, factor, xy, expected,
-                                   tol=0.001):
+def test_Image_et_reference_source(source, band, factor, xy, expected, tol=0.001):
     """Test getting reference ET values for a single date at a real point"""
     output = utils.point_image_value(default_image_obj(
         et_reference_source=source, et_reference_band=band,
@@ -1570,8 +1567,7 @@ def test_Image_et_reference_source(source, band, factor, xy, expected,
         ['daily', 'IDAHO_EPSCOR/GRIDMET', 'etr', TEST_POINT, 9.5730],
     ]
 )
-def test_Image_et_reference_date_type(date_type, source, band, xy, expected,
-                                      tol=0.001):
+def test_Image_et_reference_date_type(date_type, source, band, xy, expected, tol=0.001):
     """Test if the date_type parameter works"""
     output = utils.point_image_value(default_image_obj(
         et_reference_source=source, et_reference_band=band,
@@ -1733,6 +1729,21 @@ def test_Image_calculate_variables_valueerror():
     """Test if calculate method raises a valueerror for invalid variables"""
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj().calculate(['FOO']))
+
+
+@pytest.mark.parametrize(
+    'image_id, xy',
+    [
+        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.2571, 38.6292)],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292)],
+    ]
+)
+def test_Image_et_reference_water_nodata(image_id, xy):
+    """Test if water pixels are being masked in the et_reference band"""
+    output = utils.point_image_value(ssebop.Image.from_image_id(
+        image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
+        et_reference_band='etr').et_reference, xy)
+    assert output['et_reference'] is not None
 
 
 # def test_Image_et_fraction_properties():
