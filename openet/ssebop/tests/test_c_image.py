@@ -47,11 +47,11 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     #     })
 
 
-def default_image(lst=305, ndvi=0.8):
+def default_image(lst=305, ndvi=0.8, qa_water=0):
     # First construct a fake 'prepped' input image
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
-    return ee.Image([mask_img.add(lst), mask_img.add(ndvi)]) \
-        .rename(['lst', 'ndvi']) \
+    return ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(qa_water)]) \
+        .rename(['lst', 'ndvi', 'qa_water']) \
         .set({
             'system:index': SCENE_ID,
             'system:time_start': SCENE_TIME,
