@@ -11,11 +11,17 @@ import openet.core.interpolate
 from . import utils
 
 
-def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
-                           interp_args, model_args, t_interval,
-                           _interp_vars=['et_fraction', 'ndvi'],
-                           use_joins=False):
-    """Interpolate from a precomputed collection of Landast ET fraction scenes
+def from_scene_et_fraction(
+        scene_coll,
+        start_date,
+        end_date,
+        variables,
+        interp_args,
+        model_args,
+        t_interval,
+        _interp_vars=['et_fraction', 'ndvi'],
+        ):
+    """Interpolate from a precomputed collection of Landsat ET fraction scenes
 
     Parameters
     ----------
@@ -35,6 +41,9 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         interp_days : int, str, optional
             Number of extra days before the start date and after the end date
             to include in the interpolation calculation. The default is 32.
+        use_joins : bool, optional
+            If True, use joins to link the target and source collections.
+            If False, the source collection will be filtered for each target image.
     model_args : dict
         Parameters from the MODEL section of the INI file.  The reference
         source and parameters will need to be set here if computing
@@ -43,10 +52,6 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
         Time interval over which to interpolate and aggregate values
         The 'custom' interval will aggregate all days within the start and end
         dates into an image collection with a single image.
-    use_joins : bool, optional
-        If True, use joins to link the target and source collections.
-        If False, the source collection will be filtered for each target image.
-        This parameter is passed through to interpolate.daily().
     _interp_vars : list, optional
         The variables that can be interpolated to daily timesteps.
         The default is to interpolate the 'et_fraction' and 'ndvi' bands.
@@ -78,6 +83,13 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     else:
         interp_days = 32
         logging.debug('interp_days was not set, default to 32')
+
+    # Get use_joins
+    if 'use_joins' in interp_args.keys():
+        use_joins = interp_args['use_joins']
+    else:
+        use_joins = False
+        logging.debug('use_joins was not set, default to False')
 
     # Check that the input parameters are valid
     if t_interval.lower() not in ['daily', 'monthly', 'annual', 'custom']:
@@ -223,8 +235,9 @@ def from_scene_et_fraction(scene_coll, start_date, end_date, variables,
     # For count, compute the composite/mosaic image for the mask band only
     if 'count' in variables:
         aggregate_coll = openet.core.interpolate.aggregate_to_daily(
-            image_coll = scene_coll.select(['mask']),
-            start_date=start_date, end_date=end_date,
+            image_coll=scene_coll.select(['mask']),
+            start_date=start_date,
+            end_date=end_date,
         )
 
         # The following is needed because the aggregate collection can be
