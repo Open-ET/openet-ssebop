@@ -216,8 +216,10 @@ def elr_adjust(temperature, elevation, radius=80):
     # Then generate the smoothed elevation image
     elev_tmax_smoothed = (
         elev_tmax_fine
-        .reduceNeighborhood(reducer=ee.Reducer.median(),
-                            kernel=ee.Kernel.square(radius=radius, units='pixels'))
+        .reduceNeighborhood(
+            reducer=ee.Reducer.median(),
+            kernel=ee.Kernel.square(radius=radius, units='pixels')
+        )
         .reproject(crs=tmax_projection)
     )
 

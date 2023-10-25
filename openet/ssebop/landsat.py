@@ -22,23 +22,19 @@ def emissivity(landsat_image):
 
     """
     ndvi_img = ndvi(landsat_image)
-    Pv = ndvi_img.expression('((ndvi - 0.2) / 0.3) ** 2', {'ndvi': ndvi_img})
+    pv = ndvi_img.expression('((ndvi - 0.2) / 0.3) ** 2', {'ndvi': ndvi_img})
     # ndviRangevalue = ndvi_image.where(
     #     ndvi_image.gte(0.2).And(ndvi_image.lte(0.5)), ndvi_image
     # )
-    # Pv = ndviRangevalue.expression(
+    # pv = ndviRangevalue.expression(
     #     '(((ndviRangevalue - 0.2) / 0.3) ** 2',
     #     {'ndviRangevalue':ndviRangevalue}
     # )
 
     # Assuming typical Soil Emissivity of 0.97 and Veg Emissivity of 0.99
     #   and shape Factor mean value of 0.553
-    dE = Pv.expression(
-        '(1 - 0.97) * (1 - Pv) * (0.55 * 0.99)', {'Pv': Pv}
-    )
-    RangeEmiss = dE.expression(
-        '(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': Pv, 'dE': dE}
-    )
+    de = pv.expression('(1 - 0.97) * (1 - Pv) * (0.55 * 0.99)', {'Pv': pv})
+    RangeEmiss = de.expression('(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': pv, 'dE': de})
 
     return (
         ndvi_img
@@ -128,8 +124,7 @@ def ndvi(landsat_image):
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['nir', 'red'])\
-        .rename(['ndvi'])
+    return ee.Image(landsat_image).normalizedDifference(['nir', 'red']).rename(['ndvi'])
 
 
 def ndwi(landsat_image):
@@ -145,8 +140,7 @@ def ndwi(landsat_image):
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['green', 'swir1'])\
-        .rename(['ndwi'])
+    return ee.Image(landsat_image).normalizedDifference(['green', 'swir1']).rename(['ndwi'])
 
 
 def landsat_c2_qa_water_mask(landsat_image):

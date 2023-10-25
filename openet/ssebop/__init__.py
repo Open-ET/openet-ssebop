@@ -9,4 +9,6 @@ from . import interpolate
 
 MODEL_NAME = 'SSEBOP'
 
-# __version__ = metadata.version(__package__ or __name__)
+# # __version__ = metadata.version(__package__ or __name__)
+# __version__ = metadata.version(__package__.replace('.', '-') or __name__.replace('.', '-'))
+# # __version__ = metadata.version('openet-ssebop')

@@ -1,4 +1,4 @@
-import datetime
+# import datetime
 import pprint
 import re
 
@@ -30,7 +30,7 @@ def lazy_property(fn):
     return _lazy_property
 
 
-class Image():
+class Image:
     """Earth Engine based SSEBop Image"""
 
     _C2_LST_CORRECT = False  # Enable (True) C2 LST correction to recalculate LST
@@ -51,7 +51,7 @@ class Image():
             et_fraction_type='alfalfa',
             reflectance_type='SR',
             **kwargs,
-        ):
+    ):
         """Construct a generic SSEBop Image
 
         Parameters
@@ -129,9 +129,11 @@ class Image():
 
         # Build SCENE_ID from the (possibly merged) system:index
         scene_id = ee.List(ee.String(self._index).split('_')).slice(-3)
-        self._scene_id = ee.String(scene_id.get(0)).cat('_')\
-            .cat(ee.String(scene_id.get(1))).cat('_')\
+        self._scene_id = (
+            ee.String(scene_id.get(0)).cat('_')
+            .cat(ee.String(scene_id.get(1))).cat('_')
             .cat(ee.String(scene_id.get(2)))
+        )
 
         # Build WRS2_TILE from the scene_id
         self._wrs2_tile = ee.String('p').cat(self._scene_id.slice(5, 8))\
@@ -144,6 +146,7 @@ class Image():
         self._start_date = ee.Date(utils.date_to_time_0utc(self._date))
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
+        # DEADBEEF - cycle_day can be removed when gridded Tcorr is removed
         self._cycle_day = self._start_date.difference(
             ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
@@ -186,8 +189,7 @@ class Image():
             elif self._elr_flag.upper() in ['FALSE']:
                 self._elr_flag = False
             else:
-                raise ValueError('elr_flag "{}" could not be interpreted as '
-                                 'bool'.format(self._elr_flag))
+                raise ValueError(f'elr_flag "{self._elr_flag}" could not be interpreted as bool')
 
         # ET fraction type
         # CGM - Should et_fraction_type be set as a kwarg instead?
@@ -205,8 +207,9 @@ class Image():
 
         # Image projection and geotransform
         self.crs = image.projection().crs()
-        self.transform = ee.List(ee.Dictionary(
-            ee.Algorithms.Describe(image.projection())).get('transform'))
+        self.transform = ee.List(
+            ee.Dictionary(ee.Algorithms.Describe(image.projection())).get('transform')
+        )
         # self.crs = image.select([0]).projection().getInfo()['crs']
         # self.transform = image.select([0]).projection().getInfo()['transform']
 
@@ -291,7 +294,7 @@ class Image():
             elif v.lower() == 'time':
                 output_images.append(self.time)
             else:
-                raise ValueError('unsupported variable: {}'.format(v))
+                raise ValueError(f'unsupported variable: {v}')
 
         return ee.Image(output_images).set(self._properties)
 
@@ -326,9 +329,7 @@ class Image():
         else:
             dt = self.dt
 
-        et_fraction = model.et_fraction(
-            lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt
-        )
+        et_fraction = model.et_fraction(lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
 
         # TODO: Add support for setting the conversion source dataset
         # TODO: Interpolate "instantaneous" ETo and ETr?
@@ -336,46 +337,50 @@ class Image():
         # TODO: Check if etr/eto is right (I think it is)
         if self.et_fraction_type.lower() == 'grass':
             import openet.refetgee
-            nldas_coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')\
-                .select(['temperature', 'specific_humidity', 'shortwave_radiation',
-                         'wind_u', 'wind_v'])
-            
+            nldas_coll = (
+                ee.ImageCollection('NASA/NLDAS/FORA0125_H002')
+                .select(['temperature', 'specific_humidity', 'shortwave_radiation', 'wind_u', 'wind_v'])
+            )
+
             # Interpolating hourly NLDAS to the Landsat scene time
             # CGM - The 2 hour window is useful in case an image is missing
             #   I think EEMETRIC is using a 4 hour window
             # CGM - Need to check if the NLDAS images are instantaneous
             #   or some sort of average of the previous or next hour
             time_start = ee.Number(self._time_start)
-            nldas_prev_img = ee.Image(
+            prev_img = ee.Image(
                 nldas_coll
                 .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
-                .limit(1, 'system:time_start', False).first()
-            )
-            nldas_next_img = ee.Image(
-                nldas_coll
-                .filterDate(time_start, time_start.add(2 * 60 * 60 * 1000))
+                .limit(1, 'system:time_start', False)
                 .first()
             )
-            nldas_prev_time = ee.Number(nldas_prev_img.get('system:time_start'))
-            nldas_next_time = ee.Number(nldas_next_img.get('system:time_start'))
-            time_ratio = time_start.subtract(nldas_prev_time)\
-                .divide(nldas_next_time.subtract(nldas_prev_time))
-            nldas_img = nldas_next_img.subtract(nldas_prev_img)\
-                .multiply(time_ratio).add(nldas_prev_img)\
+            next_img = ee.Image(
+                nldas_coll.filterDate(time_start, time_start.add(2 * 60 * 60 * 1000)).first()
+            )
+            prev_time = ee.Number(prev_img.get('system:time_start'))
+            next_time = ee.Number(next_img.get('system:time_start'))
+            time_ratio = time_start.subtract(prev_time).divide(next_time.subtract(prev_time))
+            nldas_img = (
+                next_img.subtract(prev_img).multiply(time_ratio).add(prev_img)
                 .set({'system:time_start': self._time_start})
+            )
 
             # # DEADBEEF - Select NLDAS image before the Landsat scene time
             # nldas_img = ee.Image(nldas_coll
             #     .filterDate(self._date.advance(-1, 'hour'), self._date)
             #     .first())
 
-            et_fraction = et_fraction\
-                .multiply(openet.refetgee.Hourly.nldas(nldas_img).etr)\
+            et_fraction = (
+                et_fraction
+                .multiply(openet.refetgee.Hourly.nldas(nldas_img).etr)
                 .divide(openet.refetgee.Hourly.nldas(nldas_img).eto)
+            )
 
         return et_fraction.set(self._properties)\
-            .set({'tcorr_index': self.tcorr.get('tcorr_index'),
-                  'et_fraction_type': self.et_fraction_type.lower()})
+            .set({
+                'tcorr_index': self.tcorr.get('tcorr_index'),
+                'et_fraction_type': self.et_fraction_type.lower()
+            })
 
     @lazy_property
     def et_reference(self):
@@ -395,9 +400,11 @@ class Image():
                     .select([self.et_reference_band])
             elif self.et_reference_date_type.lower() == 'doy':
                 # Assume the image collection is a climatology with a "DOY" property
-                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
-                    .filter(ee.Filter.rangeContains('DOY', self._doy, self._doy))\
+                et_reference_coll = (
+                    ee.ImageCollection(self.et_reference_source)
+                    .filter(ee.Filter.rangeContains('DOY', self._doy, self._doy))
                     .select([self.et_reference_band])
+                )
                 #     .limit(1, 'system:time_start', True)
                 # DEADBEEF
                 # # CGM - Is this mapped function over GRIDMET really needed?
@@ -420,13 +427,13 @@ class Image():
                 #     .select([self.et_reference_band])\
                 #     .map(et_reference_replace_daily)
             else:
-                raise ValueError('unsupported et_reference_date_type: {}'.format(
-                    self.et_reference_date_type))
+                raise ValueError(
+                    f'unsupported et_reference_date_type: {self.et_reference_date_type}'
+                )
 
             et_reference_img = ee.Image(et_reference_coll.first())
             if self.et_reference_resample in ['bilinear', 'bicubic']:
-                et_reference_img = et_reference_img\
-                    .resample(self.et_reference_resample)
+                et_reference_img = et_reference_img.resample(self.et_reference_resample)
         # elif type(self.et_reference_source) is list:
         #     # Interpret as list of image collection IDs to composite/mosaic
         #     #   i.e. Spatial CIMIS and GRIDMET
@@ -444,8 +451,7 @@ class Image():
         #         .select([self.et_reference_band])\
         #         .filterDate(self.start_date, self.end_date)
         else:
-            raise ValueError('unsupported et_reference_source: {}'.format(
-                self.et_reference_source))
+            raise ValueError(f'unsupported et_reference_source: {self.et_reference_source}')
 
         if self.et_reference_factor:
             et_reference_img = et_reference_img.multiply(self.et_reference_factor)
@@ -574,8 +580,7 @@ class Image():
             dt_img = model.dt(
                 tmax=input_img.select(['tmax']).add(273.15),
                 tmin=input_img.select(['tmin']).add(273.15),
-                rs=input_img.select(['srad']).multiply(input_img.select(['dayl']))
-                    .divide(1000000),
+                rs=input_img.select(['srad']).multiply(input_img.select(['dayl'])).divide(1000000),
                 ea=input_img.select(['vp'], ['ea']).divide(1000),
                 elev=self.elev,
                 doy=self._doy,
@@ -608,7 +613,7 @@ class Image():
         else:
             raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
 
-        ## MF: moved this resample to happen at the et_fraction function
+        # # MF: moved this resample to happen at the et_fraction function
         # if (self._dt_resample and
         #         self._dt_resample.lower() in ['bilinear', 'bicubic']):
         #     dt_img = dt_img.resample(self._dt_resample)
@@ -641,8 +646,7 @@ class Image():
         #       self._elev_source.lower().startswith('users/')):
         #     elev_image = ee.Image(self._elev_source)
         else:
-            raise ValueError('Unsupported elev_source: {}\n'.format(
-                self._elev_source))
+            raise ValueError(f'Unsupported elev_source: {self._elev_source}\n')
 
         return elev_image.select([0], ['elev'])
 
@@ -700,7 +704,6 @@ class Image():
                 '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                     self._tcorr_source, self._tmax_source))
 
-
         # Set Tcorr folder and collections based on the Tmax source (if needed)
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
             # Check that there is a tcorr_gridded collection corresponding to the tmax
@@ -709,15 +712,15 @@ class Image():
             scene_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
-                # f'daymet_v3_median_1980_2018':
+                # 'daymet_v3_median_1980_2018':
                 #     f'{PROJECT_FOLDER}/tcorr_gridded/daymet_median_v2_scene',
-                f'daymet_v3_median_1980_2018':
+                'daymet_v3_median_1980_2018':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c01/daymet_v3_median_1980_2018',
-                f'daymet_v4_median_1980_2019':
+                'daymet_v4_median_1980_2019':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_median_1980_2019',
-                f'daymet_v4_mean_1981_2010':
+                'daymet_v4_mean_1981_2010':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_mean_1981_2010',
-                f'daymet_v4_mean_1981_2010_elr':
+                'daymet_v4_mean_1981_2010_elr':
                     f'{PROJECT_FOLDER}/tcorr_gridded/c02/daymet_v4_mean_1981_2010_elr',
             }
 
@@ -739,25 +742,25 @@ class Image():
             scene_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_scene',
-                f'daymet_v3_median_1980_2018':
+                'daymet_v3_median_1980_2018':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_scene',
             }
             month_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_monthly',
-                f'daymet_v3_median_1980_2018':
+                'daymet_v3_median_1980_2018':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_monthly',
             }
             annual_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_annual',
-                f'daymet_v3_median_1980_2018':
+                'daymet_v3_median_1980_2018':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_annual',
             }
             default_dict = {
                 'DAYMET_MEDIAN_V2':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_default',
-                f'daymet_v3_median_1980_2018':
+                'daymet_v3_median_1980_2018':
                     f'{PROJECT_FOLDER}/tcorr_scene/daymet_median_v2_default',
             }
 
@@ -819,8 +822,7 @@ class Image():
                     .reproject(crs=self.crs, crsTransform=self.transform)
             elif self._tcorr_resample.lower() != 'nearest':
                 # EE will resample using nearest neighbor by default
-                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
-                    self._tcorr_resample))
+                raise ValueError(f'Unsupported tcorr_resample: {self._tcorr_resample}\n')
 
             return tcorr_img
 
@@ -834,8 +836,7 @@ class Image():
                     .resample(self._tcorr_resample.lower())\
                     .reproject(crs=self.crs, crsTransform=self.transform)
             elif self._tcorr_resample.lower() != 'nearest':
-                raise ValueError('Unsupported tcorr_resample: {}\n'.format(
-                    self._tcorr_resample))
+                raise ValueError(f'Unsupported tcorr_resample: {self._tcorr_resample}\n')
 
             return tcorr_img.rename(['tcorr'])
 
@@ -920,14 +921,13 @@ class Image():
                 tcorr_img = default_coll.merge(mask_coll).sort('tcorr_index').first()
             else:
                 raise ValueError(
-                    'Invalid tcorr_source: {} / {}\n'.format(
-                        self._tcorr_source, self._tmax_source))
+                    f'Invalid tcorr_source: {self._tcorr_source} / {self._tmax_source}\n'
+                )
 
             return tcorr_img.rename(['tcorr'])
 
         else:
-            raise ValueError('Unsupported tcorr_source: {}\n'.format(
-                self._tcorr_source))
+            raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
 
     @lazy_property
     def tmax(self):
@@ -996,8 +996,7 @@ class Image():
         #     tmax_image = ee.Image(tmax_coll.first())\
         #         .set({'tmax_source': self._tmax_source})
         else:
-            raise ValueError('Unsupported tmax_source: {}\n'.format(
-                self._tmax_source))
+            raise ValueError(f'Unsupported tmax_source: {self._tmax_source}\n')
 
         if (self._tmax_resample and
                 self._tmax_resample.lower() in ['bilinear', 'bicubic']):
@@ -1047,9 +1046,9 @@ class Image():
         try:
             method_name = collection_methods[image_id.rsplit('/', 1)[0]]
         except KeyError:
-            raise ValueError('unsupported collection ID: {}'.format(image_id))
+            raise ValueError(f'unsupported collection ID: {image_id}')
         except Exception as e:
-            raise Exception('unhandled exception: {}'.format(e))
+            raise Exception(f'unhandled exception: {e}')
 
         method = getattr(Image, method_name)
 
@@ -1083,12 +1082,10 @@ class Image():
         input_bands = ee.Dictionary({
             'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
             'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
-            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1',
-                          'BQA'],
+            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1', 'BQA'],
             'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'BQA'],
         })
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir',
-                        'BQA']
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir', 'BQA']
         k1 = ee.Dictionary({
             'LANDSAT_4': 'K1_CONSTANT_BAND_6',
             'LANDSAT_5': 'K1_CONSTANT_BAND_6',
@@ -1101,15 +1098,15 @@ class Image():
             'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
             'LANDSAT_8': 'K2_CONSTANT_BAND_10',
         })
-        prep_image = toa_image\
-            .select(input_bands.get(spacecraft_id), output_bands)\
+        prep_image = (
+            toa_image.select(input_bands.get(spacecraft_id), output_bands)
             .set({
                 'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
                 'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id))),
             })
+        )
 
-        cloud_mask = openet.core.common.landsat_c1_toa_cloud_mask(
-            toa_image, **cloudmask_args)
+        cloud_mask = openet.core.common.landsat_c1_toa_cloud_mask(toa_image, **cloudmask_args)
 
         # Build the input image
         input_image = ee.Image([
@@ -1163,40 +1160,21 @@ class Image():
             'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
             'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'],
         })
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir',
-                        'pixel_qa']
-        # TODO: Follow up with Simon about adding K1/K2 to SR collection
-        # Hardcode values for now
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir', 'pixel_qa']
+        # Hardcode values for now since they are not properties in the images
         k1 = ee.Dictionary({
-            'LANDSAT_4': 607.76, 'LANDSAT_5': 607.76,
-            'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853})
+            'LANDSAT_4': 607.76, 'LANDSAT_5': 607.76, 'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853
+        })
         k2 = ee.Dictionary({
-            'LANDSAT_4': 1260.56, 'LANDSAT_5': 1260.56,
-            'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789})
+            'LANDSAT_4': 1260.56, 'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789
+        })
         prep_image = sr_image\
             .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
             .set({'k1_constant': ee.Number(k1.get(spacecraft_id)),
                   'k2_constant': ee.Number(k2.get(spacecraft_id))})
 
-        # k1 = ee.Dictionary({
-        #     'LANDSAT_4': 'K1_CONSTANT_BAND_6',
-        #     'LANDSAT_5': 'K1_CONSTANT_BAND_6',
-        #     'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
-        #     'LANDSAT_8': 'K1_CONSTANT_BAND_10'})
-        # k2 = ee.Dictionary({
-        #     'LANDSAT_4': 'K2_CONSTANT_BAND_6',
-        #     'LANDSAT_5': 'K2_CONSTANT_BAND_6',
-        #     'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
-        #     'LANDSAT_8': 'K2_CONSTANT_BAND_10'})
-        # prep_image = sr_image\
-        #     .select(input_bands.get(spacecraft_id), output_bands)\
-        #     .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-        #     .set({'k1_constant': ee.Number(sr_image.get(k1.get(spacecraft_id))),
-        #           'k2_constant': ee.Number(sr_image.get(k2.get(spacecraft_id)))})
-
-        cloud_mask = openet.core.common.landsat_c1_sr_cloud_mask(
-            sr_image, **cloudmask_args)
+        cloud_mask = openet.core.common.landsat_c1_sr_cloud_mask(sr_image, **cloudmask_args)
 
         # Build the input image
         input_image = ee.Image([
@@ -1261,7 +1239,7 @@ class Image():
             .select(input_bands.get(spacecraft_id), output_bands)\
             .multiply([0.0000275, 0.0000275, 0.0000275, 0.0000275,
                        0.0000275, 0.0000275, 0.00341802, 1, 1])\
-            .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0])\
+            .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0])
 
         # Default the cloudmask flags to True if they were not
         # Eventually these will probably all default to True in openet.core
@@ -1276,11 +1254,9 @@ class Image():
         # if 'saturated_flag' not in cloudmask_args.keys():
         #     cloudmask_args['saturated_flag'] = True
 
-        cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(
-            sr_image, **cloudmask_args
-        )
+        cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
-        # Check if passing c2_lst_correct or soil_emis_coll_id arguments
+        # Check if passing c2_lst_correct arguments
         if "c2_lst_correct" in kwargs.keys():
             assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
             # Remove from kwargs since it is not a valid argument for Image init
@@ -1390,7 +1366,7 @@ class Image():
             .reproject(crs=self.crs, crsTransform=self.transform)
         ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
 
-        #changed the gt and lte to be after the reduceNeighborhood() call
+        # Changed the gt and lte to be after the reduceNeighborhood() call
         ndvi_buffer = ndvi.reduceNeighborhood(
             ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
         ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(ndvi_threshold))
@@ -1425,7 +1401,6 @@ class Image():
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
-
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi).clamp(-1.0, 1.0)
         tmax = ee.Image(self.tmax)
@@ -1442,19 +1417,25 @@ class Image():
         # returns qa_watermask layer masked by combined watermask to get a count of valid pixels
         watermask_for_coarse = qa_watermask.updateMask(watermask)
 
-        watermask_coarse_count = watermask_for_coarse\
-            .reduceResolution(ee.Reducer.count(), False, m_pixels)\
-            .reproject(self.crs, coarse_transform)\
+        watermask_coarse_count = (
+            watermask_for_coarse
+            .reduceResolution(ee.Reducer.count(), False, m_pixels)
+            .reproject(self.crs, coarse_transform)
             .updateMask(1).select([0], ['count'])
-        total_pixels_count = ndvi\
-            .reduceResolution(ee.Reducer.count(), False, m_pixels)\
-            .reproject(self.crs, coarse_transform)\
+        )
+        total_pixels_count = (
+            ndvi
+            .reduceResolution(ee.Reducer.count(), False, m_pixels)
+            .reproject(self.crs, coarse_transform)
             .updateMask(1).select([0], ['count'])
+        )
 
         # Doing a layering mosaic check to fill any remaining Null watermask coarse pixels with valid mask data.
         #   This can happen if the reduceResolution count contained exclusively water pixels from 30 meters.
-        watermask_coarse_count = ee.Image([watermask_coarse_count, total_pixels_count.multiply(0).add(1)])\
+        watermask_coarse_count = (
+            ee.Image([watermask_coarse_count, total_pixels_count.multiply(0).add(1)])
             .reduce(ee.Reducer.firstNonNull())
+        )
 
         percentage_bad = watermask_coarse_count.divide(total_pixels_count)
         pct_value = (1 - (water_pct / 100))
@@ -1492,25 +1473,31 @@ class Image():
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
         Tc_warm = lst_avg_masked.expression(
-            f'(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
-            {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-             'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked})
+            '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
+            {
+                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
+            })
 
         Tc_warm100 = lst_avg_masked100.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
-            {'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-              'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100})
+            {
+                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100,
+            })
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
         # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
         # In places where there is too much land covered by water 10% or greater,
         #   use a FANO adjusted Tc_warm from a coarser resolution (100km) that ignored masked water pixels.
-        Tc_cold = lst_avg_unmasked\
-            .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)\
-            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)\
-            .where(wet_region_mask_5km, Tc_warm100)\
+        Tc_cold = (
+            lst_avg_unmasked
+            .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)
+            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)
+            .where(wet_region_mask_5km, Tc_warm100)
             .where(ndvi_avg_unmasked.lt(0), lst_avg_unmasked)
+        )
 
         c_factor = Tc_cold.divide(tmax_avg)
 
@@ -1533,7 +1520,7 @@ class Image():
 
         """
         return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([2.5], outputNames=['value'])\
+            reducer=ee.Reducer.percentile([2.5], outputNames=['value'])
                 .combine(ee.Reducer.count(), '', True),
             crs=self.crs,
             crsTransform=self.transform,
@@ -1609,6 +1596,7 @@ class Image():
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
+
         # print('gridded tocorr lazy prop activated')
 
         # TODO: Define coarse cell-size/transform as a parameter
@@ -1726,12 +1714,11 @@ class Image():
             .reproject(crs=self.crs, crsTransform=coarse_transform)\
             .updateMask(1)
 
-
         # First non null mosiac of hot and cold (COLD priority) -> out image goes into rn04 and so on.
         hotCold_mosaic = ee.Image([tcorr_coarse_cold, tcorr_rn01_cold, tcorr_rn02_cold, tcorr_rn03_cold,
                                         tcorr_rn04_cold, tcorr_rn05_cold, tcorr_coarse_hot, tcorr_rn02_hot]) \
             .reduce(ee.Reducer.firstNonNull())
-        # # TODO - ...and then the first blended
+        # TODO - ...and then the first blended
 
         # TODO - Try SQUARE Kernel
         tcorr_rn02_blended = hotCold_mosaic \
@@ -1864,6 +1851,7 @@ class Image():
         ee.Image of Tcorr values
 
         """
+
         # print('cold gridded tcorr activated')
         # TODO: Define coarse cellsize or transform as a parameter
         # NOTE: This transform is being snapped to the Landsat grid
@@ -2009,4 +1997,3 @@ class Image():
             .set(self._properties) \
             .set({'tcorr_index': tcorr_index,
                   'tcorr_coarse_count': tcorr_count})
-    

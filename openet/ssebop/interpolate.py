@@ -1,8 +1,8 @@
 import datetime
 import logging
-import pprint
+# import pprint
 
-from dateutil.relativedelta import *
+from dateutil.relativedelta import relativedelta
 import ee
 import openet.core.interpolate
 # TODO: import utils from openet.core
@@ -172,20 +172,23 @@ def from_scene_et_fraction(
     if type(et_reference_source) is str:
         # Assume a string source is a single image collection ID
         #   not a list of collection IDs or ee.ImageCollection
-        if (et_reference_date_type is None or
-                et_reference_date_type.lower() == 'daily'):
-            daily_et_ref_coll = ee.ImageCollection(et_reference_source) \
-                .filterDate(start_date, end_date) \
+        if (et_reference_date_type is None) or (et_reference_date_type.lower() == 'daily'):
+            daily_et_ref_coll = (
+                ee.ImageCollection(et_reference_source)
+                .filterDate(start_date, end_date)
                 .select([et_reference_band], ['et_reference'])
+            )
         elif et_reference_date_type.lower() == 'doy':
             # Assume the image collection is a climatology with a "DOY" property
             def doy_image(input_img):
                 """Return the doy-based reference et with daily time properties from GRIDMET"""
                 image_date = ee.Algorithms.Date(input_img.get('system:time_start'))
                 image_doy = ee.Number(image_date.getRelative('day', 'year')).add(1).int()
-                doy_coll = ee.ImageCollection(et_reference_source)\
-                    .filterMetadata('DOY', 'equals', image_doy)\
+                doy_coll = (
+                    ee.ImageCollection(et_reference_source)
+                    .filterMetadata('DOY', 'equals', image_doy)
                     .select([et_reference_band], ['et_reference'])
+                )
                 # CGM - Was there a reason to use rangeContains if limiting to one DOY?
                 #     .filter(ee.Filter.rangeContains('DOY', doy, doy))\
                 return ee.Image(doy_coll.first())\
@@ -193,9 +196,12 @@ def from_scene_et_fraction(
                           'system:time_start': input_img.get('system:time_start')})
             # Note, the collection and band that are used are important as
             #   long as they are daily and available for the time period
-            daily_et_ref_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
-                .filterDate(start_date, end_date).select(['eto'])\
+            daily_et_ref_coll = (
+                ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')
+                .filterDate(start_date, end_date)
+                .select(['eto'])
                 .map(doy_image)
+            )
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
     #     daily_et_reference_coll = ee.ImageCollection(et_reference_source)\
@@ -208,9 +214,12 @@ def from_scene_et_fraction(
     # CGM - Resampling is not working correctly so not including for now
     if et_reference_factor and et_reference_factor != 1:
         def et_reference_adjust(input_img):
-            return input_img.multiply(et_reference_factor) \
-                .copyProperties(input_img) \
+            return (
+                input_img.multiply(et_reference_factor)
+                .copyProperties(input_img)
                 .set({'system:time_start': input_img.get('system:time_start')})
+            )
+
         daily_et_ref_coll = daily_et_ref_coll.map(et_reference_adjust)
 
     # Initialize variable list to only variables that can be interpolated
@@ -235,9 +244,7 @@ def from_scene_et_fraction(
     # For count, compute the composite/mosaic image for the mask band only
     if 'count' in variables:
         aggregate_coll = openet.core.interpolate.aggregate_to_daily(
-            image_coll=scene_coll.select(['mask']),
-            start_date=start_date,
-            end_date=end_date,
+            image_coll=scene_coll.select(['mask']), start_date=start_date, end_date=end_date,
         )
 
         # The following is needed because the aggregate collection can be
@@ -247,7 +254,7 @@ def from_scene_et_fraction(
         #   bands will be which causes a non-homogeneous image collection.
         aggregate_coll = aggregate_coll.merge(
             ee.Image.constant(0).rename(['mask'])
-                .set({'system:time_start': ee.Date(start_date).millis()})
+            .set({'system:time_start': ee.Date(start_date).millis()})
         )
 
     # Interpolate to a daily time step
@@ -294,13 +301,13 @@ def from_scene_et_fraction(
 
         """
         if 'et' in variables or 'et_fraction' in variables:
-            et_img = daily_coll.filterDate(agg_start_date, agg_end_date) \
-                .select(['et']).sum()
+            et_img = daily_coll.filterDate(agg_start_date, agg_end_date).select(['et']).sum()
         if 'et_reference' in variables or 'et_fraction' in variables:
-            # et_reference_img = daily_coll \
-            et_reference_img = daily_et_ref_coll \
-                .filterDate(agg_start_date, agg_end_date) \
+            et_reference_img = (
+                daily_et_ref_coll
+                .filterDate(agg_start_date, agg_end_date)
                 .select(['et_reference']).sum()
+            )
 
         image_list = []
         if 'et' in variables:
@@ -309,25 +316,26 @@ def from_scene_et_fraction(
             image_list.append(et_reference_img.float())
         if 'et_fraction' in variables:
             # Compute average et fraction over the aggregation period
-            image_list.append(
-                et_img.divide(et_reference_img).rename(['et_fraction']).float()
-            )
+            image_list.append(et_img.divide(et_reference_img).rename(['et_fraction']).float())
         if 'ndvi' in variables:
             # Compute average ndvi over the aggregation period
-            ndvi_img = daily_coll \
-                .filterDate(agg_start_date, agg_end_date) \
+            ndvi_img = (
+                daily_coll.filterDate(agg_start_date, agg_end_date)
                 .mean().select(['ndvi']).float()
+            )
             image_list.append(ndvi_img)
         if 'count' in variables:
-            count_img = aggregate_coll \
-                .filterDate(agg_start_date, agg_end_date) \
+            count_img = (
+                aggregate_coll.filterDate(agg_start_date, agg_end_date)
                 .select(['mask']).sum().rename('count').uint8()
+            )
             image_list.append(count_img)
 
         return ee.Image(image_list) \
             .set({
                 'system:index': ee.Date(agg_start_date).format(date_format),
-                'system:time_start': ee.Date(agg_start_date).millis()})
+                'system:time_start': ee.Date(agg_start_date).millis(),
+            })
         #     .set(interp_properties) \
 
     # Combine input, interpolated, and derived values
@@ -386,6 +394,5 @@ def from_scene_et_fraction(
     elif t_interval.lower() == 'custom':
         # Returning an ImageCollection to be consistent
         return ee.ImageCollection(aggregate_image(
-            agg_start_date=start_date, agg_end_date=end_date,
-            date_format='YYYYMMdd',
+            agg_start_date=start_date, agg_end_date=end_date, date_format='YYYYMMdd',
         ))
