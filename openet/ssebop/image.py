@@ -1,7 +1,9 @@
 # import datetime
 import pprint
 import re
+import warnings
 
+# from deprecated import deprecated
 import ee
 import openet.core.common
 # TODO: import utils from common
@@ -532,14 +534,32 @@ class Image:
                 .combine({'scale_factor': '1.0'}, overwrite=False)
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
+            warnings.warn(
+                "Support for the DAYMET_MEDIAN_V0 dt_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
+            warnings.warn(
+                "Support for the DAYMET_MEDIAN_V1 dt_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V2':
+            warnings.warn(
+                "Support for the DAYMET_MEDIAN_V2 dt_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v2')\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
@@ -790,6 +810,13 @@ class Image:
         # Load the Tcorr image
         # if self._tcorr_source.startswith('projects/'):
         if re.match('projects/.+/tcorr_gridded/.+', self._tcorr_source):
+            warnings.warn(
+                "Support for reading precomputed tcorr_gridded images is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Read precomputed tcorr images
             # CGM - Do we need to check that the tmax and tcorr source have the
             #   the same "name"?
@@ -812,6 +839,13 @@ class Image:
             #     .filterMetadata('date', 'equals', self._date)
             return ee.Image(scene_coll.first())
         elif 'GRIDDED' == self._tcorr_source.upper():
+            warnings.warn(
+                "Support for the GRIDDED tcorr_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Compute gridded blended Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded).select(['tcorr'])
             # e.g. .select([0, 1], ['tcorr', 'count'])
@@ -827,6 +861,13 @@ class Image:
             return tcorr_img
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
+            warnings.warn(
+                "Support for the GRIDDED_COLD tcorr_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Compute gridded Tcorr for the scene
             tcorr_img = ee.Image(self.tcorr_gridded_cold).select(['tcorr'])
 
@@ -847,10 +888,20 @@ class Image:
             return tcorr_img.rename(['tcorr'])
 
         elif 'DYNAMIC' == self._tcorr_source.upper():
+            # CGM - Should this one be deprecated also?
+            #   It relies on the monthly/annual fallback colletions which may not exist
+            warnings.warn(
+                "Support for the DYNAIC tcorr_source keywords is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Compute Tcorr dynamically for the scene
             mask_img = ee.Image(default_coll.first()).multiply(0)
             mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']}))
+                mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']})
+            )
 
             # Use a larger default minimum pixel count for dynamic Tcorr
             if 'min_pixels_per_image' in self.kwargs.keys():
@@ -883,6 +934,13 @@ class Image:
             return ee.Image(tcorr_coll.first()).rename(['tcorr'])
 
         elif 'SCENE_GRIDDED' == self._tcorr_source.upper():
+            warnings.warn(
+                "Support for the SCENE_GRIDDED tcorr_source keyword is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Load precomputed gridded Tcorr images
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
@@ -894,6 +952,13 @@ class Image:
             return ee.Image(scene_coll.first())
 
         elif self._tcorr_source.upper().startswith('SCENE'):
+            warnings.warn(
+                "All support for the SCENE* tcorr_source keywords is deprecated "
+                "and will be removed in a future version",
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
+
             # Load Tcorr from precomputed scene images with monthly/annual fallbacks
             scene_coll = ee.ImageCollection(scene_dict[tmax_key])\
                 .filterDate(self._start_date, self._end_date)\
@@ -1342,6 +1407,11 @@ class Image:
         ee.Image of Tcorr values
 
         """
+        warnings.warn(
+            'tcorr_image_hot method is deprecated and will be removed in a future version',
+            FutureWarning
+            # DeprecationWarning, stacklevel=2
+        )
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
@@ -1596,6 +1666,11 @@ class Image:
         5. Where did the ORIGINAL 5km cold pixel come from (that we actually use)? 18, 16
 
         """
+        warnings.warn(
+            'tcorr_gridded method is deprecated and will be removed in a future version',
+            FutureWarning
+            # DeprecationWarning, stacklevel=2
+        )
 
         # print('gridded tocorr lazy prop activated')
 
@@ -1851,6 +1926,11 @@ class Image:
         ee.Image of Tcorr values
 
         """
+        warnings.warn(
+            'tcorr_gridded_cold method is deprecated and will be removed in a future version',
+            FutureWarning
+            # DeprecationWarning, stacklevel=2
+        )
 
         # print('cold gridded tcorr activated')
         # TODO: Define coarse cellsize or transform as a parameter
