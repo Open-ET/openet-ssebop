@@ -535,8 +535,8 @@ class Image:
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
             warnings.warn(
-                "Support for the DAYMET_MEDIAN_V0 dt_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the DAYMET_MEDIAN_V0 dt_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -545,8 +545,8 @@ class Image:
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
             warnings.warn(
-                "Support for the DAYMET_MEDIAN_V1 dt_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the DAYMET_MEDIAN_V1 dt_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -555,8 +555,8 @@ class Image:
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET_MEDIAN_V2':
             warnings.warn(
-                "Support for the DAYMET_MEDIAN_V2 dt_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the DAYMET_MEDIAN_V2 dt_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -564,6 +564,12 @@ class Image:
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'CIMIS':
+            warnings.warn(
+                'Support for the CIMIS dt_source keyword is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             # CGM - Should we check this here or catch the exception in elev()
             # if self._elev_source is None:
             #     raise Exception('elev_source must be set if dt_source="CIMIS"')
@@ -588,6 +594,12 @@ class Image:
             )
             dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'DAYMET':
+            warnings.warn(
+                'Support for the DAYMET dt_source keyword is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             input_img = ee.Image(
                 ee.ImageCollection('NASA/ORNL/DAYMET_V3')
                 .filterDate(self._start_date, self._end_date)
@@ -607,6 +619,12 @@ class Image:
             )
             dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         elif self._dt_source.upper() == 'GRIDMET':
+            warnings.warn(
+                'Support for the GRIDMET dt_source keyword is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             input_img = ee.Image(
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')
                 .filterDate(self._start_date, self._end_date)
@@ -631,11 +649,10 @@ class Image:
             )
             dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         else:
-            raise ValueError('Invalid dt_source: {}\n'.format(self._dt_source))
+            raise ValueError(f'Invalid dt_source: {self._dt_source}\n')
 
         # # MF: moved this resample to happen at the et_fraction function
-        # if (self._dt_resample and
-        #         self._dt_resample.lower() in ['bilinear', 'bicubic']):
+        # if self._dt_resample and self._dt_resample.lower() in ['bilinear', 'bicubic']:
         #     dt_img = dt_img.resample(self._dt_resample)
         # # TODO: A reproject call may be needed here also
         # # dt_img = dt_img.reproject(self.crs, self.transform)
@@ -720,12 +737,23 @@ class Image:
         elif (utils.is_number(self._tmax_source) and
               (self._tcorr_source.upper() in ['DYNAMIC', 'SCENE_GRIDDED'] or
                'SCENE' in self._tcorr_source.upper())):
+            warnings.warn(
+                'Support for the DYNAMIC and SCENE_GRIDDED tcorr_source keywords is deprecated '
+                'and will be removed in a future version',
+                DeprecationWarning, stacklevel=2
+            )
             raise ValueError(
                 '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
                     self._tcorr_source, self._tmax_source))
 
         # Set Tcorr folder and collections based on the Tmax source (if needed)
         if 'SCENE_GRIDDED' == self._tcorr_source.upper():
+            warnings.warn(
+                'Support for the SCENE_GRIDDED tcorr_source keyword is deprecated '
+                'and will be removed in a future version',
+                DeprecationWarning, stacklevel=2
+            )
+
             # Check that there is a tcorr_gridded collection corresponding to the tmax
             # TODO: We should probably also check if the Landsat Collection numbers
             #   match but this is probably good enough for now
@@ -757,6 +785,12 @@ class Image:
 
         elif ('DYNAMIC' == self._tcorr_source.upper() or
               self._tcorr_source.upper().startswith('SCENE')):
+            warnings.warn(
+                'Support for the DYNAMIC and SCENE tcorr_source keywords is deprecated '
+                'and will be removed in a future version',
+                DeprecationWarning, stacklevel=2
+            )
+
             # Use the precomputed scene monthly/annual climatologies if Tcorr
             #   can't be computed dynamically.
             scene_dict = {
@@ -811,8 +845,8 @@ class Image:
         # if self._tcorr_source.startswith('projects/'):
         if re.match('projects/.+/tcorr_gridded/.+', self._tcorr_source):
             warnings.warn(
-                "Support for reading precomputed tcorr_gridded images is deprecated "
-                "and will be removed in a future version",
+                'Support for reading precomputed tcorr_gridded images is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -838,10 +872,11 @@ class Image:
             #     .filterMetadata('scene_id', 'equals', scene_id)
             #     .filterMetadata('date', 'equals', self._date)
             return ee.Image(scene_coll.first())
+
         elif 'GRIDDED' == self._tcorr_source.upper():
             warnings.warn(
-                "Support for the GRIDDED tcorr_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the GRIDDED tcorr_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -862,8 +897,8 @@ class Image:
 
         elif 'GRIDDED_COLD' == self._tcorr_source.upper():
             warnings.warn(
-                "Support for the GRIDDED_COLD tcorr_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the GRIDDED_COLD tcorr_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -888,11 +923,9 @@ class Image:
             return tcorr_img.rename(['tcorr'])
 
         elif 'DYNAMIC' == self._tcorr_source.upper():
-            # CGM - Should this one be deprecated also?
-            #   It relies on the monthly/annual fallback colletions which may not exist
             warnings.warn(
-                "Support for the DYNAIC tcorr_source keywords is deprecated "
-                "and will be removed in a future version",
+                'Support for the DYNAMIC tcorr_source keywords is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -935,8 +968,8 @@ class Image:
 
         elif 'SCENE_GRIDDED' == self._tcorr_source.upper():
             warnings.warn(
-                "Support for the SCENE_GRIDDED tcorr_source keyword is deprecated "
-                "and will be removed in a future version",
+                'Support for the SCENE_GRIDDED tcorr_source keyword is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -953,8 +986,8 @@ class Image:
 
         elif self._tcorr_source.upper().startswith('SCENE'):
             warnings.warn(
-                "All support for the SCENE* tcorr_source keywords is deprecated "
-                "and will be removed in a future version",
+                'Support for the SCENE* tcorr_source keywords is deprecated '
+                'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
@@ -1010,27 +1043,34 @@ class Image:
         """
         if utils.is_number(self._tmax_source):
             # Allow Tmax source to be set as a number for testing
-            tmax_image = ee.Image.constant(float(self._tmax_source))\
-                .rename(['tmax'])\
+            tmax_image = ee.Image.constant(float(self._tmax_source)).rename(['tmax'])\
                 .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
-        elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?',
-                      self._tmax_source):
+        elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?', self._tmax_source):
             # Process Tmax source as a collection ID
-            # The new Tmax collections do not have a time_start so filter using
-            #   the "doy" property instead
+            # The Tmax collections do not have a time_start so filter using the "doy" property instead
             tmax_coll = ee.ImageCollection(self._tmax_source)\
                 .filterMetadata('doy', 'equals', self._doy)
             #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
-            tmax_image = ee.Image(tmax_coll.first())\
-                .set({'tmax_source': self._tmax_source})
+            tmax_image = ee.Image(tmax_coll.first()).set({'tmax_source': self._tmax_source})
         elif '_MEDIAN_' in self._tmax_source:
+            warnings.warn(
+                'Support for the "_MEDIAN_" tmax_source keywords is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             # Process the existing keyword median sources
             doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
-            tmax_coll = ee.ImageCollection(
-                PROJECT_FOLDER + '/tmax/' + self._tmax_source.lower())
+            tmax_coll = ee.ImageCollection(PROJECT_FOLDER + '/tmax/' + self._tmax_source.lower())
             tmax_image = ee.Image(tmax_coll.filter(doy_filter).first())\
                 .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() in ['DAYMET_V3', 'DAYMET_V4']:
+            warnings.warn(
+                'Support for the "DAYMET_V*" tmax_source keywords is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             # DAYMET does not include Dec 31st on leap years
             # Adding one extra date to end date to avoid errors here
             # This image be slightly different than the median collection for
@@ -1041,6 +1081,12 @@ class Image:
             tmax_image = ee.Image(tmax_coll.first())\
                 .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() == 'CIMIS':
+            warnings.warn(
+                'Support for the CIMIS tmax_source keywords is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             tmax_coll_id = 'projects/earthengine-legacy/assets/'\
                            'projects/climate-engine/cimis/daily'
             tmax_coll = ee.ImageCollection(tmax_coll_id)\
@@ -1049,6 +1095,12 @@ class Image:
             tmax_image = ee.Image(tmax_coll.first())\
                 .set({'tmax_source': self._tmax_source})
         elif self._tmax_source.upper() == 'GRIDMET':
+            warnings.warn(
+                'Support for the GRIDMET tmax_source keywords is deprecated '
+                'and will be removed in a future version',
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
+            )
             tmax_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
                 .filterDate(self._start_date, self._end_date)\
                 .select(['tmmx'], ['tmax'])
@@ -1063,8 +1115,7 @@ class Image:
         else:
             raise ValueError(f'Unsupported tmax_source: {self._tmax_source}\n')
 
-        if (self._tmax_resample and
-                self._tmax_resample.lower() in ['bilinear', 'bicubic']):
+        if self._tmax_resample and (self._tmax_resample.lower() in ['bilinear', 'bicubic']):
             tmax_image = tmax_image.resample(self._tmax_resample)
         # TODO: A reproject call may be needed here also
         # tmax_image = tmax_image.reproject(self.crs, self.transform)
@@ -1137,6 +1188,12 @@ class Image:
         Image
 
         """
+        warnings.warn(
+            'from_landsat_c1_toa method is deprecated and will be removed in a future version',
+            FutureWarning
+            # DeprecationWarning, stacklevel=2
+        )
+
         toa_image = ee.Image(toa_image)
 
         # Use the SPACECRAFT_ID property identify each Landsat type
