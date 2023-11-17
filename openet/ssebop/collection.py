@@ -417,6 +417,13 @@ class Collection:
                 variable_coll = variable_coll.merge(input_coll)
 
             elif coll_id in self._landsat_c1_sr_collections:
+                warnings.warn(
+                    'Support for Landsat C01 SR image collections (LANDSAT/LXXX/C01/T1_SR) '
+                    'is deprecated and will be removed in a future version',
+                    FutureWarning
+                    # DeprecationWarning, stacklevel=2
+                )
+
                 input_coll = (
                     ee.ImageCollection(coll_id)
                     .filterDate(start_date, end_date)

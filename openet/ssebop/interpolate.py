@@ -194,7 +194,7 @@ def from_scene_et_fraction(
                 return ee.Image(doy_coll.first())\
                     .set({'system:index': input_img.get('system:index'),
                           'system:time_start': input_img.get('system:time_start')})
-            # Note, the collection and band that are used are important as
+            # Note, the collection and band that are used are not important as
             #   long as they are daily and available for the time period
             daily_et_ref_coll = (
                 ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')
@@ -204,9 +204,11 @@ def from_scene_et_fraction(
             )
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
-    #     daily_et_reference_coll = ee.ImageCollection(et_reference_source)\
-    #         .filterDate(start_date, end_date) \
+    #     daily_et_reference_coll = (
+    #         ee.ImageCollection(et_reference_source)
+    #         .filterDate(start_date, end_date)
     #         .select([et_reference_band])
+    #     )
     else:
         raise ValueError(f'unsupported et_reference_source: {et_reference_source}')
 
@@ -331,12 +333,14 @@ def from_scene_et_fraction(
             )
             image_list.append(count_img)
 
-        return ee.Image(image_list) \
+        return (
+            ee.Image(image_list)
             .set({
                 'system:index': ee.Date(agg_start_date).format(date_format),
                 'system:time_start': ee.Date(agg_start_date).millis(),
             })
-        #     .set(interp_properties) \
+        )
+        #     .set(interp_properties)
 
     # Combine input, interpolated, and derived values
     if t_interval.lower() == 'daily':

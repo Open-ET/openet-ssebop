@@ -1269,6 +1269,12 @@ class Image:
         Image
 
         """
+        warnings.warn(
+            'from_landsat_c1_sr method is deprecated and will be removed in a future version',
+            FutureWarning
+            # DeprecationWarning, stacklevel=2
+        )
+
         sr_image = ee.Image(sr_image)
 
         # Use the SATELLITE property identify each Landsat type
@@ -1357,11 +1363,13 @@ class Image:
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
                         'tir', 'QA_PIXEL', 'QA_RADSAT']
 
-        prep_image = sr_image\
-            .select(input_bands.get(spacecraft_id), output_bands)\
+        prep_image = (
+            sr_image
+            .select(input_bands.get(spacecraft_id), output_bands)
             .multiply([0.0000275, 0.0000275, 0.0000275, 0.0000275,
-                       0.0000275, 0.0000275, 0.00341802, 1, 1])\
+                       0.0000275, 0.0000275, 0.00341802, 1, 1])
             .add([-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0])
+        )
 
         # Default the cloudmask flags to True if they were not
         # Eventually these will probably all default to True in openet.core
@@ -1401,12 +1409,14 @@ class Image:
         ])
 
         # Apply the cloud mask and add properties
-        input_image = input_image\
-            .updateMask(cloud_mask)\
+        input_image = (
+            input_image
+            .updateMask(cloud_mask)
             .set({'system:index': sr_image.get('system:index'),
                   'system:time_start': sr_image.get('system:time_start'),
                   'system:id': sr_image.get('system:id'),
             })
+        )
 
         # Instantiate the class
         return cls(input_image, reflectance_type='SR', **kwargs)
