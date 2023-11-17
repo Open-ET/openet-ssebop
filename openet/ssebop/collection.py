@@ -1,6 +1,7 @@
 import copy
 import datetime
 # import pprint
+import warnings
 
 from dateutil.relativedelta import relativedelta
 import ee
@@ -293,7 +294,7 @@ class Collection:
                 #     .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
 
                 # TODO: Move this to a separate function (maybe in utils.py?)
-                #   since  it is identical for all the supported collections
+                #   since it is identical for all the supported collections
                 if (self.filter_args is None or
                         not isinstance(self.filter_args, dict) or
                         coll_id not in self.filter_args.keys()):
@@ -348,6 +349,13 @@ class Collection:
                 variable_coll = variable_coll.merge(input_coll)
 
             elif coll_id in self._landsat_c1_toa_collections:
+                warnings.warn(
+                    'Support for Landsat C01 TOA image collections (LANDSAT/LXXX/C01/T1_TOA) '
+                    'is deprecated and will be removed in a future version',
+                    FutureWarning
+                    # DeprecationWarning, stacklevel=2
+                )
+
                 input_coll = (
                     ee.ImageCollection(coll_id)
                     .filterDate(start_date, end_date)
@@ -409,6 +417,13 @@ class Collection:
                 variable_coll = variable_coll.merge(input_coll)
 
             elif coll_id in self._landsat_c1_sr_collections:
+                warnings.warn(
+                    'Support for Landsat C01 SR image collections (LANDSAT/LXXX/C01/T1_SR) '
+                    'is deprecated and will be removed in a future version',
+                    FutureWarning
+                    # DeprecationWarning, stacklevel=2
+                )
+
                 input_coll = (
                     ee.ImageCollection(coll_id)
                     .filterDate(start_date, end_date)
@@ -418,7 +433,7 @@ class Collection:
                 )
 
                 # TODO: Move this to a separate function (maybe in utils.py?)
-                #   since  it is identical for all the supported collections
+                #   since it is identical for all the supported collections
                 if (self.filter_args is None or
                         not isinstance(self.filter_args, dict) or
                         coll_id not in self.filter_args.keys()):
@@ -624,7 +639,6 @@ class Collection:
         #     self.model_args['et_reference_date_type'] = kwargs['et_reference_date_type']
 
         # Check that all reference ET parameters were set
-        # print(self.model_args)
         for et_reference_param in ['et_reference_source', 'et_reference_band',
                                    'et_reference_factor']:
             if et_reference_param not in self.model_args.keys():
