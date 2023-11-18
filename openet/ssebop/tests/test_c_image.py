@@ -80,6 +80,7 @@ def default_image_args(lst=305, ndvi=0.85,
                        elev_source=67,
                        elr_flag=False,
                        et_fraction_type='alfalfa',
+                       et_fraction_grass_source=None,
                        reflectance_type='SR',
                        dt_resample='nearest',
                        tmax_resample='nearest',
@@ -98,6 +99,7 @@ def default_image_args(lst=305, ndvi=0.85,
         'elev_source': elev_source,
         'elr_flag': elr_flag,
         'et_fraction_type': et_fraction_type,
+        'et_fraction_grass_source': et_fraction_grass_source,
         'reflectance_type': reflectance_type,
         'dt_resample': dt_resample,
         'tmax_resample': tmax_resample,
@@ -118,6 +120,7 @@ def default_image_obj(lst=305, ndvi=0.85,
                       elev_source=67,
                       elr_flag=False,
                       et_fraction_type='alfalfa',
+                      et_fraction_grass_source=None,
                       reflectance_type='SR',
                       dt_resample='nearest',
                       tmax_resample='nearest',
@@ -136,6 +139,7 @@ def default_image_obj(lst=305, ndvi=0.85,
         elev_source=elev_source,
         elr_flag=elr_flag,
         et_fraction_type=et_fraction_type,
+        et_fraction_grass_source=et_fraction_grass_source,
         reflectance_type=reflectance_type,
         dt_resample=dt_resample,
         tmax_resample=tmax_resample,
@@ -157,6 +161,8 @@ def test_Image_init_default_parameters():
     assert m._dt_max == 25
     assert m._elev_source is None
     assert m._elr_flag is False
+    assert m.et_fraction_type == 'alfalfa'
+    assert m.et_fraction_grass_source is None
     assert m.reflectance_type == 'SR'
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
@@ -625,14 +631,15 @@ def test_Image_from_landsat_c2_sr_scaling():
     """Test if Landsat SR images images are being scaled"""
     sr_img = ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
     # CGM - These reflectances should correspond to 0.1 for RED and 0.2 for NIR
-    input_img = ee.Image.constant([10909, 10909, 10909, 14545, 10909, 10909,
-                                   44177.6, 21824, 0]) \
+    input_img = (
+        ee.Image.constant([10909, 10909, 10909, 14545, 10909, 10909, 44177.6, 21824, 0])
         .rename(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                 'ST_B10', 'QA_PIXEL', 'QA_RADSAT']) \
+                 'ST_B10', 'QA_PIXEL', 'QA_RADSAT'])
         .set({'SPACECRAFT_ID': ee.String(sr_img.get('SPACECRAFT_ID')),
               'system:id': ee.String(sr_img.get('system:id')),
               'system:index': ee.String(sr_img.get('system:index')),
               'system:time_start': ee.Number(sr_img.get('system:time_start'))})
+    )
 
     output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(input_img).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
@@ -700,8 +707,7 @@ def test_Image_from_method_kwargs():
 
 
 # CGM - Test tcorr_image since it is called by tcorr_stats
-def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804,
-                                  tol=0.0001):
+def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804, tol=0.0001):
     output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
     output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
@@ -1500,27 +1506,47 @@ def test_Image_from_landsat_c2_sr_et_fraction():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
+def test_Image_et_fraction_type_grass_source_not_set():
+    """Raise an exception if fraction type is grass but source is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(et_fraction_type='grass').et_fraction)
+
+
+def test_Image_et_fraction_type_grass_source_empty():
+    """Raise an exception if fraction type is grass but source is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(
+            et_fraction_type='grass', et_fraction_grass_source='').et_fraction)
+
+
+# CGM - Checking if the source is "supported" is currently handled in the model.py function
+# def test_Image_et_fraction_type_grass_source_exception():
+#     """Raise an exception if fraction type is grass but source is not supported"""
+#     with pytest.raises(ValueError):
+#         utils.getinfo(default_image_obj(
+#             et_fraction_type='grass', et_fraction_grass_source='deadbeef').et_fraction)
+
+
 @pytest.mark.parametrize(
-    'et_fraction_type, expected',
+    'et_fraction_type, etf_grass_source, expected',
     [
-        # ['alfalfa', 0.88],
-        ['grass', 0.88 * 1.24],
-        # ['Grass', 0.88 * 0.5],
+        ['alfalfa', None, 0.88],
+        ['grass', 'NASA/NLDAS/FORA0125_H002', 0.88 * 1.24],
+        # Check that mixed case fraction types are supported
+        ['Grass', 'NASA/NLDAS/FORA0125_H002', 0.88 * 1.24],
+        # Check that number sources are supported
+        ['grass', 1.24, 0.88 * 1.24],
+        # Currently checking all other supported sources in model.py test
+        # ['grass', 'ECMWF/ERA5_LAND/HOURLY', 0.88 * 1.15],
     ]
 )
-def test_Image_et_fraction_type(et_fraction_type, expected, tol=0.0001):
+def test_Image_et_fraction_type(et_fraction_type, etf_grass_source, expected, tol=0.01):
     output_img = default_image_obj(
-        dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310,
-        et_fraction_type=et_fraction_type).et_fraction
+        dt_source=10, elev_source=50, tcorr_source=0.98, tmax_source=310,
+        et_fraction_type=et_fraction_type,
+        et_fraction_grass_source=etf_grass_source).et_fraction
     output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
     assert abs(output['et_fraction'] - expected) <= tol
-    # assert output['bands'][0]['id'] == 'et_fraction'
-
-
-def test_Image_et_fraction_type_exception():
-    with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(et_fraction_type='deadbeef').et_fraction)
 
 
 def test_Image_et_reference_properties():

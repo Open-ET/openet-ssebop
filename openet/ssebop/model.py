@@ -2,6 +2,8 @@ import math
 
 import ee
 
+import openet.refetgee
+
 
 def et_fraction(lst, tmax, tcorr, dt):
     """SSEBop fraction of reference ET (ETf)
@@ -31,17 +33,12 @@ def et_fraction(lst, tmax, tcorr, dt):
 
     """
 
-    et_fraction = lst.expression(
+    etf = lst.expression(
         '(lst * (-1) + tmax * tcorr + dt) / dt',
         {'tmax': tmax, 'dt': dt, 'lst': lst, 'tcorr': tcorr}
     )
 
-    return (
-        et_fraction
-        .updateMask(et_fraction.lte(2.0))
-        .clamp(0, 1.0)
-        .rename(['et_fraction'])
-    )
+    return etf.updateMask(etf.lte(2.0)).clamp(0, 1.0).rename(['et_fraction'])
 
 
 def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
@@ -147,9 +144,7 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
     den = tmax.add(tmin).multiply(0.5).pow(-1).multiply(pair).multiply(3.486 / 1.01)
 
     # Temperature difference [K] (Senay2018 A.5)
-    dt = rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
-
-    return dt
+    return rn.divide(den).multiply(110.0 / ((1.013 / 1000) * 86400))
 
 
 def lapse_adjust(temperature, elev, lapse_threshold=1500):
@@ -191,7 +186,7 @@ def elr_adjust(temperature, elevation, radius=80):
 
     Returns
     -------
-    ee.Image of adjusted temperature
+    ee.Image
 
     Notes
     -----
@@ -233,3 +228,79 @@ def elr_adjust(temperature, elevation, radius=80):
     tmax_img = tmax_img.where(elr_mask, elr_adjust)
 
     return tmax_img
+
+
+# TODO: Decide if using the instantaneous is the right/best approach
+#   We could use the closest hour in time, an average of a few hours
+#   or just switch to using the raw daily or bias corrected assets
+def etf_grass_type_adjust(etf, src_coll_id, time_start):
+    """"Convert ET fraction from an alfalfa reference to grass reference
+
+    Parameters
+    ----------
+    etf : ee.Image
+        ET fraction (alfalfa reference).
+    src_coll_id : str
+        Hourly meteorology collection ID for computing reference ET.
+    time_start : int, ee.Number
+        Image system time start [millis].
+
+    Returns
+    -------
+    ee.Image
+
+    """
+    hourly_et_reference_sources = [
+        'NASA/NLDAS/FORA0125_H002',
+        'ECMWF/ERA5_LAND/HOURLY',
+    ]
+    if src_coll_id not in hourly_et_reference_sources:
+        raise ValueError(f'unsupported hourly ET reference source: {src_coll_id}')
+    elif not src_coll_id:
+        raise ValueError('hourly ET reference source not')
+    else:
+        src_coll = ee.ImageCollection(src_coll_id)
+
+    # Interpolating hourly NLDAS to the Landsat scene time
+    # CGM - The 2 hour window is useful in case an image is missing
+    #   I think EEMETRIC is using a 4 hour window
+    # CGM - Need to check if the NLDAS images are instantaneous
+    #   or some sort of average of the previous or next hour
+    time_start = ee.Number(time_start)
+    prev_img = ee.Image(
+        src_coll
+        .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
+        .limit(1, 'system:time_start', False)
+        .first()
+    )
+    next_img = ee.Image(
+        src_coll.filterDate(time_start, time_start.add(2 * 60 * 60 * 1000)).first()
+    )
+    prev_time = ee.Number(prev_img.get('system:time_start'))
+    next_time = ee.Number(next_img.get('system:time_start'))
+    time_ratio = time_start.subtract(prev_time).divide(next_time.subtract(prev_time))
+    interp_img = (
+        next_img.subtract(prev_img).multiply(time_ratio).add(prev_img)
+        .set({'system:time_start': time_start})
+    )
+
+    # # DEADBEEF - Select the NLDAS image before the Landsat scene time
+    # interp_img = ee.Image(
+    #     hourly_coll.filterDate(self._date.advance(-1, 'hour'), self._date).first()
+    # )
+
+    if src_coll_id.upper() == 'NASA/NLDAS/FORA0125_H002':
+        etf_grass = (
+            etf
+            .multiply(openet.refetgee.Hourly.nldas(interp_img).etr)
+            .divide(openet.refetgee.Hourly.nldas(interp_img).eto)
+        )
+    elif src_coll_id.upper() == 'ECMWF/ERA5_LAND/HOURLY':
+        etf_grass = (
+            etf
+            .multiply(openet.refetgee.Hourly.era5_land(interp_img).etr)
+            .divide(openet.refetgee.Hourly.era5_land(interp_img).eto)
+        )
+    # else:
+
+    return etf_grass
