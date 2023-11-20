@@ -86,7 +86,7 @@ class Image:
                        'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1',
                        collection ID, or float}, optional
             Maximum air temperature source.  The default is
-            'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'.
+            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
         elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
