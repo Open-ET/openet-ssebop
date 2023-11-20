@@ -67,25 +67,26 @@ def default_image(lst=305, ndvi=0.8, qa_water=0):
 
 # Setting et_reference_source and et_reference_band on the default image to
 #   simplify testing but these do not have defaults in the Image class init
-def default_image_args(lst=305, ndvi=0.85,
-                       # et_reference_source='IDAHO_EPSCOR/GRIDMET',
-                       et_reference_source=9.5730,
-                       et_reference_band='etr',
-                       et_reference_factor=1,
-                       et_reference_resample='nearest',
-                       et_reference_date_type=None,
-                       dt_source=18,
-                       tcorr_source=0.9744,
-                       tmax_source=310.15,
-                       elev_source=67,
-                       elr_flag=False,
-                       et_fraction_type='alfalfa',
-                       et_fraction_grass_source=None,
-                       reflectance_type='SR',
-                       dt_resample='nearest',
-                       tmax_resample='nearest',
-                       tcorr_resample='nearest',
-                       ):
+def default_image_args(
+        lst=305, ndvi=0.85,
+        # et_reference_source='IDAHO_EPSCOR/GRIDMET',
+        et_reference_source=9.5730,
+        et_reference_band='etr',
+        et_reference_factor=1,
+        et_reference_resample='nearest',
+        et_reference_date_type=None,
+        dt_source=18,
+        tcorr_source=0.9744,
+        tmax_source=310.15,
+        elev_source=67,
+        elr_flag=False,
+        et_fraction_type='alfalfa',
+        et_fraction_grass_source=None,
+        reflectance_type='SR',
+        dt_resample='nearest',
+        tmax_resample='nearest',
+        tcorr_resample='nearest',
+        ):
     return {
         'image': default_image(lst=lst, ndvi=ndvi),
         'et_reference_source': et_reference_source,
@@ -107,25 +108,26 @@ def default_image_args(lst=305, ndvi=0.85,
     }
 
 
-def default_image_obj(lst=305, ndvi=0.85,
-                      # et_reference_source='IDAHO_EPSCOR/GRIDMET',
-                      et_reference_source=9.5730,
-                      et_reference_band='etr',
-                      et_reference_factor=1,
-                      et_reference_resample='nearest',
-                      et_reference_date_type=None,
-                      dt_source=18,
-                      tcorr_source=0.9744,
-                      tmax_source=310.15,
-                      elev_source=67,
-                      elr_flag=False,
-                      et_fraction_type='alfalfa',
-                      et_fraction_grass_source=None,
-                      reflectance_type='SR',
-                      dt_resample='nearest',
-                      tmax_resample='nearest',
-                      tcorr_resample='nearest',
-                      ):
+def default_image_obj(
+        lst=305, ndvi=0.85,
+        # et_reference_source='IDAHO_EPSCOR/GRIDMET',
+        et_reference_source=9.5730,
+        et_reference_band='etr',
+        et_reference_factor=1,
+        et_reference_resample='nearest',
+        et_reference_date_type=None,
+        dt_source=18,
+        tcorr_source=0.9744,
+        tmax_source=310.15,
+        elev_source=67,
+        elr_flag=False,
+        et_fraction_type='alfalfa',
+        et_fraction_grass_source=None,
+        reflectance_type='SR',
+        dt_resample='nearest',
+        tmax_resample='nearest',
+        tcorr_resample='nearest',
+        ):
     return ssebop.Image(**default_image_args(
         lst=lst, ndvi=ndvi,
         et_reference_source=et_reference_source,
@@ -1506,20 +1508,25 @@ def test_Image_from_landsat_c2_sr_et_fraction():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-def test_Image_et_fraction_type_grass_source_not_set():
-    """Raise an exception if fraction type is grass but source is not set"""
-    with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(et_fraction_type='grass').et_fraction)
+# # Testing for the source not being set will be needed in a future version
+# #   when NLDAS is not set as the default source
+# def test_Image_et_fraction_type_grass_source_not_set():
+#     """Raise an exception if fraction type is grass but source is not set"""
+#     with pytest.raises(ValueError):
+#         utils.getinfo(default_image_obj(et_fraction_type='grass').et_fraction)
+#
+#
+# # Testing for the source not being set will be needed in a future version
+# #   when NLDAS is not set as the default source
+# def test_Image_et_fraction_type_grass_source_empty():
+#     """Raise an exception if fraction type is grass but source is not set"""
+#     with pytest.raises(ValueError):
+#         utils.getinfo(default_image_obj(
+#             et_fraction_type='grass', et_fraction_grass_source='').et_fraction)
 
 
-def test_Image_et_fraction_type_grass_source_empty():
-    """Raise an exception if fraction type is grass but source is not set"""
-    with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(
-            et_fraction_type='grass', et_fraction_grass_source='').et_fraction)
-
-
-# CGM - Checking if the source is "supported" is currently handled in the model.py function
+# # Checking if the source is "supported" is currently handled in the model.py function
+# #   and is probably redundant here, but leaving commented out code for now
 # def test_Image_et_fraction_type_grass_source_exception():
 #     """Raise an exception if fraction type is grass but source is not supported"""
 #     with pytest.raises(ValueError):

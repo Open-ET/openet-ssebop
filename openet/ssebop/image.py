@@ -101,6 +101,8 @@ class Image:
                                     'ECMWF/ERA5_LAND/HOURLY'}, float, optional
             Reference ET source for alfalfa to grass reference adjustment.
             Parameter must be set if et_fraction_type is 'grass'.
+            The default is currently the NLDAS hourly collection,
+            but having a default will likely be removed in a future version.
         reflectance_type : {'SR', 'TOA'}, optional
             Used to set the Tcorr NDVI thresholds (the default is 'SR').
         kwargs : dict, optional
@@ -204,12 +206,21 @@ class Image:
         self.et_fraction_type = et_fraction_type.lower()
 
         # ET fraction alfalfa to grass reference adjustment
+        # The NLDAS hourly collection will be used if a source value is not set
         if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
-            raise ValueError(
-                'et_fraction_grass_source parameter must be set if et_fraction_type==\'grass\''
+            warnings.warn(
+                'NLDAS is being set as the default ET fraction grass adjustment source.  '
+                'In a future version the parameter will need to be set explicitly as: '
+                'et_fraction_grass_source="NASA/NLDAS/FORA0125_H002".',
+                FutureWarning
             )
+            et_fraction_grass_source = 'NASA/NLDAS/FORA0125_H002'
         self.et_fraction_grass_source = et_fraction_grass_source
-        # CGM - Should the supported source values be checked here instead of in model.py?
+        # if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
+        #     raise ValueError(
+        #         'et_fraction_grass_source parameter must be set if et_fraction_type==\'grass\''
+        #     )
+        # # Should the supported source values be checked here instead of in model.py?
         # if et_fraction_grass_source not in et_fraction_grass_sources:
         #     raise ValueError('unsupported et_fraction_grass_source')
 
