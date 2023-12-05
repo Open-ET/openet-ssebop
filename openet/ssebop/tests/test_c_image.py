@@ -498,101 +498,6 @@ def test_Image_tmax_properties(tmax_source, expected):
 # CGM - Test the from_landsat and from_image methods before testing the
 #   rest of Image class methods.
 # We might want to add a better test for the ndvi method.
-def test_Image_from_landsat_c1_toa_default_image():
-    """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_toa(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
-    assert type(output) == type(default_image_obj())
-
-
-@pytest.mark.parametrize(
-    'image_id',
-    [
-        'LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716',
-        'LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708',
-        'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-        'LANDSAT/LE07/C01/T1_RT_TOA/LE07_044033_20170708',
-        'LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716',
-    ]
-)
-def test_Image_from_landsat_c1_toa_image_id(image_id):
-    """Test instantiating the class from a Landsat TOA image ID"""
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).ndvi)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_toa_image():
-    """Test instantiating the class from a Landsat TOA ee.Image"""
-    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(ee.Image(image_id)).ndvi)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_toa_exception():
-    with pytest.raises(Exception):
-        # Intentionally using .getInfo()
-        ssebop.Image.from_landsat_c1_toa(ee.Image('FOO')).ndvi.getInfo()
-
-
-def test_Image_from_landsat_c1_toa_reflectance_type():
-    """Test if reflectance_type property is being set"""
-    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    assert ssebop.Image.from_landsat_c1_toa(image_id).reflectance_type.upper() == 'TOA'
-
-
-def test_Image_from_landsat_c1_sr_default_image():
-    """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c1_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
-    assert type(output) == type(default_image_obj())
-
-
-@pytest.mark.parametrize(
-    'image_id',
-    [
-        'LANDSAT/LT05/C01/T1_SR/LT05_044033_20110716',
-        'LANDSAT/LE07/C01/T1_SR/LE07_044033_20170708',
-        'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
-    ]
-)
-def test_Image_from_landsat_c1_sr_image_id(image_id):
-    """Test instantiating the class from a Landsat SR image ID"""
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).ndvi)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_sr_image():
-    """Test instantiating the class from a Landsat SR ee.Image"""
-    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(ee.Image(image_id)).ndvi)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_sr_exception():
-    """Test instantiating the class for an invalid image ID"""
-    with pytest.raises(Exception):
-        # Intentionally using .getInfo()
-        ssebop.Image.from_landsat_c1_sr(ee.Image('FOO')).ndvi.getInfo()
-
-
-def test_Image_from_landsat_c1_sr_reflectance_type():
-    """Test if reflectance_type property is being set"""
-    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    assert ssebop.Image.from_landsat_c1_sr(image_id).reflectance_type.upper() == 'SR'
-
-
-def test_Image_from_landsat_c1_sr_scaling():
-    """Test if Landsat SR images images are being scaled"""
-    sr_img = ee.Image('LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
-    input_img = ee.Image.constant([100, 100, 100, 100, 100, 100, 3000.0, 322])\
-        .rename(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'])\
-        .set({'SATELLITE': ee.String(sr_img.get('SATELLITE')),
-              'system:id': ee.String(sr_img.get('system:id')),
-              'system:index': ee.String(sr_img.get('system:index')),
-              'system:time_start': ee.Number(sr_img.get('system:time_start'))})
-    output = utils.constant_image_value(ssebop.Image.from_landsat_c1_sr(input_img).lst)
-    # Won't be exact because of emissivity correction
-    assert abs(output['lst'] - 300) <= 10
-
-
 def test_Image_from_landsat_c2_sr_default_image():
     """Test that the classmethod is returning a class object"""
     output = ssebop.Image.from_landsat_c2_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
@@ -683,8 +588,6 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
 @pytest.mark.parametrize(
     'image_id',
     [
-        'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716',
-        'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716',
         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
     ]
 )
@@ -697,12 +600,6 @@ def test_Image_from_image_id(image_id):
 
 def test_Image_from_method_kwargs():
     """Test that the init parameters can be passed through the helper methods"""
-    assert ssebop.Image.from_landsat_c1_toa(
-        'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-        elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
-    assert ssebop.Image.from_landsat_c1_sr(
-        'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
-        elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
     assert ssebop.Image.from_landsat_c2_sr(
         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
         elev_source='DEADBEEF')._elev_source == 'DEADBEEF'
@@ -795,25 +692,26 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # DAYMET_MEDIAN_V2
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9730285325301501, 'tcorr_count': 152720}],
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9856133291233087, 'tcorr_count': 457876}],
-        ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9798477638345092, 'tcorr_count': 21852}],
-        ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-         {'tcorr_value': 0.9520737089446781, 'tcorr_count': 872}],
-        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-        #  {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
-
-        # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9730285325301499, 'tcorr_count': 152720}],
-        ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9734596075858268, 'tcorr_count': 222111}],
+        # DEADBEEF
+        # # DAYMET_MEDIAN_V2
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9730285325301501, 'tcorr_count': 152720}],
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9856133291233087, 'tcorr_count': 457876}],
+        # ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9798477638345092, 'tcorr_count': 21852}],
+        # ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
+        #  {'tcorr_value': 0.9520737089446781, 'tcorr_count': 872}],
+        # # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
+        # #  {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
+        #
+        # # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
+        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  {'tcorr_value': 0.9730285325301499, 'tcorr_count': 152720}],
+        # ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  {'tcorr_value': 0.9734596075858268, 'tcorr_count': 222111}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
@@ -842,8 +740,7 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
          {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}],
     ]
 )
-def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
-                                   tol=0.000001):
+def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001):
     output = utils.getinfo(ssebop.Image.from_image_id(
         image_id, tmax_source=tmax_source,
         tmax_resample='nearest').tcorr_stats)
@@ -858,13 +755,9 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected,
     'tcorr_source, tmax_source, image_id, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 0.9680818911856682],
-        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713', 0.9691267889719843],
-        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
          'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
     ]
 )
@@ -884,19 +777,20 @@ def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id,
 @pytest.mark.parametrize(
     'tcorr_source, tmax_source, image_id, expected',
     [
-        # Check the keyword source
-        ['DYNAMIC', 'DAYMET_MEDIAN_V2',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
-         [0.9798917542625591, 1]],
-        # Check that the short collection ID
-        ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         [0.9738927482041165, 0]],
-        # Check that the full collection ID
-        ['DYNAMIC',
-         'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-         [0.9738927482041165, 0]],
+        # DEADBEEF
+        # # Check the keyword source
+        # ['DYNAMIC', 'DAYMET_MEDIAN_V2',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206',
+        #  [0.9798917542625591, 1]],
+        # # Check that the short collection ID
+        # ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+        #  [0.9738927482041165, 0]],
+        # # Check that the full collection ID
+        # ['DYNAMIC',
+        #  'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  'LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
+        #  [0.9738927482041165, 0]],
         # CGM - daymet_v4 can't be used with DYNAMIC since there are no fallback collections
         # ['DYNAMIC',
         #  'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
@@ -1288,7 +1182,7 @@ def test_Image_tcorr_soruce_gridded_resample(tcorr_resample, tcorr_source, tmax_
 @pytest.mark.parametrize('tcorr_source', ['GRIDDED', 'GRIDDED_COLD'])
 def test_Image_tcorr_soruce_gridded_resample_exception(tcorr_source):
     # """Test that an exception is raised for unsupported tcorr_resample values"""
-    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_041032_20170711'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_041032_20170711'
     with pytest.raises(ValueError):
         ssebop.Image.from_image_id(
             image_id, tcorr_source=tcorr_source, tmax_source='DAYMET_MEDIAN_V2',
@@ -1487,20 +1381,6 @@ def test_Image_et_fraction_elr_param(lst, ndvi, dt, elev, tcorr, tmax, elr_flag,
 #     assert output['properties']['tcorr_index'] == 0
 
 
-def test_Image_from_landsat_c1_toa_et_fraction():
-    """Test if ETf can be built for a Landsat SR image"""
-    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(image_id).et_fraction)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_sr_et_fraction():
-    """Test if ETf can be built for a Landsat SR image"""
-    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(image_id).et_fraction)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
 def test_Image_from_landsat_c2_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
@@ -1637,24 +1517,6 @@ def test_Image_et_values(tol=0.0001):
     assert abs(output['et'] - 5.8) <= tol
 
 
-def test_Image_from_landsat_c1_toa_et():
-    """Test if ET can be built for a Landsat TOA image"""
-    image_id = 'LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_toa(
-        image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
-        et_reference_band='etr').et)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
-def test_Image_from_landsat_c1_sr_et():
-    """Test if ET can be built for a Landsat image"""
-    image_id = 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c1_sr(
-        image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
-        et_reference_band='etr').et)
-    assert output['properties']['system:index'] == image_id.split('/')[-1]
-
-
 def test_Image_from_landsat_c2_sr_et():
     """Test if ET can be built for a Landsat image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
@@ -1693,11 +1555,6 @@ def test_Image_time_properties():
 @pytest.mark.parametrize(
     'image_id, test_point, expected',
     [
-        # Collection 1 water masks are set currently set to 0 for all pixels
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', (-122.15, 38.6153), 0],
-        ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', (-122.2571, 38.6292), 0],
-        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.15, 38.6153), 0],
-        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.2571, 38.6292), 0],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.15, 38.6153), 0],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292), 1],
     ]
@@ -1767,7 +1624,6 @@ def test_Image_calculate_variables_valueerror():
 @pytest.mark.parametrize(
     'image_id, xy',
     [
-        ['LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716', (-122.2571, 38.6292)],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292)],
     ]
 )

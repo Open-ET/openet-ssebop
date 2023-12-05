@@ -23,8 +23,10 @@ def scene_coll(variables, et_fraction=0.4, et=5, ndvi=0.6):
     ee.ImageCollection
 
     """
-    img = ee.Image('LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716') \
-        .select(['B2']).double().multiply(0)
+    img = (
+        ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
+        .select(['SR_B3'], ['mask']).double().multiply(0)
+    )
     mask = img.add(1).updateMask(1).uint8()
 
     time1 = ee.Number(ee.Date.fromYMD(2017, 7, 8).millis())

@@ -1117,7 +1117,7 @@ class Image:
         ----------
         image_id : str
             An earth engine image ID.
-            (i.e. 'LANDSAT/LC08/C01/T1_SR/LC08_044033_20170716')
+            (i.e. 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
         kwargs
             Keyword arguments to pass through to model init.
 
@@ -1126,19 +1126,7 @@ class Image:
         new instance of Image class
 
         """
-        # DEADBEEF - Should the supported image collection IDs and helper
-        # function mappings be set in a property or method of the Image class?
         collection_methods = {
-            'LANDSAT/LT04/C01/T1_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LT05/C01/T1_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LE07/C01/T1_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LC08/C01/T1_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LE07/C01/T1_RT_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LC08/C01/T1_RT_TOA': 'from_landsat_c1_toa',
-            'LANDSAT/LT04/C01/T1_SR': 'from_landsat_c1_sr',
-            'LANDSAT/LT05/C01/T1_SR': 'from_landsat_c1_sr',
-            'LANDSAT/LE07/C01/T1_SR': 'from_landsat_c1_sr',
-            'LANDSAT/LC08/C01/T1_SR': 'from_landsat_c1_sr',
             'LANDSAT/LT04/C02/T1_L2': 'from_landsat_c2_sr',
             'LANDSAT/LT05/C02/T1_L2': 'from_landsat_c2_sr',
             'LANDSAT/LE07/C02/T1_L2': 'from_landsat_c2_sr',
@@ -1156,160 +1144,6 @@ class Image:
         method = getattr(Image, method_name)
 
         return method(ee.Image(image_id), **kwargs)
-
-    @classmethod
-    def from_landsat_c1_toa(cls, toa_image, cloudmask_args={}, **kwargs):
-        """Returns a SSEBop Image instance from a Landsat Collection 1 TOA image
-
-        Parameters
-        ----------
-        toa_image : ee.Image, str
-            A raw Landsat Collection 1 TOA image or image ID.
-        cloudmask_args : dict
-            keyword arguments to pass through to cloud mask function
-        kwargs : dict
-            Keyword arguments to pass through to Image init function
-
-        Returns
-        -------
-        Image
-
-        """
-        warnings.warn(
-            'from_landsat_c1_toa method is deprecated and will be removed in a future version',
-            FutureWarning
-            # DeprecationWarning, stacklevel=2
-        )
-
-        toa_image = ee.Image(toa_image)
-
-        # Use the SPACECRAFT_ID property identify each Landsat type
-        spacecraft_id = ee.String(toa_image.get('SPACECRAFT_ID'))
-
-        # Rename bands to generic names
-        # Rename thermal band "k" coefficients to generic names
-        input_bands = ee.Dictionary({
-            'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
-            'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'BQA'],
-            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6_VCID_1', 'BQA'],
-            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'BQA'],
-        })
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir', 'BQA']
-        k1 = ee.Dictionary({
-            'LANDSAT_4': 'K1_CONSTANT_BAND_6',
-            'LANDSAT_5': 'K1_CONSTANT_BAND_6',
-            'LANDSAT_7': 'K1_CONSTANT_BAND_6_VCID_1',
-            'LANDSAT_8': 'K1_CONSTANT_BAND_10',
-        })
-        k2 = ee.Dictionary({
-            'LANDSAT_4': 'K2_CONSTANT_BAND_6',
-            'LANDSAT_5': 'K2_CONSTANT_BAND_6',
-            'LANDSAT_7': 'K2_CONSTANT_BAND_6_VCID_1',
-            'LANDSAT_8': 'K2_CONSTANT_BAND_10',
-        })
-        prep_image = (
-            toa_image.select(input_bands.get(spacecraft_id), output_bands)
-            .set({
-                'k1_constant': ee.Number(toa_image.get(k1.get(spacecraft_id))),
-                'k2_constant': ee.Number(toa_image.get(k2.get(spacecraft_id))),
-            })
-        )
-
-        cloud_mask = openet.core.common.landsat_c1_toa_cloud_mask(toa_image, **cloudmask_args)
-
-        # Build the input image
-        input_image = ee.Image([
-            landsat.lst(prep_image),
-            landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image),
-            # CGM - use a blank image for the water mask for now
-            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
-        ])
-
-        # Apply the cloud mask and add properties
-        input_image = input_image\
-            .updateMask(cloud_mask)\
-            .set({
-                'system:index': toa_image.get('system:index'),
-                'system:time_start': toa_image.get('system:time_start'),
-                'system:id': toa_image.get('system:id'),
-            })
-
-        # Instantiate the class
-        return cls(input_image, reflectance_type='TOA', **kwargs)
-
-    @classmethod
-    def from_landsat_c1_sr(cls, sr_image, cloudmask_args={}, **kwargs):
-        """Returns a SSEBop Image instance from a Landsat Collection 1 SR image
-
-        Parameters
-        ----------
-        sr_image : ee.Image, str
-            A raw Landsat Collection 1 SR image or image ID.
-        cloudmask_args : dict
-            keyword arguments to pass through to cloud mask function
-        kwargs : dict
-            Keyword arguments to pass through to Image init function
-
-        Returns
-        -------
-        Image
-
-        """
-        warnings.warn(
-            'from_landsat_c1_sr method is deprecated and will be removed in a future version',
-            FutureWarning
-            # DeprecationWarning, stacklevel=2
-        )
-
-        sr_image = ee.Image(sr_image)
-
-        # Use the SATELLITE property identify each Landsat type
-        spacecraft_id = ee.String(sr_image.get('SATELLITE'))
-
-        # Rename bands to generic names
-        # Rename thermal band "k" coefficients to generic names
-        input_bands = ee.Dictionary({
-            'LANDSAT_4': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
-            'LANDSAT_5': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
-            'LANDSAT_7': ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'B6', 'pixel_qa'],
-            'LANDSAT_8': ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B10', 'pixel_qa'],
-        })
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir', 'pixel_qa']
-        # Hardcode values for now since they are not properties in the images
-        k1 = ee.Dictionary({
-            'LANDSAT_4': 607.76, 'LANDSAT_5': 607.76, 'LANDSAT_7': 666.09, 'LANDSAT_8': 774.8853
-        })
-        k2 = ee.Dictionary({
-            'LANDSAT_4': 1260.56, 'LANDSAT_5': 1260.56, 'LANDSAT_7': 1282.71, 'LANDSAT_8': 1321.0789
-        })
-        prep_image = sr_image\
-            .select(input_bands.get(spacecraft_id), output_bands)\
-            .multiply([0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.1, 1])\
-            .set({'k1_constant': ee.Number(k1.get(spacecraft_id)),
-                  'k2_constant': ee.Number(k2.get(spacecraft_id))})
-
-        cloud_mask = openet.core.common.landsat_c1_sr_cloud_mask(sr_image, **cloudmask_args)
-
-        # Build the input image
-        input_image = ee.Image([
-            landsat.lst(prep_image),
-            landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image),
-            # CGM - use a blank image for the water mask for now
-            landsat.ndvi(prep_image).multiply(0).rename(['qa_water']),
-        ])
-
-        # Apply the cloud mask and add properties
-        input_image = input_image\
-            .updateMask(cloud_mask)\
-            .set({'system:index': sr_image.get('system:index'),
-                  'system:time_start': sr_image.get('system:time_start'),
-                  'system:id': sr_image.get('system:id'),
-            })
-
-        # Instantiate the class
-        return cls(input_image, reflectance_type='SR', **kwargs)
 
     @classmethod
     def from_landsat_c2_sr(cls, sr_image, cloudmask_args={}, **kwargs):
@@ -1565,30 +1399,42 @@ class Image:
         pct_value = (1 - (water_pct / 100))
         wet_region_mask_5km = percentage_bad.lte(pct_value)
 
-        ndvi_avg_masked = ndvi\
-            .updateMask(watermask)\
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)\
+        ndvi_avg_masked = (
+            ndvi
+            .updateMask(watermask)
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
-        ndvi_avg_masked100 = ndvi\
-            .updateMask(watermask)\
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
+        )
+        ndvi_avg_masked100 = (
+            ndvi
+            .updateMask(watermask)
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, coarse_transform100)
-        ndvi_avg_unmasked = ndvi\
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)\
-            .reproject(self.crs, coarse_transform)\
-            .updateMask(1)
-        lst_avg_masked = lst\
-            .updateMask(watermask)\
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)\
+        )
+        ndvi_avg_unmasked = (
+            ndvi
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
-        lst_avg_masked100 = lst\
-            .updateMask(watermask)\
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)\
-            .reproject(self.crs, coarse_transform100)
-        lst_avg_unmasked = lst\
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)\
-            .reproject(self.crs, coarse_transform)\
             .updateMask(1)
+        )
+        lst_avg_masked = (
+            lst
+            .updateMask(watermask)
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, coarse_transform)
+        )
+        lst_avg_masked100 = (
+            lst
+            .updateMask(watermask)
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+            .reproject(self.crs, coarse_transform100)
+        )
+        lst_avg_unmasked = (
+            lst
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, coarse_transform)
+            .updateMask(1)
+        )
 
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_avg = dt.reproject(self.crs, coarse_transform)
@@ -1601,14 +1447,16 @@ class Image:
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
                 'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
-            })
+            }
+        )
 
         Tc_warm100 = lst_avg_masked100.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
                 'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100,
-            })
+            }
+        )
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
