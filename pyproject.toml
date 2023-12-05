@@ -46,4 +46,4 @@ test = [
 
 [tool.setuptools.packages.find]
 # include = ["openet*"]
-exclude = ["docs*", "examples*", "assets*", "tcorr_*"]
+exclude = ["docs*", "examples*", "assets*"]
