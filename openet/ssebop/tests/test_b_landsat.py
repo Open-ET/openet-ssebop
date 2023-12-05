@@ -14,24 +14,28 @@ import openet.ssebop.utils as utils
 # I'm not sure how to make them fixtures and allow input parameters
 def toa_image(red=0.1, nir=0.9, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
-    return ee.Image.constant([red, nir, bt])\
-        .rename(['red', 'nir', 'tir']) \
+    return (
+        ee.Image.constant([red, nir, bt])
+        .rename(['red', 'nir', 'tir'])
         .set({
             # 'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
+    )
 
 
 def sr_image(red=1000, nir=9000, bt=305):
     """Construct a fake Landsat 8 TOA image with renamed bands"""
-    return ee.Image.constant([red, nir, bt])\
-        .rename(['red', 'nir', 'tir']) \
+    return (
+        ee.Image.constant([red, nir, bt])
+        .rename(['red', 'nir', 'tir'])
         .set({
             # 'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
             'k2_constant': ee.Number(1260.56),
         })
+    )
 
 
 @pytest.mark.parametrize(
