@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.3.1"
+version = "0.3.2"
 authors = [
   { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
   { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "earthengine-api>=0.1.364",
     "openet-core>=0.1.1",
-    "openet-refet-gee>=0.2.0",
+    "openet-refet-gee>=0.6.2",
     "python-dateutil",
     "importlib-metadata; python_version <= '3.7'",
 ]

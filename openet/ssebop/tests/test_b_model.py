@@ -4,6 +4,16 @@ import pytest
 import openet.ssebop.model as model
 import openet.ssebop.utils as utils
 
+COLL_ID = 'LANDSAT/LC08/C02/T1_L2'
+SCENE_ID = 'LC08_042035_20150713'
+# SCENE_DT = datetime.datetime.strptime(SCENE_ID[-8:], '%Y%m%d')
+# SCENE_DATE = SCENE_DT.strftime('%Y-%m-%d')
+# SCENE_DOY = int(SCENE_DT.strftime('%j'))
+# # SCENE_TIME = utils.millis(SCENE_DT)
+SCENE_TIME = 1436812419150
+SCENE_POINT = (-119.5, 36.0)
+TEST_POINT = (-119.44252382373145, 36.04047742246546)
+
 
 @pytest.mark.parametrize(
     # Note: These are made up values
@@ -187,3 +197,48 @@ def test_Model_elr_adjust(xy, adjusted):
         assert output < original
     else:
         assert output == original
+
+
+def test_Image_et_reference_source_parameters():
+    """Check that the function parameter names and order don't change"""
+    etf_img = (
+        ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
+        .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
+    )
+    output = model.etf_grass_type_adjust(
+        etf=etf_img, src_coll_id='NASA/NLDAS/FORA0125_H002', time_start=SCENE_TIME
+    )
+    assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
+
+    output = model.etf_grass_type_adjust(etf_img, 'NASA/NLDAS/FORA0125_H002', SCENE_TIME)
+    assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
+
+
+@pytest.mark.parametrize(
+    'src_coll_id, expected',
+    [
+        ['NASA/NLDAS/FORA0125_H002', 1.23],
+        ['ECMWF/ERA5_LAND/HOURLY', 1.15],
+    ]
+)
+def test_Model_etf_grass_type_adjust(src_coll_id, expected, tol=0.01):
+    """Check alfalfa to grass reference adjustment factor"""
+    etf_img = (
+        ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
+        .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
+    )
+    output = model.etf_grass_type_adjust(
+        etf=etf_img, src_coll_id=src_coll_id, time_start=SCENE_TIME
+    )
+    output = utils.point_image_value(output, SCENE_POINT, scale=100)
+    assert abs(output['et_fraction'] - expected) <= tol
+
+
+def test_Model_etf_grass_type_adjust_src_coll_id_exception():
+    """Function should raise an exception for unsupported src_coll_id values"""
+    with pytest.raises(ValueError):
+        utils.getinfo(model.etf_grass_type_adjust(
+            etf=ee.Image.constant(1), src_coll_id='DEADBEEF', time_start=SCENE_TIME
+        ))
+
+

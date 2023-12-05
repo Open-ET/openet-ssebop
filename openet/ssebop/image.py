@@ -51,6 +51,7 @@ class Image:
             dt_min=5,
             dt_max=25,
             et_fraction_type='alfalfa',
+            et_fraction_grass_source=None,
             reflectance_type='SR',
             **kwargs,
     ):
@@ -85,7 +86,7 @@ class Image:
                        'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1',
                        collection ID, or float}, optional
             Maximum air temperature source.  The default is
-            'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018'.
+            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
         elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
@@ -94,10 +95,16 @@ class Image:
         dt_max : float, optional
             Maximum allowable dT [K] (the default is 25).
         et_fraction_type : {'alfalfa', 'grass'}, optional
-            ET fraction  (the default is 'alfalfa').
+            ET fraction reference type (the default is 'alfalfa').
+            If set to "grass" the et_fraction_grass_source must also be set.
+        et_fraction_grass_source : {'NASA/NLDAS/FORA0125_H002',
+                                    'ECMWF/ERA5_LAND/HOURLY'}, float, optional
+            Reference ET source for alfalfa to grass reference adjustment.
+            Parameter must be set if et_fraction_type is 'grass'.
+            The default is currently the NLDAS hourly collection,
+            but having a default will likely be removed in a future version.
         reflectance_type : {'SR', 'TOA'}, optional
-            Used to set the Tcorr NDVI thresholds
-            (the default is 'SR').
+            Used to set the Tcorr NDVI thresholds (the default is 'SR').
         kwargs : dict, optional
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
@@ -194,14 +201,28 @@ class Image:
                 raise ValueError(f'elr_flag "{self._elr_flag}" could not be interpreted as bool')
 
         # ET fraction type
-        # CGM - Should et_fraction_type be set as a kwarg instead?
         if et_fraction_type.lower() not in ['alfalfa', 'grass']:
             raise ValueError('et_fraction_type must "alfalfa" or "grass"')
         self.et_fraction_type = et_fraction_type.lower()
-        # if 'et_fraction_type' in kwargs.keys():
-        #     self.et_fraction_type = kwargs['et_fraction_type'].lower()
-        # else:
-        #     self.et_fraction_type = 'alfalfa'
+
+        # ET fraction alfalfa to grass reference adjustment
+        # The NLDAS hourly collection will be used if a source value is not set
+        if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
+            warnings.warn(
+                'NLDAS is being set as the default ET fraction grass adjustment source.  '
+                'In a future version the parameter will need to be set explicitly as: '
+                'et_fraction_grass_source="NASA/NLDAS/FORA0125_H002".',
+                FutureWarning
+            )
+            et_fraction_grass_source = 'NASA/NLDAS/FORA0125_H002'
+        self.et_fraction_grass_source = et_fraction_grass_source
+        # if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
+        #     raise ValueError(
+        #         'et_fraction_grass_source parameter must be set if et_fraction_type==\'grass\''
+        #     )
+        # # Should the supported source values be checked here instead of in model.py?
+        # if et_fraction_grass_source not in et_fraction_grass_sources:
+        #     raise ValueError('unsupported et_fraction_grass_source')
 
         self.reflectance_type = reflectance_type
         if reflectance_type not in ['SR', 'TOA']:
@@ -333,50 +354,16 @@ class Image:
 
         et_fraction = model.et_fraction(lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
 
-        # TODO: Add support for setting the conversion source dataset
-        # TODO: Interpolate "instantaneous" ETo and ETr?
-        # TODO: Move openet.refetgee import to top?
-        # TODO: Check if etr/eto is right (I think it is)
-        if self.et_fraction_type.lower() == 'grass':
-            import openet.refetgee
-            nldas_coll = (
-                ee.ImageCollection('NASA/NLDAS/FORA0125_H002')
-                .select(['temperature', 'specific_humidity', 'shortwave_radiation', 'wind_u', 'wind_v'])
-            )
-
-            # Interpolating hourly NLDAS to the Landsat scene time
-            # CGM - The 2 hour window is useful in case an image is missing
-            #   I think EEMETRIC is using a 4 hour window
-            # CGM - Need to check if the NLDAS images are instantaneous
-            #   or some sort of average of the previous or next hour
-            time_start = ee.Number(self._time_start)
-            prev_img = ee.Image(
-                nldas_coll
-                .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
-                .limit(1, 'system:time_start', False)
-                .first()
-            )
-            next_img = ee.Image(
-                nldas_coll.filterDate(time_start, time_start.add(2 * 60 * 60 * 1000)).first()
-            )
-            prev_time = ee.Number(prev_img.get('system:time_start'))
-            next_time = ee.Number(next_img.get('system:time_start'))
-            time_ratio = time_start.subtract(prev_time).divide(next_time.subtract(prev_time))
-            nldas_img = (
-                next_img.subtract(prev_img).multiply(time_ratio).add(prev_img)
-                .set({'system:time_start': self._time_start})
-            )
-
-            # # DEADBEEF - Select NLDAS image before the Landsat scene time
-            # nldas_img = ee.Image(nldas_coll
-            #     .filterDate(self._date.advance(-1, 'hour'), self._date)
-            #     .first())
-
-            et_fraction = (
-                et_fraction
-                .multiply(openet.refetgee.Hourly.nldas(nldas_img).etr)
-                .divide(openet.refetgee.Hourly.nldas(nldas_img).eto)
-            )
+        # Convert the ET fraction to a grass reference fraction
+        if self.et_fraction_type.lower() == 'grass' and self.et_fraction_grass_source:
+            if utils.is_number(self.et_fraction_grass_source):
+                et_fraction = et_fraction.multiply(self.et_fraction_grass_source)
+            else:
+                et_fraction = model.etf_grass_type_adjust(
+                    etf=et_fraction,
+                    src_coll_id=self.et_fraction_grass_source,
+                    time_start=self._time_start
+                )
 
         return et_fraction.set(self._properties)\
             .set({
