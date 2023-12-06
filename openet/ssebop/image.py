@@ -76,13 +76,12 @@ class Image:
         et_reference_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
-        dt_source : str, float, {'DAYMET_MEDIAN_V0', 'DAYMET_MEDIAN_V1', 'DAYMET_MEDIAN_V2'}, optional
-            dT source  (the default is None).
+        dt_source : str or float, optional
+            dT source collection ID. The default is
+            'projects/usgs-ssebop/dt/daymet_median_v6'.
         tcorr_source : {'FANO', 'DYNAMIC', or float}, optional
-            Tcorr source keyword (the default is 'DYNAMIC').
-        tmax_source : {'CIMIS', 'DAYMET_V3', 'DAYMET_V4', 'GRIDMET',
-                       'DAYMET_MEDIAN_V2', 'CIMIS_MEDIAN_V1',
-                       collection ID, or float}, optional
+            Tcorr source keyword (the default is 'FANO').
+        tmax_source : collection ID or float, optional
             Maximum air temperature source.  The default is
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
         elr_flag : bool, str, optional
@@ -151,9 +150,6 @@ class Image:
         self._start_date = ee.Date(utils.date_to_time_0utc(self._date))
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
-        # DEADBEEF - cycle_day can be removed when gridded Tcorr is removed
-        self._cycle_day = self._start_date.difference(
-            ee.Date.fromYMD(1970, 1, 3), 'day').mod(8).add(1).int()
 
         # Reference ET parameters
         self.et_reference_source = et_reference_source
@@ -257,21 +253,6 @@ class Image:
             self._tcorr_resample = kwargs['tcorr_resample'].lower()
         else:
             self._tcorr_resample = 'bilinear'
-
-        """Gridded Tcorr keyword arguments"""
-        # TODO: This should probably be moved into tcorr_gridded()
-        if 'min_pixels_per_grid_cell' in kwargs.keys():
-            self.min_pixels_per_grid_cell = kwargs['min_pixels_per_grid_cell']
-        else:
-            self.min_pixels_per_grid_cell = 10
-
-        # TODO: This should probably be moved into tcorr_gridded()
-        if 'min_grid_cells_per_image' in kwargs.keys():
-            self.min_grid_cells_per_image = kwargs['min_grid_cells_per_image']
-        else:
-            self.min_grid_cells_per_image = 5
-
-        # print(f'this is the tcorr source passed to the image class {tcorr_source}')
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -496,10 +477,11 @@ class Image:
         """
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
-        # Use precomputed dT median assets
+
         elif (self._dt_source.lower().startswith('projects/') or
               self._dt_source.lower().startswith('users/')):
-            # Assumes a string source is an image collection ID (not an image ID),\
+            # Use precomputed dT median assets
+            # Assumes a string source is an image collection ID (not an image ID),
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
             dt_coll = ee.ImageCollection(self._dt_source)\
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
@@ -509,121 +491,6 @@ class Image:
             dt_scale_factor = ee.Dictionary({'scale_factor': dt_img.get('scale_factor')})\
                 .combine({'scale_factor': '1.0'}, overwrite=False)
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
-        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V0':
-            warnings.warn(
-                'Support for the DAYMET_MEDIAN_V0 dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v0')\
-                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
-        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V1':
-            warnings.warn(
-                'Support for the DAYMET_MEDIAN_V1 dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v1')\
-                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
-        elif self._dt_source.upper() == 'DAYMET_MEDIAN_V2':
-            warnings.warn(
-                'Support for the DAYMET_MEDIAN_V2 dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            dt_coll = ee.ImageCollection(PROJECT_FOLDER + '/dt/daymet_median_v2')\
-                .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
-            dt_img = ee.Image(dt_coll.first()).clamp(self._dt_min, self._dt_max)
-        elif self._dt_source.upper() == 'CIMIS':
-            warnings.warn(
-                'Support for the CIMIS dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            # CGM - Should we check this here or catch the exception in elev()
-            # if self._elev_source is None:
-            #     raise Exception('elev_source must be set if dt_source="CIMIS"')
-            input_img = ee.Image(
-                ee.ImageCollection('projects/earthengine-legacy/assets/'
-                                   'projects/climate-engine/cimis/daily')
-                .filterDate(self._start_date, self._end_date)
-                .select(['Tx', 'Tn', 'Rs', 'Tdew'])
-                .first()
-            )
-            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
-            # Compute Ea from Tdew
-            dt_img = model.dt(
-                tmax=input_img.select(['Tx']).add(273.15),
-                tmin=input_img.select(['Tn']).add(273.15),
-                rs=input_img.select(['Rs']),
-                ea=input_img.select(['Tdew']).add(237.3).pow(-1)
-                    .multiply(input_img.select(['Tdew']))
-                    .multiply(17.27).exp().multiply(0.6108),
-                elev=self.elev,
-                doy=self._doy,
-            )
-            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
-        elif self._dt_source.upper() == 'DAYMET':
-            warnings.warn(
-                'Support for the DAYMET dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            input_img = ee.Image(
-                ee.ImageCollection('NASA/ORNL/DAYMET_V3')
-                .filterDate(self._start_date, self._end_date)
-                .select(['tmax', 'tmin', 'srad', 'dayl', 'vp'])
-                .first()
-            )
-            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
-            # Solar unit conversion from DAYMET documentation:
-            #   https://daymet.ornl.gov/overview.html
-            dt_img = model.dt(
-                tmax=input_img.select(['tmax']).add(273.15),
-                tmin=input_img.select(['tmin']).add(273.15),
-                rs=input_img.select(['srad']).multiply(input_img.select(['dayl'])).divide(1000000),
-                ea=input_img.select(['vp'], ['ea']).divide(1000),
-                elev=self.elev,
-                doy=self._doy,
-            )
-            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
-        elif self._dt_source.upper() == 'GRIDMET':
-            warnings.warn(
-                'Support for the GRIDMET dt_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            input_img = ee.Image(
-                ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')
-                .filterDate(self._start_date, self._end_date)
-                .select(['tmmx', 'tmmn', 'srad', 'sph'])
-                .first()
-            )
-            # Convert units to T [K], Rs [MJ m-2 d-1], ea [kPa]
-            q = input_img.select(['sph'], ['q'])
-            pair = self.elev.multiply(-0.0065).add(293.0).divide(293.0).pow(5.26)\
-                .multiply(101.3)
-            # pair = self.elev.expression(
-            #     '101.3 * pow((293.0 - 0.0065 * elev) / 293.0, 5.26)',
-            #     {'elev': self.elev}
-            # )
-            dt_img = model.dt(
-                tmax=input_img.select(['tmmx']),
-                tmin=input_img.select(['tmmn']),
-                rs=input_img.select(['srad']).multiply(0.0864),
-                ea=q.multiply(0.378).add(0.622).pow(-1).multiply(q).multiply(pair),
-                elev=self.elev,
-                doy=self._doy,
-            )
-            dt_img = dt_img.clamp(self._dt_min, self._dt_max)
         else:
             raise ValueError(f'Invalid dt_source: {self._dt_source}\n')
 
@@ -679,14 +546,8 @@ class Image:
         Notes
         -----
         Tcorr Index values indicate which level of Tcorr was used
-          0 - Gridded blended cold/hot Tcorr (*)
-          1 - Gridded cold Tcorr
           2 - Continuous cold tcorr based on an NDVI function.
           3 - Scene specific Tcorr
-          4 - Mean monthly Tcorr per WRS2 tile
-          5 - Mean seasonal Tcorr per WRS2 tile (*)
-          6 - Mean annual Tcorr per WRS2 tile
-          7 - Default Tcorr
           8 - User defined Tcorr
           9 - No data
 
@@ -695,7 +556,6 @@ class Image:
         tcorr_indices = {
             'continuous': 2,
             'scene': 3,
-            'default': 7,
             'user': 8,
             'nodata': 9,
         }
@@ -709,9 +569,10 @@ class Image:
               (self._tcorr_source.upper() in ['DYNAMIC'] or
                'SCENE' in self._tcorr_source.upper())):
             warnings.warn(
-                'Support for the DYNAMIC and SCENE_GRIDDED tcorr_source keywords is deprecated '
+                'Support for the DYNAMIC tcorr_source keywords is deprecated '
                 'and will be removed in a future version',
-                DeprecationWarning, stacklevel=2
+                FutureWarning
+                # DeprecationWarning, stacklevel=2
             )
             raise ValueError(
                 '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
@@ -794,71 +655,12 @@ class Image:
                 .filterMetadata('doy', 'equals', self._doy)
             #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
             tmax_image = ee.Image(tmax_coll.first()).set({'tmax_source': self._tmax_source})
-        elif '_MEDIAN_' in self._tmax_source:
-            warnings.warn(
-                'Support for the "_MEDIAN_" tmax_source keywords is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            # Process the existing keyword median sources
-            doy_filter = ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year')
-            tmax_coll = ee.ImageCollection(PROJECT_FOLDER + '/tmax/' + self._tmax_source.lower())
-            tmax_image = ee.Image(tmax_coll.filter(doy_filter).first())\
-                .set({'tmax_source': self._tmax_source})
-        elif self._tmax_source.upper() in ['DAYMET_V3', 'DAYMET_V4']:
-            warnings.warn(
-                'Support for the "DAYMET_V*" tmax_source keywords is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            # DAYMET does not include Dec 31st on leap years
-            # Adding one extra date to end date to avoid errors here
-            # This image be slightly different than the median collection for
-            #   Dec 31st on leap years (DOY 366).
-            tmax_coll = ee.ImageCollection(f'NASA/ORNL/{self._tmax_source.upper()}')\
-                .filterDate(self._start_date, self._end_date.advance(1, 'day'))\
-                .select(['tmax']).map(utils.c_to_k)
-            tmax_image = ee.Image(tmax_coll.first())\
-                .set({'tmax_source': self._tmax_source})
-        elif self._tmax_source.upper() == 'CIMIS':
-            warnings.warn(
-                'Support for the CIMIS tmax_source keywords is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            tmax_coll_id = 'projects/earthengine-legacy/assets/'\
-                           'projects/climate-engine/cimis/daily'
-            tmax_coll = ee.ImageCollection(tmax_coll_id)\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['Tx'], ['tmax']).map(utils.c_to_k)
-            tmax_image = ee.Image(tmax_coll.first())\
-                .set({'tmax_source': self._tmax_source})
-        elif self._tmax_source.upper() == 'GRIDMET':
-            warnings.warn(
-                'Support for the GRIDMET tmax_source keywords is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-            tmax_coll = ee.ImageCollection('IDAHO_EPSCOR/GRIDMET')\
-                .filterDate(self._start_date, self._end_date)\
-                .select(['tmmx'], ['tmax'])
-            tmax_image = ee.Image(tmax_coll.first())\
-                .set({'tmax_source': self._tmax_source})
-        # elif self.tmax_source.upper() == 'TOPOWX':
-        #     tmax_coll = ee.ImageCollection('X')\
-        #         .filterDate(self.start_date, self.end_date)\
-        #         .select(['tmmx'], ['tmax'])
-        #     tmax_image = ee.Image(tmax_coll.first())\
-        #         .set({'tmax_source': self._tmax_source})
         else:
             raise ValueError(f'Unsupported tmax_source: {self._tmax_source}\n')
 
         if self._tmax_resample and (self._tmax_resample.lower() in ['bilinear', 'bicubic']):
             tmax_image = tmax_image.resample(self._tmax_resample)
+
         # TODO: A reproject call may be needed here also
         # tmax_image = tmax_image.reproject(self.crs, self.transform)
 
@@ -1038,58 +840,6 @@ class Image:
 
         # Remove low LST and low NDVI
         tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-
-        return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
-
-    @lazy_property
-    def tcorr_image_hot(self):
-        """Compute the scene wide HOT Tcorr for the current image
-
-        Returns
-        -------
-        ee.Image of Tcorr values
-
-        """
-        warnings.warn(
-            'tcorr_image_hot method is deprecated and will be removed in a future version',
-            FutureWarning
-            # DeprecationWarning, stacklevel=2
-        )
-
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
-        dt = ee.Image(self.dt)
-        # TODO need lc mask for barren landcover
-        lc = None
-
-        # Compute Hot Tcorr (Same as cold tcorr but you subtract dt from Land Surface Temp.)
-        hottemp = lst.subtract(dt)
-        tcorr = hottemp.divide(tmax)
-
-        # Adjust NDVI thresholds based on reflectance type
-        if self.reflectance_type.upper() == 'SR':
-            ndvi_threshold = 0.3
-        # elif self.reflectance_type.upper() == 'TOA':
-        else:
-            ndvi_threshold = 0.25
-
-        # Select LOW (but non-negative) NDVI pixels that are also surrounded by LOW NDVI, but
-        ndvi_smooth = ndvi.focal_mean(radius=90, units='meters')\
-            .reproject(crs=self.crs, crsTransform=self.transform)
-        ndvi_smooth_mask = ndvi_smooth.gt(0.0).And(ndvi_smooth.lte(ndvi_threshold))
-
-        # Changed the gt and lte to be after the reduceNeighborhood() call
-        ndvi_buffer = ndvi.reduceNeighborhood(
-            ee.Reducer.min(), ee.Kernel.square(radius=60, units='meters'))
-        ndvi_buffer_mask = ndvi_buffer.gt(0.0).And(ndvi_buffer.lte(ndvi_threshold))
-
-        # No longer worry about low LST. Filter out high NDVI vals and mask out areas that aren't 'Barren'
-        tcorr_mask = lst.And(ndvi_smooth_mask).And(ndvi_buffer_mask) #.And(lc)
 
         return tcorr.updateMask(tcorr_mask).rename(['tcorr'])\
             .set({'system:index': self._index,

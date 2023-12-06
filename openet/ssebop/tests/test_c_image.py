@@ -192,8 +192,6 @@ def test_Image_init_date_properties():
     # assert utils.getinfo(m._end_date)['value'] == utils.millis(
     #     SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
-    assert utils.getinfo(m._cycle_day) == int(
-        (SCENE_DT - datetime.datetime(1970, 1, 3)).days % 8 + 1)
 
 
 def test_Image_init_scene_id_property():
@@ -284,42 +282,6 @@ def test_Image_dt_source_values(dt_source, doy, xy, expected, tol=0.001):
 
 
 @pytest.mark.parametrize(
-    'dt_source, doy, xy, expected',
-    [
-        ['DAYMET_MEDIAN_V1', SCENE_DOY, TEST_POINT, 18],
-        ['DAYMET_MEDIAN_V1', 194, [-120.113, 36.336], 18],
-        ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 21],
-        ['DAYMET_MEDIAN_V2', SCENE_DOY, TEST_POINT, 19.5982],
-        ['DAYMET_MEDIAN_V2', 194, [-120.113, 36.336], 19.4762],
-        ['DAYMET_MEDIAN_V2', 194, [-119.0, 37.5], 25],
-    ]
-)
-def test_Image_dt_source_median(dt_source, doy, xy, expected, tol=0.001):
-    """Test getting median dT values for a single date at a real point"""
-    m = default_image_obj(dt_source=dt_source)
-    m._doy = doy
-    output = utils.point_image_value(ee.Image(m.dt), xy)
-    assert abs(output['dt'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
-    'dt_source, doy, xy, expected',
-    [
-        ['DAYMET_MEDIAN_V1', 1, [-120.113, 36.336], 5],
-        # ['DAYMET_MEDIAN_V1', 194, [-119.0, 37.5], 25],
-        ['DAYMET_MEDIAN_V2', 1, [-96.6255, 43.7359], 5],
-        ['DAYMET_MEDIAN_V2', 194, [-119.0, 37.5], 25],
-    ]
-)
-def test_Image_dt_source_clamping(dt_source, doy, xy, expected, tol=0.001):
-    """Check that dT values are clamped to dt_min and dt_max (5, 25)"""
-    m = default_image_obj(dt_source=dt_source)
-    m._doy = doy
-    output = utils.point_image_value(ee.Image(m.dt), xy)
-    assert abs(output['dt'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
     'dt_source, xy, expected',
     [
         ['19.262', [-120.113, 36.336], 19.262],
@@ -333,30 +295,6 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
     assert abs(output['dt'] - expected) <= tol
 
 
-@pytest.mark.parametrize(
-    'dt_source, elev, date, xy, expected',
-    [
-        ['CIMIS', 18, '2017-07-16', [-122.1622, 39.1968], 17.1013],
-        ['DAYMET', 18, '2017-07-16', [-122.1622, 39.1968], 13.5525],
-        ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1588],
-        # ['GRIDMET', 18, '2017-07-16', [-122.1622, 39.1968], 18.1711],
-        # ['CIMIS', 67, SCENE_DATE, TEST_POINT, 17.10647],
-        # ['DAYMET', 67, SCENE_DATE, TEST_POINT, 12.99047],
-        # ['GRIDMET', 67, SCENE_DATE, TEST_POINT, 17.79065],
-    ]
-)
-def test_Image_dt_source_calculated(dt_source, elev, date, xy, expected, tol=0.001):
-    """Test getting calculated dT values for a single date at a real point"""
-    m = default_image_obj(dt_source=dt_source, elev_source=elev)
-    # Start/end date are needed to filter the source collection
-    m._start_date = ee.Date.parse('yyyy-MM-dd', date)
-    m._end_date = ee.Date.parse('yyyy-MM-dd', date).advance(1, 'day')
-    # DOY is needed in dT calculation
-    m._doy = ee.Date.parse('yyyy-MM-dd', date).getRelative('day', 'year').int().add(1)
-    output = utils.point_image_value(ee.Image(m.dt), xy)
-    assert abs(output['dt'] - expected) <= tol
-
-
 def test_Image_dt_source_exception():
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(dt_source='').dt)
@@ -366,7 +304,6 @@ def test_Image_dt_source_exception():
     'dt_source, doy, xy, expected',
     [
         ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
-        ['projects/usgs-ssebop/dt/daymet_median_v2', SCENE_DOY, TEST_POINT, 19.598],
     ]
 )
 def test_Image_dt_scale_factor(dt_source, doy, xy, expected, tol=0.001):
@@ -377,27 +314,29 @@ def test_Image_dt_scale_factor(dt_source, doy, xy, expected, tol=0.001):
     assert abs(output['dt'] - expected) <= tol
 
 
-@pytest.mark.parametrize(
-    'doy, dt_min, dt_max',
-    [
-        [1, 6, 25],
-        [200, 6, 25],
-        [200, 10, 15],
-    ]
-)
-def test_Image_dt_clamping(doy, dt_min, dt_max):
-    m = default_image_obj(dt_source='DAYMET_MEDIAN_V1')
-    m._dt_min = dt_min
-    m._dt_max = dt_max
-    m._doy = doy
-    reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
-    output = utils.getinfo(
-        ee.Image(m.dt)
-        .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
-                      geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))
-    )
-    assert output['dt_min'] >= dt_min
-    assert output['dt_max'] <= dt_max
+# DEADBEEF - dT clamping is not applied for string ID dT collections
+#   This test can eventually be removed
+# @pytest.mark.parametrize(
+#     'doy, dt_min, dt_max, dt_source',
+#     [
+#         [1, 6, 25],
+#         [200, 6, 25],
+#         [200, 10, 15],
+#     ]
+# )
+# def test_Image_dt_clamping(doy, dt_min, dt_max, dt_source):
+#     m = default_image_obj(dt_source='projects/usgs-ssebop/dt/daymet_median_v6')
+#     m._dt_min = dt_min
+#     m._dt_max = dt_max
+#     m._doy = doy
+#     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
+#     output = utils.getinfo(
+#         ee.Image(m.dt)
+#         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
+#                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))
+#     )
+#     assert output['dt_min'] >= dt_min
+#     assert output['dt_max'] <= dt_max
 
 
 @pytest.mark.parametrize(
@@ -425,21 +364,6 @@ def test_Image_tmax_source(tmax_source):
         ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', TEST_POINT, 310.15],
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', TEST_POINT, 310.155],
         # ['projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', TEST_POINT, 310.155],
-        ['DAYMET_V3', TEST_POINT, 307.65],
-        ['DAYMET_V4', TEST_POINT, 307.58],
-        ['DAYMET_MEDIAN_V2', TEST_POINT, 310.15],
-        ['CIMIS', [-120.113, 36.336], 307.725],
-        ['DAYMET_V3', [-120.113, 36.336], 308.150],
-        ['DAYMET_V4', [-120.113, 36.336], 308.500],
-        ['GRIDMET', [-120.113, 36.336], 306.969],
-        # ['TOPOWX', [-120.113, 36.336], 301.67],
-        ['CIMIS_MEDIAN_V1', [-120.113, 36.336], 308.946],
-        ['DAYMET_MEDIAN_V1', [-120.113, 36.336], 310.150],
-        ['DAYMET_MEDIAN_V2', [-120.113, 36.336], 310.150],
-        # Added extra test point where DAYMET median values differ
-        # TEST_POINT, [-119.0, 37.5], [-122.1622, 39.1968], [-106.03249, 37.17777]
-        ['DAYMET_MEDIAN_V1', [-122.1622, 39.1968], 308.4],
-        ['DAYMET_MEDIAN_V2', [-122.1622, 39.1968], 308.65],
         # Check string/float constant values
         ['305', [-120.113, 36.336], 305],
         [305, [-120.113, 36.336], 305],
@@ -455,9 +379,8 @@ def test_Image_tmax_source_values(tmax_source, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'tmax_source',
     [
-        'projects/usgs-ssebop/tmax/daymet_v3_max_1980_2018',  # Unsupported statistic
-        'projects/usgs-ssebop/dt/daymet_v3_median_1980_2018',  # tmax must be in ID
-        'daymet_median_v2',  # Don't support lowercase keywords
+        'projects/usgs-ssebop/tmax/daymet_v3_max_1980_2018',   # Unsupported statistic
+        'projects/usgs-ssebop/dt/daymet_v3_median_1980_2018',  # "tmax" must be in the ID
         'deadbeef',
         '',
     ]
@@ -474,14 +397,6 @@ def test_Image_tmax_source_exception(tmax_source):
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010', {}],
         ['projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018', {}],
         ['projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019', {}],
-        ['CIMIS', {}],
-        ['DAYMET_V3', {}],
-        ['DAYMET_V4', {}],
-        ['GRIDMET', {}],
-        # ['TOPOWX', {}],
-        ['CIMIS_MEDIAN_V1', {}],
-        ['DAYMET_MEDIAN_V1', {}],
-        ['DAYMET_MEDIAN_V2', {}],
         ['305', {'tmax_source': 'custom_305'}],
         [305, {'tmax_source': 'custom_305'}],
     ]
@@ -643,41 +558,6 @@ def test_Image_tcorr_image_properties():
     assert output['properties']['tmax_source'] == tmax_source
 
 
-def test_Image_tcorr_image_hot_values(lst=300, ndvi=0.2, tmax=306, expected=0.92157, tol=0.0001):
-    output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image_hot
-    output = utils.point_image_value(output_img, TEST_POINT)
-    assert abs(output['tcorr'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
-    # Note: These are made up values
-    'lst, ndvi, tmax, refl_type, expected',
-    [
-        [300, 0.22, 306, 'TOA', None],  # NDVI > 0.2
-        [300, 0.28, 306, 'SR', None],  # NDVI > 0.25
-        # TODO: Add a test for the NDVI smoothing
-    ]
-)
-def test_Image_tcorr_image_hot_nodata(lst, ndvi, tmax, refl_type, expected):
-    output = utils.constant_image_value(default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax,
-        reflectance_type=refl_type).tcorr_image_hot)
-    assert output['tcorr'] is None and expected is None
-
-
-def test_Image_tcorr_image_hot_band_name():
-    output = utils.getinfo(default_image_obj().tcorr_image_hot)
-    assert output['bands'][0]['id'] == 'tcorr'
-
-
-def test_Image_tcorr_image_hot_properties(tmax_source='DAYMET_MEDIAN_V2'):
-    """Test if properties are set on the tcorr image"""
-    output = utils.getinfo(default_image_obj(tmax_source=tmax_source).tcorr_image_hot)
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['tmax_source'] == tmax_source
-
-
 # CGM - Then test tcorr_stats since it is called by the other tcorr functions
 def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.00000001):
     output = utils.getinfo(default_image_obj(
@@ -691,41 +571,9 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # DEADBEEF
-        # # DAYMET_MEDIAN_V2
-        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713', 'DAYMET_MEDIAN_V2',
-        #  {'tcorr_value': 0.9730285325301501, 'tcorr_count': 152720}],
-        # ['LANDSAT/LC08/C01/T1_TOA/LC08_044033_20170716', 'DAYMET_MEDIAN_V2',
-        #  {'tcorr_value': 0.9856133291233087, 'tcorr_count': 457876}],
-        # ['LANDSAT/LE07/C01/T1_TOA/LE07_044033_20170708', 'DAYMET_MEDIAN_V2',
-        #  {'tcorr_value': 0.9798477638345092, 'tcorr_count': 21852}],
-        # ['LANDSAT/LT05/C01/T1_TOA/LT05_044033_20110716', 'DAYMET_MEDIAN_V2',
-        #  {'tcorr_value': 0.9520737089446781, 'tcorr_count': 872}],
-        # # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20161206', 'DAYMET_MEDIAN_V2',
-        # #  {'tcorr_value': 0.9907451827474001, 'tcorr_count': 11}],
-        #
-        # # projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018
-        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-        #  {'tcorr_value': 0.9730285325301499, 'tcorr_count': 152720}],
-        # ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-        #  {'tcorr_value': 0.9734596075858268, 'tcorr_count': 222111}],
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
          {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
-
-        # # DEADBEEF
-        # # projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019
-        # ['LANDSAT/LC08/C01/T1_TOA/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-        #  {'tcorr_value': 0.972914850293274, 'tcorr_count': 767445}],
-        # ['LANDSAT/LC08/C01/T1_SR/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-        #  {'tcorr_value': 0.9732673567075457, 'tcorr_count': 1049672}],
-        # ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v4_median_1980_2019',
-        #  {'tcorr_value': 0.9758419756854323, 'tcorr_count': 1052360}],
 
         # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
