@@ -79,7 +79,7 @@ class Image:
         dt_source : str or float, optional
             dT source collection ID. The default is
             'projects/usgs-ssebop/dt/daymet_median_v6'.
-        tcorr_source : {'FANO', 'DYNAMIC', or float}, optional
+        tcorr_source : 'FANO' or float, optional
             Tcorr source keyword (the default is 'FANO').
         tmax_source : collection ID or float, optional
             Maximum air temperature source.  The default is
@@ -551,39 +551,7 @@ class Image:
                 .set({'tcorr_source': f'custom_{self._tcorr_source}'})
             )
         elif 'FANO' == self._tcorr_source.upper():
-            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})
-        elif 'DYNAMIC' == self._tcorr_source.upper():
-            # Compute Tcorr dynamically for the scene
-            warnings.warn(
-                'Support for the DYNAMIC tcorr_source keyword is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
-            )
-
-            tcorr_default = 0.978
-
-            # Use a larger default minimum pixel count for dynamic Tcorr
-            if 'min_pixels_per_image' in self.kwargs.keys():
-                min_pixels_per_image = self.kwargs['min_pixels_per_image']
-            else:
-                min_pixels_per_image = 1000
-
-            # If Tcorr cannot be computed, set the Tcorr to 0
-            # We may want to set the Tcorr in the dictionary to the default instead
-            t_stats = (
-                ee.Dictionary(self.tcorr_stats)
-                .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
-            )
-            tcorr_mask = (
-                self.lst.multiply(0)
-                .add(ee.Number(t_stats.get('tcorr_count')).gte(min_pixels_per_image))
-            )
-            return (
-                tcorr_mask.multiply(ee.Number(t_stats.get('tcorr_value')))
-                .where(tcorr_mask.eq(0), tcorr_default)
-                .set(t_stats).rename(['tcorr'])
-            )
+            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})DY
         else:
             raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
 

@@ -616,26 +616,6 @@ def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, to
 
 
 @pytest.mark.parametrize(
-    'tcorr_src, tmax_src, image_id, xy, expected',
-    [
-        ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.974979476478202],
-        ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-121.5, 39.0), 0.9851211164517142],
-        # Check that default value is used if tcorr_count is below threshold
-        ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LE07/C02/T1_L2/LE07_036035_20010704', (-110.5, 36.0), 0.978],
-    ]
-)
-def test_Image_tcorr_dynamic_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
-    """Test getting Tcorr value and index for a single date at a real point"""
-    tcorr_img = ssebop.Image.from_image_id(
-        image_id, tcorr_source=tcorr_src, tmax_source=tmax_src, tmax_resample='nearest').tcorr
-    tcorr = utils.point_image_value(tcorr_img, xy)
-    assert abs(tcorr['tcorr'] - expected) <= tol
-
-
-@pytest.mark.parametrize(
     'tcorr_src',
     [
         '',
