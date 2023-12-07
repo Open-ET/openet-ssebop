@@ -48,8 +48,6 @@ class Image:
             tcorr_source='FANO',
             tmax_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
             elr_flag=False,
-            dt_min=5,
-            dt_max=25,
             et_fraction_type='alfalfa',
             et_fraction_grass_source=None,
             **kwargs,
@@ -86,10 +84,6 @@ class Image:
         elr_flag : bool, str, optional
             If True, apply Elevation Lapse Rate (ELR) adjustment
             (the default is False).
-        dt_min : float, optional
-            Minimum allowable dT [K] (the default is 6).
-        dt_max : float, optional
-            Maximum allowable dT [K] (the default is 25).
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction reference type (the default is 'alfalfa').
             If set to "grass" the et_fraction_grass_source must also be set.
@@ -176,8 +170,6 @@ class Image:
 
         # TODO: Move into keyword args section below
         self._elr_flag = elr_flag
-        self._dt_min = float(dt_min)
-        self._dt_max = float(dt_max)
 
         # TODO: Move into keyword args section below
         # Convert elr_flag from string to bool IF necessary

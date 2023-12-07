@@ -155,8 +155,6 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
-    assert m._dt_min == 5
-    assert m._dt_max == 25
     assert m._elev_source is None
     assert m._elr_flag is False
     assert m.et_fraction_type == 'alfalfa'
@@ -307,31 +305,6 @@ def test_Image_dt_scale_factor(dt_source, doy, xy, expected, tol=0.001):
     m._doy = doy
     output = utils.point_image_value(ee.Image(m.dt), xy)
     assert abs(output['dt'] - expected) <= tol
-
-
-# DEADBEEF - dT clamping is not applied for string ID dT collections
-#   This test can eventually be removed
-# @pytest.mark.parametrize(
-#     'doy, dt_min, dt_max, dt_source',
-#     [
-#         [1, 6, 25],
-#         [200, 6, 25],
-#         [200, 10, 15],
-#     ]
-# )
-# def test_Image_dt_clamping(doy, dt_min, dt_max, dt_source):
-#     m = default_image_obj(dt_source='projects/usgs-ssebop/dt/daymet_median_v6')
-#     m._dt_min = dt_min
-#     m._dt_max = dt_max
-#     m._doy = doy
-#     reducer = ee.Reducer.min().combine(ee.Reducer.max(), sharedInputs=True)
-#     output = utils.getinfo(
-#         ee.Image(m.dt)
-#         .reduceRegion(reducer=reducer, scale=1000, tileScale=4, maxPixels=2E8,
-#                       geometry=ee.Geometry.Rectangle(-125, 25, -65, 50))
-#     )
-#     assert output['dt_min'] >= dt_min
-#     assert output['dt_max'] <= dt_max
 
 
 @pytest.mark.parametrize(
