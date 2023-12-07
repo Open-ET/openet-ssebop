@@ -477,7 +477,6 @@ class Image:
         """
         if utils.is_number(self._dt_source):
             dt_img = ee.Image.constant(float(self._dt_source))
-
         elif (self._dt_source.lower().startswith('projects/') or
               self._dt_source.lower().startswith('users/')):
             # Use precomputed dT median assets
@@ -488,8 +487,10 @@ class Image:
             # MF: scale factor property only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
             dt_img = ee.Image(dt_coll.first())
-            dt_scale_factor = ee.Dictionary({'scale_factor': dt_img.get('scale_factor')})\
+            dt_scale_factor = (
+                ee.Dictionary({'scale_factor': dt_img.get('scale_factor')})
                 .combine({'scale_factor': '1.0'}, overwrite=False)
+            )
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         else:
             raise ValueError(f'Invalid dt_source: {self._dt_source}\n')
@@ -532,71 +533,35 @@ class Image:
 
     @lazy_property
     def tcorr(self):
-        """Get Tcorr from pre-computed assets for each Tmax source
+        """Compute Tcorr
 
         Returns
         -------
-
+        ee.Image
 
         Raises
         ------
         ValueError
             If `self._tcorr_source` is not supported.
 
-        Notes
-        -----
-        Tcorr Index values indicate which level of Tcorr was used
-          2 - Continuous cold tcorr based on an NDVI function.
-          3 - Scene specific Tcorr
-          8 - User defined Tcorr
-          9 - No data
-
         """
-        # TODO: Make this a class property or method that we can query
-        tcorr_indices = {
-            'continuous': 2,
-            'scene': 3,
-            'user': 8,
-            'nodata': 9,
-        }
-
-        # First check if Tcorr is a number, and if so return
         if utils.is_number(self._tcorr_source):
-            return ee.Image.constant(float(self._tcorr_source))\
-                .rename(['tcorr']).set({'tcorr_index': tcorr_indices['user']})
-        # Then check if Tmax source is a number but Tcorr is a spatial calculation
-        elif (utils.is_number(self._tmax_source) and
-              (self._tcorr_source.upper() in ['DYNAMIC'] or
-               'SCENE' in self._tcorr_source.upper())):
-            warnings.warn(
-                'Support for the DYNAMIC tcorr_source keywords is deprecated '
-                'and will be removed in a future version',
-                FutureWarning
-                # DeprecationWarning, stacklevel=2
+            return (
+                ee.Image.constant(float(self._tcorr_source)).rename(['tcorr'])
+                .set({'tcorr_source': f'custom_{self._tcorr_source}'})
             )
-            raise ValueError(
-                '\nInvalid tmax_source for tcorr: {} / {}\n'.format(
-                    self._tcorr_source, self._tmax_source))
-
-        # Compute (or load) the Tcorr image
-        # if self._tcorr_source.startswith('projects/'):
-        if 'FANO' == self._tcorr_source.upper():
-            tcorr_img = ee.Image(self.tcorr_FANO).select(['tcorr'])
-            return tcorr_img.rename(['tcorr'])
-
+        elif 'FANO' == self._tcorr_source.upper():
+            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})
         elif 'DYNAMIC' == self._tcorr_source.upper():
+            # Compute Tcorr dynamically for the scene
             warnings.warn(
-                'Support for the DYNAMIC tcorr_source keywords is deprecated '
+                'Support for the DYNAMIC tcorr_source keyword is deprecated '
                 'and will be removed in a future version',
                 FutureWarning
                 # DeprecationWarning, stacklevel=2
             )
 
-            # Compute Tcorr dynamically for the scene
-            mask_img = ee.Image(default_coll.first()).multiply(0)
-            mask_coll = ee.ImageCollection(
-                mask_img.updateMask(0).set({'tcorr_index': tcorr_indices['nodata']})
-            )
+            tcorr_default = 0.978
 
             # Use a larger default minimum pixel count for dynamic Tcorr
             if 'min_pixels_per_image' in self.kwargs.keys():
@@ -604,29 +569,21 @@ class Image:
             else:
                 min_pixels_per_image = 1000
 
-            t_stats = ee.Dictionary(self.tcorr_stats)\
+            # If Tcorr cannot be computed, set the Tcorr to 0
+            # We may want to set the Tcorr in the dictionary to the default instead
+            t_stats = (
+                ee.Dictionary(self.tcorr_stats)
                 .combine({'tcorr_value': 0, 'tcorr_count': 0}, overwrite=False)
-            tcorr_value = ee.Number(t_stats.get('tcorr_value'))
-            tcorr_count = ee.Number(t_stats.get('tcorr_count'))
-            tcorr_index = tcorr_count.lt(min_pixels_per_image)\
-                .multiply(tcorr_indices['nodata'])
-            # tcorr_index = ee.Number(ee.Algorithms.If(
-            #     tcorr_count.gte(min_pixels_per_image),
-            #     0, tcorr_indices['nodata']))
-
-            mask_img = mask_img.add(tcorr_count.gte(min_pixels_per_image))
-            scene_img = (
-                mask_img.multiply(tcorr_value)
-                .updateMask(mask_img.unmask(0))
-                .rename(['tcorr'])
-                .set({'tcorr_index': tcorr_index})
             )
-
-            # tcorr_coll = ee.ImageCollection([scene_img])
-            tcorr_coll = ee.ImageCollection([scene_img]).merge(mask_coll).sort('tcorr_index')
-
-            return ee.Image(tcorr_coll.first()).rename(['tcorr'])
-
+            tcorr_mask = (
+                self.lst.multiply(0)
+                .add(ee.Number(t_stats.get('tcorr_count')).gte(min_pixels_per_image))
+            )
+            return (
+                tcorr_mask.multiply(ee.Number(t_stats.get('tcorr_value')))
+                .where(tcorr_mask.eq(0), tcorr_default)
+                .set(t_stats).rename(['tcorr'])
+            )
         else:
             raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
 
@@ -646,11 +603,13 @@ class Image:
         """
         if utils.is_number(self._tmax_source):
             # Allow Tmax source to be set as a number for testing
-            tmax_image = ee.Image.constant(float(self._tmax_source)).rename(['tmax'])\
+            tmax_image = (
+                ee.Image.constant(float(self._tmax_source)).rename(['tmax'])
                 .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
+            )
         elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?', self._tmax_source):
             # Process Tmax source as a collection ID
-            # The Tmax collections do not have a time_start so filter using the "doy" property instead
+            # The Tmax collections do not have a time_start so filter use the "doy" property instead
             tmax_coll = ee.ImageCollection(self._tmax_source)\
                 .filterMetadata('doy', 'equals', self._doy)
             #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
