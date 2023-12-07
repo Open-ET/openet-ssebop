@@ -52,7 +52,6 @@ class Image:
             dt_max=25,
             et_fraction_type='alfalfa',
             et_fraction_grass_source=None,
-            reflectance_type='SR',
             **kwargs,
     ):
         """Construct a generic SSEBop Image
@@ -100,8 +99,6 @@ class Image:
             Parameter must be set if et_fraction_type is 'grass'.
             The default is currently the NLDAS hourly collection,
             but having a default will likely be removed in a future version.
-        reflectance_type : {'SR', 'TOA'}, optional
-            Used to set the Tcorr NDVI thresholds (the default is 'SR').
         kwargs : dict, optional
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
@@ -215,10 +212,6 @@ class Image:
         # # Should the supported source values be checked here instead of in model.py?
         # if et_fraction_grass_source not in et_fraction_grass_sources:
         #     raise ValueError('unsupported et_fraction_grass_source')
-
-        self.reflectance_type = reflectance_type
-        if reflectance_type not in ['SR', 'TOA']:
-            raise ValueError('reflectance_type must "SR" or "TOA"')
 
         # Image projection and geotransform
         self.crs = image.projection().crs()
@@ -551,7 +544,7 @@ class Image:
                 .set({'tcorr_source': f'custom_{self._tcorr_source}'})
             )
         elif 'FANO' == self._tcorr_source.upper():
-            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})DY
+            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})
         else:
             raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
 
@@ -724,7 +717,7 @@ class Image:
         )
 
         # Instantiate the class
-        return cls(input_image, reflectance_type='SR', **kwargs)
+        return cls(input_image, **kwargs)
 
     @lazy_property
     def tcorr_image(self):
@@ -743,15 +736,9 @@ class Image:
         tcorr = lst.divide(tmax)
 
         # Adjust NDVI
-        if self.reflectance_type.upper() == 'SR':
-            # ndvi_threshold = 0.75
-            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            ndvi_threshold = 0.85
-        # elif self.reflectance_type.upper() == 'TOA':
-        else:
-            # ndvi_threshold = 0.7
-            # change for tcorr at 1000m resolution also includes making NDVI more 'strict'
-            ndvi_threshold = 0.8
+        ndvi_threshold = 0.85
+        # Changed for tcorr at 1000m resolution also includes making NDVI more 'strict'
+        # ndvi_threshold = 0.75
 
         # Select high NDVI pixels that are also surrounded by high NDVI
         ndvi_smooth_mask = (

@@ -82,7 +82,6 @@ def default_image_args(
         elr_flag=False,
         et_fraction_type='alfalfa',
         et_fraction_grass_source=None,
-        reflectance_type='SR',
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
@@ -101,7 +100,6 @@ def default_image_args(
         'elr_flag': elr_flag,
         'et_fraction_type': et_fraction_type,
         'et_fraction_grass_source': et_fraction_grass_source,
-        'reflectance_type': reflectance_type,
         'dt_resample': dt_resample,
         'tmax_resample': tmax_resample,
         'tcorr_resample': tcorr_resample,
@@ -123,7 +121,6 @@ def default_image_obj(
         elr_flag=False,
         et_fraction_type='alfalfa',
         et_fraction_grass_source=None,
-        reflectance_type='SR',
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
@@ -142,7 +139,6 @@ def default_image_obj(
         elr_flag=elr_flag,
         et_fraction_type=et_fraction_type,
         et_fraction_grass_source=et_fraction_grass_source,
-        reflectance_type=reflectance_type,
         dt_resample=dt_resample,
         tmax_resample=tmax_resample,
         tcorr_resample=tcorr_resample,
@@ -165,7 +161,6 @@ def test_Image_init_default_parameters():
     assert m._elr_flag is False
     assert m.et_fraction_type == 'alfalfa'
     assert m.et_fraction_grass_source is None
-    assert m.reflectance_type == 'SR'
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
@@ -529,18 +524,16 @@ def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804,
 
 @pytest.mark.parametrize(
     # Note: These are made up values
-    'lst, ndvi, tmax, refl_type, expected',
+    'lst, ndvi, tmax, expected',
     [
-        [300, 0.69, 306, 'TOA', None],  # NDVI < 0.7
-        [300, 0.74, 306, 'SR', None],  # NDVI < 0.75
-        [269, 0.69, 306, 'TOA', None],  # LST < 270
+        [300, 0.74, 306, None],  # NDVI < 0.75
+        [269, 0.69, 306, None],  # LST < 270
         # TODO: Add a test for the NDVI smoothing
     ]
 )
-def test_Image_tcorr_image_nodata(lst, ndvi, tmax, refl_type, expected):
+def test_Image_tcorr_image_nodata(lst, ndvi, tmax, expected):
     output = utils.constant_image_value(default_image_obj(
-        lst=lst, ndvi=ndvi, tmax_source=tmax,
-        reflectance_type=refl_type).tcorr_image)
+        lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image)
     assert output['tcorr'] is None and expected is None
 
 
