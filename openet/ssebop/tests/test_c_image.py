@@ -488,13 +488,13 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_arg():
 def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
     """Test if the c2_lst_correct fills the LST holes in Nebraska"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-    point_xy = [-102.08284, 37.81728]
+    xy = (-102.08284, 37.81728)
     # CGM - Is the uncorrected test needed?
     uncorrected = utils.point_image_value(
-        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=False).lst, point_xy)
+        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=False).lst, xy)
     assert uncorrected['lst'] is None
     corrected = utils.point_image_value(
-        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True).lst, point_xy)
+        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True).lst, xy)
     assert corrected['lst'] > 0
     # # Exact test values copied from openet-core
     # assert abs(corrected['lst'] - 306.83) <= 0.25
@@ -598,42 +598,40 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
 
 
 @pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, expected',
+    'tcorr_src, tmax_src, image_id, xy, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.9803095962281566],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
     ]
 )
-def test_Image_tcorr_fano_source(tcorr_source, tmax_source, image_id, expected, tol=0.000001):
+def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
     tcorr_img = ssebop.Image.from_image_id(
-        image_id, tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr
-    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+        image_id, tcorr_source=tcorr_src, tmax_source=tmax_src, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, xy)
     assert abs(tcorr['tcorr'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
-    'tcorr_source, tmax_source, image_id, expected',
+    'tcorr_src, tmax_src, image_id, xy, expected',
     [
         ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', 0.974979476478202],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.974979476478202],
         ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', 0.9851211164517142],
+         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-121.5, 39.0), 0.9851211164517142],
         # Check that default value is used if tcorr_count is below threshold
         ['DYNAMIC', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LE07_036035_20010704', 0.978],
+         'LANDSAT/LE07/C02/T1_L2/LE07_036035_20010704', (-110.5, 36.0), 0.978],
     ]
 )
-def test_Image_tcorr_dynamic_source(tcorr_source, tmax_source, image_id, expected, tol=0.000001):
+def test_Image_tcorr_dynamic_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
     tcorr_img = ssebop.Image.from_image_id(
-        image_id, tcorr_source=tcorr_source,
-        tmax_source=tmax_source, tmax_resample='nearest').tcorr
-    tcorr = utils.point_image_value(tcorr_img, SCENE_POINT)
+        image_id, tcorr_source=tcorr_src, tmax_source=tmax_src, tmax_resample='nearest').tcorr
+    tcorr = utils.point_image_value(tcorr_img, xy)
     assert abs(tcorr['tcorr'] - expected) <= tol
 
 
@@ -874,17 +872,17 @@ def test_Image_time_properties():
 
 
 @pytest.mark.parametrize(
-    'image_id, test_point, expected',
+    'image_id, xy, expected',
     [
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.15, 38.6153), 0],
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292), 1],
     ]
 )
-def test_Image_qa_water_mask(image_id, test_point, expected):
+def test_Image_qa_water_mask(image_id, xy, expected):
     """Test if qa pixel waterband exists"""
     output_img = ssebop.Image.from_image_id(image_id)
     mask_img = output_img.qa_water_mask
-    output = utils.point_image_value(mask_img, test_point)
+    output = utils.point_image_value(mask_img, xy)
     assert output['qa_water'] == expected
 
 
