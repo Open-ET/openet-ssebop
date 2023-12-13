@@ -79,11 +79,13 @@ SSEBop images can also be built manually by instantiating the class with an ee.I
 
     import openet.ssebop as ssebop
 
-    input_img = ee.Image([ee.Image(lst), ee.Image(ndvi)]) \
-        .rename(['lst', 'ndvi']) \
+    input_img = (
+        ee.Image([ee.Image(lst), ee.Image(ndvi)])
+        .rename(['lst', 'ndvi'])
         .set({
             'system:index': 'LC08_044033_20170716',
             'system:time_start': ee.Date.fromYMD(2017, 7, 16).millis()})
+    )
     et_fraction = ssebop.Image(input_img).et_fraction
 
 Example Notebooks
@@ -132,6 +134,7 @@ The 'FANO' parameter (default) can be implemented dynamically for each Landsat s
 .. code-block:: python
 
     model_obj = model.Image.from_landsat_c2_sr(
+        ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'),
         tcorr_source='FANO',
         )
 
@@ -196,7 +199,7 @@ References
  | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, 15(1):260.
  | `https://doi.org/10.3390/rs15010260 <https://doi.org/10.3390/rs15010260>`__
 
-.. |build| image:: https://github.com/Open-ET/openet-ssebop/workflows/build/badge.svg
+.. |build| image:: https://github.com/Open-ET/openet-ssebop/actions/workflows/build.yml/badge.svg
    :alt: Build status
    :target: https://github.com/Open-ET/openet-ssebop
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
