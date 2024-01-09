@@ -35,7 +35,7 @@ def lazy_property(fn):
 class Image:
     """Earth Engine based SSEBop Image"""
 
-    _C2_LST_CORRECT = False  # Enable (True) C2 LST correction to recalculate LST
+    _C2_LST_CORRECT = True  # C2 LST correction to recalculate LST default value
 
     def __init__(
             self, image,
