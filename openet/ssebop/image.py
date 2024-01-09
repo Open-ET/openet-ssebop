@@ -677,7 +677,7 @@ class Image:
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
         # Check if passing c2_lst_correct arguments
-        if "c2_lst_correct" in kwargs.keys():
+        if 'c2_lst_correct' in kwargs.keys():
             assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
             # Remove from kwargs since it is not a valid argument for Image init
             c2_lst_correct = kwargs.pop('c2_lst_correct')

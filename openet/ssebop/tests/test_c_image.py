@@ -405,8 +405,7 @@ def test_Image_from_landsat_c2_sr_image_id(image_id):
 def test_Image_from_landsat_c2_sr_image():
     """Test instantiating the class from a Landsat SR ee.Image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
-        ee.Image(image_id)).ndvi)
+    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -431,10 +430,13 @@ def test_Image_from_landsat_c2_sr_scaling():
               'system:time_start': ee.Number(sr_img.get('system:time_start'))})
     )
 
-    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(input_img).ndvi)
+    # LST correction does not work with a constant image
+    output = utils.constant_image_value(
+        ssebop.Image.from_landsat_c2_sr(input_img, c2_lst_correct=False).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
 
-    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(input_img).lst)
+    output = utils.constant_image_value(
+        ssebop.Image.from_landsat_c2_sr(input_img, c2_lst_correct=False).lst)
     assert abs(output['lst'] - 300) <= 0.1
 
 
@@ -554,8 +556,8 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001):
     output = utils.getinfo(ssebop.Image.from_image_id(
-        image_id, tmax_source=tmax_source,
-        tmax_resample='nearest').tcorr_stats)
+        image_id, tmax_source=tmax_source, tmax_resample='nearest',
+        c2_lst_correct=False).tcorr_stats)
     assert abs(output['tcorr_value'] - expected['tcorr_value']) <= tol
     assert abs(output['tcorr_count'] - expected['tcorr_count']) <= 10
     # assert output['tcorr_count'] == expected['tcorr_count']
@@ -576,7 +578,8 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
 def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
     tcorr_img = ssebop.Image.from_image_id(
-        image_id, tcorr_source=tcorr_src, tmax_source=tmax_src, tmax_resample='nearest').tcorr
+        image_id, tcorr_source=tcorr_src, tmax_source=tmax_src, tmax_resample='nearest',
+        c2_lst_correct=False).tcorr
     tcorr = utils.point_image_value(tcorr_img, xy)
     assert abs(tcorr['tcorr'] - expected) <= tol
 
@@ -602,8 +605,7 @@ def test_Image_tcorr_source_exception(tcorr_src):
 )
 def test_Image_tcorr_tmax_source_exception(tcorr_src, tmax_src):
     with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(
-            tcorr_source=tcorr_src, tmax_source=tmax_src).tcorr)
+        utils.getinfo(default_image_obj(tcorr_source=tcorr_src, tmax_source=tmax_src).tcorr)
 
 
 def test_Image_et_fraction_properties():
