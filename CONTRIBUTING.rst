@@ -30,7 +30,7 @@ Create the conda environment:
 
 .. code-block:: console
 
-    conda create --name openet python=3.6
+    conda create --name openet python=3.9
 
 Activate the environment:
 

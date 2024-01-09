@@ -1,4 +1,0 @@
-earthengine-api>=0.1.207
-flask
-openet-ssebop
-python-dateutil

@@ -24,16 +24,12 @@ The primary component of the SSEBop model is the Image() class.  The Image class
 Input Collections
 =================
 
-SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) images and Landsat Collection 1 Top-Of-Atmosphere (TOA) images from the following Earth Engine image collections:
+SSEBop ET can currently be computed for Landsat Collection 2 Level 2 (SR/ST) images from the following Earth Engine image collections:
 
  * LANDSAT/LC09/C02/T1_L2
  * LANDSAT/LC08/C02/T1_L2
  * LANDSAT/LE07/C02/T1_L2
  * LANDSAT/LT05/C02/T1_L2
- * LANDSAT/LC08/C01/T1_TOA or LANDSAT/LC08/C01/T1_RT_TOA
- * LANDSAT/LE07/C01/T1_TOA or LANDSAT/LE07/C01/T1_RT_TOA
- * LANDSAT/LT05/C01/T1_TOA
-
 
 **Note:** Users are encouraged to prioritize use of Collection 2 data where available. Collection 1 was produced by USGS until 2022-01-01, and maintained by Earth Engine until 2023-01-01. [`More Information <https://developers.google.com/earth-engine/guides/landsat#landsat-collection-status>`__]
 
@@ -53,32 +49,6 @@ LANDSAT_8          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7, ST_B10, QA_P
 LANDSAT_9          SR_B1, SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7, ST_B10, QA_PIXEL
 =================  ======================================
 
-Landsat Collection 1 TOA Input Image
-------------------------------------
-
-To instantiate the class for a Landsat Collection 1 TOA image, use the Image.from_landsat_c1_toa() method.
-
-The input Landsat image must have the following bands and properties:
-
-=================  ======================================
-SPACECRAFT_ID      Band Names
-=================  ======================================
-LANDSAT_5          B1, B2, B3, B4, B5, B7, B6, BQA
-LANDSAT_7          B1, B2, B3, B4, B5, B7, B6_VCID_1, BQA
-LANDSAT_8          B2, B3, B4, B5, B6, B7, B10, BQA
-=================  ======================================
-
-=================  =============================================
-Property           Description
-=================  =============================================
-system:index       - Landsat Scene ID
-                   - Must be in the Earth Engine format (e.g. LC08_044033_20170716)
-                   - Used to lookup the scene specific c-factor (DEPRECATED)
-system:time_start  Image datetime in milliseconds since 1970
-SPACECRAFT_ID      - Used to determine which Landsat type
-                   - Must be: LANDSAT_5, LANDSAT_7, or LANDSAT_8
-=================  =============================================
-
 Model Output
 ------------
 
@@ -95,8 +65,8 @@ Example
 
     import openet.ssebop as ssebop
 
-    landsat_img = ee.Image('LANDSAT/LC08/C01/T1_RT_TOA/LC08_044033_20170716')
-    et_fraction = ssebop.Image.from_landsat_c1_toa(landsat_img).et_fraction
+    landsat_img = ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716')
+    et_fraction = ssebop.Image.from_landsat_c2_sr(landsat_img).et_fraction
     et_reference = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('etr')
     et_actual = et_fraction.multiply(et_reference)
 
@@ -109,11 +79,13 @@ SSEBop images can also be built manually by instantiating the class with an ee.I
 
     import openet.ssebop as ssebop
 
-    input_img = ee.Image([ee.Image(lst), ee.Image(ndvi)]) \
-        .rename(['lst', 'ndvi']) \
+    input_img = (
+        ee.Image([ee.Image(lst), ee.Image(ndvi)])
+        .rename(['lst', 'ndvi'])
         .set({
             'system:index': 'LC08_044033_20170716',
             'system:time_start': ee.Date.fromYMD(2017, 7, 16).millis()})
+    )
     et_fraction = ssebop.Image(input_img).et_fraction
 
 Example Notebooks
@@ -141,8 +113,6 @@ Land Surface Temperature is currently calculated in the SSEBop approach two ways
 
 * Landsat Collection 2 Level-2 (ST band) images directly. More information can be found at: `USGS Landsat Collection 2 Level-2 Science Products <https://www.usgs.gov/core-science-systems/nli/landsat/landsat-collection-2-level-2-science-products>`__
 
-* Landsat Collection 1 Top-of-Atmosphere images by including an on-the-fly function for calibration steps and atmospheric correction techniques. These include calculations for: (1) spectral radiance conversion to the at-sensor brightness temperature; (2) atmospheric absorption and re-emission value; and (3) surface emissivity. For additional information, users can refer to section 3.2 of the Methodology in Senay2016_.
-
 Temperature Difference (dT)
 ---------------------------
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
@@ -164,6 +134,7 @@ The 'FANO' parameter (default) can be implemented dynamically for each Landsat s
 .. code-block:: python
 
     model_obj = model.Image.from_landsat_c2_sr(
+        ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'),
         tcorr_source='FANO',
         )
 
@@ -228,7 +199,7 @@ References
  | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, 15(1):260.
  | `https://doi.org/10.3390/rs15010260 <https://doi.org/10.3390/rs15010260>`__
 
-.. |build| image:: https://github.com/Open-ET/openet-ssebop/workflows/build/badge.svg
+.. |build| image:: https://github.com/Open-ET/openet-ssebop/actions/workflows/build.yml/badge.svg
    :alt: Build status
    :target: https://github.com/Open-ET/openet-ssebop
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
