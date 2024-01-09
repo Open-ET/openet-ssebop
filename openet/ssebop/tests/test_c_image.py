@@ -162,7 +162,7 @@ def test_Image_init_default_parameters():
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
-    assert m._C2_LST_CORRECT is False
+    assert m._C2_LST_CORRECT is True
 
 
 # Todo: Break these up into separate functions?
