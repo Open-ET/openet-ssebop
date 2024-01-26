@@ -671,8 +671,8 @@ class Image:
             cloudmask_args['shadow_flag'] = True
         if 'snow_flag' not in cloudmask_args.keys():
             cloudmask_args['snow_flag'] = True
-        # if 'saturated_flag' not in cloudmask_args.keys():
-        #     cloudmask_args['saturated_flag'] = True
+        if 'saturated_flag' not in cloudmask_args.keys():
+            cloudmask_args['saturated_flag'] = True
 
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
