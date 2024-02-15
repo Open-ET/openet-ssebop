@@ -21,24 +21,39 @@ def test_getinfo_exception():
 #     assert utils.getinfo(ee.Number('deadbeef')) is None
 
 
-def test_constant_image_value(tol=0.000001):
-    expected = 10.123456789
-    input_img = ee.Image.constant(expected)
-    output = utils.constant_image_value(input_img)
+def test_constant_image_value(expected=10.123456789, tol=0.000001):
+    output = utils.constant_image_value(ee.Image.constant(expected))
     assert abs(output['constant'] - expected) <= tol
 
 
-def test_point_image_value(tol=0.001):
-    expected = 2364.351
-    output = utils.point_image_value(ee.Image('USGS/NED'), [-106.03249, 37.17777])
-    assert abs(output['elevation'] - expected) <= tol
+@pytest.mark.parametrize(
+    'image_id, xy, scale, expected, tol',
+    [
+        ['USGS/NED', [-106.03249, 37.17777], 10, 2364.351, 0.001],
+        ['USGS/NED', [-106.03249, 37.17777], 1, 2364.351, 0.001],
+    ]
+)
+def test_point_image_value(image_id, xy, scale, expected, tol):
+    output = utils.point_image_value(ee.Image(image_id).rename('output'), xy)
+    assert abs(output['output'] - expected) <= tol
 
 
-def test_point_coll_value(tol=0.001):
-    expected = 2364.351
-    output = utils.point_coll_value(
-        ee.ImageCollection([ee.Image('USGS/NED')]), [-106.03249, 37.17777])
-    assert abs(output['elevation']['2012-04-04'] - expected) <= tol
+@pytest.mark.parametrize(
+    'image_id, image_date, xy, scale, expected, tol',
+    [
+        # CGM - This test stopped working for a scale of 1 and returns a different
+        #   value for a scale of 10 than the point_image_value() function above.
+        # This function uses getRegion() instead of a reduceRegion() call,
+        #   so there might have been some sort of change in getRegion().
+        ['USGS/NED', '2012-04-04', [-106.03249, 37.17777], 10, 2364.286, 0.001],
+        # CGM - The default scale of 1 now returns None/Null for some reason
+        # ['USGS/NED', '2012-04-04', [-106.03249, 37.17777], 1, 2364.351, 0.001],
+    ]
+)
+def test_point_coll_value(image_id, image_date, xy, scale, expected, tol):
+    input_img = ee.Image(image_id).rename(['output'])
+    output = utils.point_coll_value(ee.ImageCollection([input_img]), xy, scale)
+    assert abs(output['output'][image_date] - expected) <= tol
 
 
 def test_c_to_k(c=20, k=293.15, tol=0.000001):
@@ -51,12 +66,10 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
     [
         ['2015-07-13T18:33:39', 1436745600000],
         ['2015-07-13T00:00:00', 1436745600000],
-
     ]
 )
 def test_date_to_time_0utc(input, expected):
-    input_img = ee.Date(input)
-    assert utils.getinfo(utils.date_to_time_0utc(input_img)) == expected
+    assert utils.getinfo(utils.date_to_time_0utc(ee.Date(input))) == expected
 
 
 @pytest.mark.parametrize(

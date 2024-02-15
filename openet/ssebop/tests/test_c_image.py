@@ -430,13 +430,14 @@ def test_Image_from_landsat_c2_sr_scaling():
               'system:time_start': ee.Number(sr_img.get('system:time_start'))})
     )
 
-    # LST correction does not work with a constant image
-    output = utils.constant_image_value(
-        ssebop.Image.from_landsat_c2_sr(input_img, c2_lst_correct=False).ndvi)
+    # LST correction and cloud score masking do not work with a constant image
+    #   and must be explicitly set to False
+    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
+        input_img, c2_lst_correct=False, cloudmask_args={'cloud_score_flag': False}).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
 
-    output = utils.constant_image_value(
-        ssebop.Image.from_landsat_c2_sr(input_img, c2_lst_correct=False).lst)
+    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
+        input_img, c2_lst_correct=False, cloudmask_args={'cloud_score_flag': False}).lst)
     assert abs(output['lst'] - 300) <= 0.1
 
 
@@ -445,6 +446,14 @@ def test_Image_from_landsat_c2_sr_cloud_mask_args():
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
     output = ssebop.Image.from_landsat_c2_sr(
         image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
+    assert type(output) == type(default_image_obj())
+
+
+def test_Image_from_landsat_c2_sr_cloud_score_mask_arg():
+    """Test if the cloud_score_flag parameter can be set in cloudmask_args"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
+    output = ssebop.Image.from_landsat_c2_sr(
+        image_id, cloudmask_args={'cloud_score_flag': True})
     assert type(output) == type(default_image_obj())
 
 
