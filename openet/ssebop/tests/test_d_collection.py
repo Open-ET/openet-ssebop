@@ -35,7 +35,7 @@ default_coll_args = {
     # 'et_reference_date_type': 'daily',
     'model_args': {
         'tcorr_source': 0.99,
-        'cloudmask_args': {'cloud_score_flag': False, 'filter_flag': False}
+        'cloudmask_args': {'cloud_score_flag': False, 'filter_flag': False},
     },
     # 'model_args': {},
     'filter_args': {},

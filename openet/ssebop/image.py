@@ -616,12 +616,12 @@ class Image:
 
     @classmethod
     def from_landsat_c2_sr(cls, sr_image, cloudmask_args={}, **kwargs):
-        """Returns a SSEBop Image instance from a Landsat Collection 2 SR image
+        """Returns a SSEBop Image instance from a Landsat C02 level 2 (SR) image
 
         Parameters
         ----------
         sr_image : ee.Image, str
-            A raw Landsat Collection 2 SR image or image ID.
+            A raw Landsat Collection 2 level 2 (SR) SR image or image ID.
         cloudmask_args : dict
             keyword arguments to pass through to cloud mask function
         kwargs : dict

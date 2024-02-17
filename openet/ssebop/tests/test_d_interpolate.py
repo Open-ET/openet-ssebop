@@ -35,8 +35,10 @@ def scene_coll(variables, et_fraction=0.4, et=5, ndvi=0.6):
 
     # Mask and time bands currently get added on to the scene collection
     #   and images are unscaled just before interpolating in the export tool
-    scene_img = ee.Image([img.add(et_fraction), img.add(et), img.add(ndvi), mask])\
+    scene_img = (
+        ee.Image([img.add(et_fraction), img.add(et), img.add(ndvi), mask])
         .rename(['et_fraction', 'et', 'ndvi', 'mask'])
+    )
     # CGM - I was having issues when I removed these backslashes,
     #   even though they shouldn't be needed
     scene_coll = ee.ImageCollection([

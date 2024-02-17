@@ -412,7 +412,7 @@ def test_Image_from_landsat_c2_sr_image():
 def test_Image_from_landsat_c2_sr_exception():
     """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
-        # Intentionally using .getInfo()
+        # Intentionally using .getInfo() instead of utils.getinfo()
         ssebop.Image.from_landsat_c2_sr(ee.Image('FOO')).ndvi.getInfo()
 
 
@@ -433,11 +433,13 @@ def test_Image_from_landsat_c2_sr_scaling():
     # LST correction and cloud score masking do not work with a constant image
     #   and must be explicitly set to False
     output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
-        input_img, c2_lst_correct=False, cloudmask_args={'cloud_score_flag': False}).ndvi)
+        input_img, c2_lst_correct=False,
+        cloudmask_args={'cloud_score_flag': False, 'filter_flag': False}).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
 
     output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
-        input_img, c2_lst_correct=False, cloudmask_args={'cloud_score_flag': False}).lst)
+        input_img, c2_lst_correct=False,
+        cloudmask_args={'cloud_score_flag': False, 'filter_flag': False}).lst)
     assert abs(output['lst'] - 300) <= 0.1
 
 
@@ -483,6 +485,7 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
     'image_id',
     [
         'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        'LANDSAT/LC09/C02/T1_L2/LC09_044033_20220127',
     ]
 )
 def test_Image_from_image_id(image_id):
@@ -548,9 +551,10 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-         {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
+        # DEADBEEF
+        # ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
+        #  {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
         # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
@@ -726,11 +730,16 @@ def test_Image_et_reference_properties():
     [
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 1, TEST_POINT, 9.5730],
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
-        ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
-         'ETr_ASCE', 1, TEST_POINT, 10.0220],
+        ['projects/openet/assets/reference_et/california/cimis/daily/v1',
+         'etr', 1, TEST_POINT, 10.0760],
+        ['projects/openet/reference_et/california/cimis/daily/v1',
+         'etr', 1, TEST_POINT, 10.0760],
+        # DEADBEEF
+        # ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
+        #  'ETr_ASCE', 1, TEST_POINT, 10.0220],
         # CGM - Why are these not the same?
-        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/daily',
-         'etr_asce', 1, TEST_POINT, 10.0760],
+        # ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/daily',
+        #  'etr_asce', 1, TEST_POINT, 10.0760],
         [10, 'FOO', 1, TEST_POINT, 10.0],
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]

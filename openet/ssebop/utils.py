@@ -33,7 +33,7 @@ def getinfo(ee_obj, n=4):
     return output
 
 
-# TODO: Import from common.utils
+# TODO: Import from openet.core.utils instead of defining here
 # Should these be test fixtures instead?
 # I'm not sure how to make them fixtures and allow input parameters
 def constant_image_value(image, crs='EPSG:32613', scale=1):
@@ -48,7 +48,11 @@ def constant_image_value(image, crs='EPSG:32613', scale=1):
 
 def point_image_value(image, xy, scale=1):
     """Extract the output value from a calculation at a point"""
-    rr_params = {'reducer': ee.Reducer.first(), 'geometry': ee.Geometry.Point(xy), 'scale': scale}
+    rr_params = {
+        'reducer': ee.Reducer.first(),
+        'geometry': ee.Geometry.Point(xy),
+        'scale': scale,
+    }
     return getinfo(ee.Image(image).reduceRegion(**rr_params))
 
 
@@ -67,6 +71,7 @@ def point_coll_value(coll, xy, scale=1):
         date = datetime.datetime.utcfromtimestamp(row[3] / 1000.0).strftime('%Y-%m-%d')
         for k, v in col_dict.items():
             info_dict[k][date] = row[col_dict[k]]
+
     return info_dict
     # return pd.DataFrame.from_dict(info_dict)
 
@@ -132,5 +137,5 @@ def valid_date(date_str, date_fmt='%Y-%m-%d'):
     try:
         datetime.datetime.strptime(date_str, date_fmt)
         return True
-    except Exception as e:
+    except:
         return False
