@@ -12,7 +12,7 @@ maintainers = [
 description = "Earth Engine implementation of the SSEBop model"
 readme = "README.rst"
 requires-python = ">=3.7"
-keywords = ["SSEBop", "OpenET", "Earth Engine", "evapotranspiration"]
+keywords = ["SSEBop", "OpenET", "Earth Engine", "Evapotranspiration", "Landsat"]
 license = { file = "LICENSE.txt" }
 # license = {text = "Apache-2.0"}
 classifiers = [

@@ -317,7 +317,7 @@ class Image:
                 et_fraction = model.etf_grass_type_adjust(
                     etf=et_fraction,
                     src_coll_id=self.et_fraction_grass_source,
-                    time_start=self._time_start
+                    time_start=self._time_start,
                 )
 
         return et_fraction.set(self._properties)\

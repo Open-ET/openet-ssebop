@@ -230,10 +230,10 @@ def elr_adjust(temperature, elevation, radius=80):
     return tmax_img
 
 
-# TODO: Decide if using the instantaneous is the right/best approach
+# TODO: Decide if using the interpolated instantaneous is the right/best approach
 #   We could use the closest hour in time, an average of a few hours
 #   or just switch to using the raw daily or bias corrected assets
-def etf_grass_type_adjust(etf, src_coll_id, time_start):
+def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinear'):
     """"Convert ET fraction from an alfalfa reference to grass reference
 
     Parameters
@@ -244,6 +244,8 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start):
         Hourly meteorology collection ID for computing reference ET.
     time_start : int, ee.Number
         Image system time start [millis].
+    resample_method : {'nearest', 'bilinear', 'bicubic'}
+        Resample method for hourly meteorology collection.
 
     Returns
     -------
@@ -284,23 +286,27 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start):
         .set({'system:time_start': time_start})
     )
 
-    # # DEADBEEF - Select the NLDAS image before the Landsat scene time
+    # # DEADBEEF - This will select the NLDAS image before the Landsat scene time
     # interp_img = ee.Image(
     #     hourly_coll.filterDate(self._date.advance(-1, 'hour'), self._date).first()
     # )
 
     if src_coll_id.upper() == 'NASA/NLDAS/FORA0125_H002':
-        etf_grass = (
-            etf
-            .multiply(openet.refetgee.Hourly.nldas(interp_img).etr)
+        ratio = (
+            openet.refetgee.Hourly.nldas(interp_img).etr
             .divide(openet.refetgee.Hourly.nldas(interp_img).eto)
         )
+        if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
+            ratio = ratio.resample(resample_method)
+        etf_grass = etf.multiply(ratio)
     elif src_coll_id.upper() == 'ECMWF/ERA5_LAND/HOURLY':
-        etf_grass = (
-            etf
-            .multiply(openet.refetgee.Hourly.era5_land(interp_img).etr)
+        ratio = (
+            openet.refetgee.Hourly.era5_land(interp_img).etr
             .divide(openet.refetgee.Hourly.era5_land(interp_img).eto)
         )
+        if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
+            ratio = ratio.resample(resample_method)
+        etf_grass = etf.multiply(ratio)
     # else:
 
     return etf_grass
