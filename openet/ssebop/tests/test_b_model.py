@@ -199,36 +199,42 @@ def test_Model_elr_adjust(xy, adjusted):
         assert output == original
 
 
-def test_Image_et_reference_source_parameters():
+def test_Model_etf_grass_type_adjust_parameters():
     """Check that the function parameter names and order don't change"""
     etf_img = (
         ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
         .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
     )
     output = model.etf_grass_type_adjust(
-        etf=etf_img, src_coll_id='NASA/NLDAS/FORA0125_H002', time_start=SCENE_TIME
+        etf=etf_img, src_coll_id='NASA/NLDAS/FORA0125_H002',
+        time_start=SCENE_TIME, resample_method='bilinear',
     )
     assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
 
-    output = model.etf_grass_type_adjust(etf_img, 'NASA/NLDAS/FORA0125_H002', SCENE_TIME)
+    output = model.etf_grass_type_adjust(
+        etf_img, 'NASA/NLDAS/FORA0125_H002', SCENE_TIME, 'bilinear'
+    )
     assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
 
 
 @pytest.mark.parametrize(
-    'src_coll_id, expected',
+    'src_coll_id, resample_method, expected',
     [
-        ['NASA/NLDAS/FORA0125_H002', 1.23],
-        ['ECMWF/ERA5_LAND/HOURLY', 1.15],
+        ['NASA/NLDAS/FORA0125_H002', 'nearest', 1.228],
+        ['NASA/NLDAS/FORA0125_H002', 'bilinear', 1.232],
+        ['ECMWF/ERA5_LAND/HOURLY', 'nearest', 1.156],
+        ['ECMWF/ERA5_LAND/HOURLY', 'bilinear', 1.156],
     ]
 )
-def test_Model_etf_grass_type_adjust(src_coll_id, expected, tol=0.01):
+def test_Model_etf_grass_type_adjust(src_coll_id, resample_method, expected, tol=0.001):
     """Check alfalfa to grass reference adjustment factor"""
     etf_img = (
         ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
         .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
     )
     output = model.etf_grass_type_adjust(
-        etf=etf_img, src_coll_id=src_coll_id, time_start=SCENE_TIME
+        etf=etf_img, src_coll_id=src_coll_id, time_start=SCENE_TIME,
+        resample_method=resample_method
     )
     output = utils.point_image_value(output, SCENE_POINT, scale=100)
     assert abs(output['et_fraction'] - expected) <= tol

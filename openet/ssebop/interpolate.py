@@ -44,6 +44,7 @@ def from_scene_et_fraction(
         use_joins : bool, optional
             If True, use joins to link the target and source collections.
             If False, the source collection will be filtered for each target image.
+            This parameter is passed through to interpolate.daily().
     model_args : dict
         Parameters from the MODEL section of the INI file.  The reference
         source and parameters will need to be set here if computing
@@ -88,8 +89,8 @@ def from_scene_et_fraction(
     if 'use_joins' in interp_args.keys():
         use_joins = interp_args['use_joins']
     else:
-        use_joins = False
-        logging.debug('use_joins was not set, default to False')
+        use_joins = True
+        logging.debug('use_joins was not set in interp_args, default to True')
 
     # Check that the input parameters are valid
     if t_interval.lower() not in ['daily', 'monthly', 'annual', 'custom']:
@@ -133,34 +134,61 @@ def from_scene_et_fraction(
     interp_start_date = interp_start_dt.date().isoformat()
     interp_end_date = interp_end_dt.date().isoformat()
 
-    # Get reference ET source
-    if 'et_reference_source' in model_args.keys():
+    # Get reference ET parameters
+    # Supporting reading the parameters from both the interp_args and model_args dictionaries
+    # Check interp_args then model_args, but eventually drop support for reading from model_args
+    # Assume that if source and band are both set, the parameters in that section should be used
+    if 'et_reference_source' in interp_args.keys() and 'et_reference_band' in interp_args.keys():
+        et_reference_source = interp_args['et_reference_source']
+        et_reference_band = interp_args['et_reference_band']
+        if not et_reference_source or not et_reference_band:
+            raise ValueError('et_reference_source or et_reference_band were not set')
+
+        if 'et_reference_factor' in interp_args.keys():
+            et_reference_factor = interp_args['et_reference_factor']
+        else:
+            et_reference_factor = 1.0
+            logging.debug('et_reference_factor was not set, default to 1.0')
+
+        if 'et_reference_resample' in interp_args.keys():
+            et_reference_resample = interp_args['et_reference_resample'].lower()
+            if not et_reference_resample:
+                et_reference_resample = 'nearest'
+                logging.debug('et_reference_resample was not set, default to nearest')
+            elif et_reference_resample not in ['nearest', 'bilinear', 'bicubic']:
+                raise ValueError(f'unsupported et_reference_resample method: '
+                                 f'{et_reference_resample}')
+        else:
+            et_reference_resample = 'nearest'
+            logging.debug('et_reference_resample was not set, default to nearest')
+
+    elif 'et_reference_source' in model_args.keys() and 'et_reference_band' in model_args.keys():
         et_reference_source = model_args['et_reference_source']
-    else:
-        raise ValueError('et_reference_source was not set')
-
-    # Get reference ET band name
-    if 'et_reference_band' in model_args.keys():
         et_reference_band = model_args['et_reference_band']
-    else:
-        raise ValueError('et_reference_band was not set')
+        if not et_reference_source or not et_reference_band:
+            raise ValueError('et_reference_source or et_reference_band were not set')
 
-    # Get reference ET factor
-    if 'et_reference_factor' in model_args.keys():
-        et_reference_factor = model_args['et_reference_factor']
-    else:
-        et_reference_factor = 1.0
-        logging.debug('et_reference_factor was not set, default to 1.0')
-        # raise ValueError('et_reference_factor was not set')
+        if 'et_reference_factor' in model_args.keys():
+            et_reference_factor = model_args['et_reference_factor']
+        else:
+            et_reference_factor = 1.0
+            logging.debug('et_reference_factor was not set, default to 1.0')
 
-    # CGM - Resampling is not working correctly so commenting out for now
-    # # Get reference ET resample
-    # if 'et_reference_resample' in model_args.keys():
-    #     et_reference_resample = model_args['et_reference_resample']
-    # else:
-    #     et_reference_resample = 'nearest'
-    #     logging.debug('et_reference_resample was not set, default to nearest')
-    #     # raise ValueError('et_reference_resample was not set')
+        if 'et_reference_resample' in model_args.keys():
+            et_reference_resample = model_args['et_reference_resample'].lower()
+            if not et_reference_resample:
+                et_reference_resample = 'nearest'
+                logging.debug('et_reference_resample was not set, default to nearest')
+            elif et_reference_resample not in ['nearest', 'bilinear', 'bicubic']:
+                raise ValueError(f'unsupported et_reference_resample method: '
+                                 f'{et_reference_resample}')
+        else:
+            et_reference_resample = 'nearest'
+            logging.debug('et_reference_resample was not set, default to nearest')
+
+    else:
+        raise ValueError('et_reference_source or et_reference_band were not set')
+
 
     if 'et_reference_date_type' in model_args.keys():
         et_reference_date_type = model_args['et_reference_date_type']
@@ -168,6 +196,7 @@ def from_scene_et_fraction(
         et_reference_date_type = None
         # logging.debug('et_reference_date_type was not set, default to "daily"')
         # et_reference_date_type = 'daily'
+
 
     if type(et_reference_source) is str:
         # Assume a string source is a single image collection ID
@@ -246,7 +275,9 @@ def from_scene_et_fraction(
     # For count, compute the composite/mosaic image for the mask band only
     if 'count' in variables:
         aggregate_coll = openet.core.interpolate.aggregate_to_daily(
-            image_coll=scene_coll.select(['mask']), start_date=start_date, end_date=end_date,
+            image_coll=scene_coll.select(['mask']),
+            start_date=start_date,
+            end_date=end_date,
         )
 
         # The following is needed because the aggregate collection can be
@@ -268,17 +299,32 @@ def from_scene_et_fraction(
         interp_method=interp_method,
         interp_days=interp_days,
         use_joins=use_joins,
+        compute_product=False,
+        # resample_method=et_reference_resample,
     )
 
-    # Compute ET from ETf and ETr (if necessary)
-    # The check for et_fraction is needed since it is back computed from ET and ETr
-    # if 'et' in variables or 'et_fraction' in variables:
-    def compute_et(img):
-        """This function assumes ETr and ETf are present"""
-        et_img = img.select(['et_fraction']).multiply(img.select(['et_reference']))
-        return img.addBands(et_img.double().rename('et'))
+    # The interpolate.daily() function can/will return the product of
+    # the source and target image named as "{source_band}_1".
+    # The problem with this approach is that is will drop any other bands
+    # that are being interpolated (such as the ndvi).
+    # daily_coll = daily_coll.select(['et_fraction_1'], ['et'])
 
-    daily_coll = daily_coll.map(compute_et)
+    # Compute ET from ETf and ETo (if necessary)
+    # This isn't needed if compute_product=True in daily() and band is renamed
+    # The check for et_fraction is needed since it is back computed from ET and ETo
+    if ('et' in variables) or ('et_fraction' in variables):
+        def compute_et(img):
+            """This function assumes ETr and ETf are present in the image"""
+            # Apply any resampling to the reference ET image before computing ET
+            et_reference_img = img.select(['et_reference'])
+            if et_reference_resample and (et_reference_resample in ['bilinear', 'bicubic']):
+                et_reference_img = et_reference_img.resample(et_reference_resample)
+
+            et_img = img.select(['et_fraction']).multiply(et_reference_img)
+
+            return img.addBands(et_img.double().rename('et'))
+
+        daily_coll = daily_coll.map(compute_et)
 
     def aggregate_image(agg_start_date, agg_end_date, date_format):
         """Aggregate the daily images within the target date range
@@ -302,14 +348,20 @@ def from_scene_et_fraction(
         for each time interval by separate mappable functions
 
         """
-        if 'et' in variables or 'et_fraction' in variables:
+        if ('et' in variables) or ('et_fraction' in variables):
             et_img = daily_coll.filterDate(agg_start_date, agg_end_date).select(['et']).sum()
-        if 'et_reference' in variables or 'et_fraction' in variables:
+
+        if ('et_reference' in variables) or ('et_fraction' in variables):
             et_reference_img = (
-                daily_et_ref_coll
-                .filterDate(agg_start_date, agg_end_date)
+                daily_et_ref_coll.filterDate(agg_start_date, agg_end_date)
                 .select(['et_reference']).sum()
             )
+            if et_reference_resample and (et_reference_resample in ['bilinear', 'bicubic']):
+                et_reference_img = (
+                    et_reference_img
+                    .setDefaultProjection(daily_et_ref_coll.first().projection())
+                    .resample(et_reference_resample)
+                )
 
         image_list = []
         if 'et' in variables:
@@ -339,8 +391,8 @@ def from_scene_et_fraction(
                 'system:index': ee.Date(agg_start_date).format(date_format),
                 'system:time_start': ee.Date(agg_start_date).millis(),
             })
+            # .set(interp_properties)
         )
-        #     .set(interp_properties)
 
     # Combine input, interpolated, and derived values
     if t_interval.lower() == 'daily':
@@ -398,5 +450,7 @@ def from_scene_et_fraction(
     elif t_interval.lower() == 'custom':
         # Returning an ImageCollection to be consistent
         return ee.ImageCollection(aggregate_image(
-            agg_start_date=start_date, agg_end_date=end_date, date_format='YYYYMMdd',
+            agg_start_date=start_date,
+            agg_end_date=end_date,
+            date_format='YYYYMMdd',
         ))
