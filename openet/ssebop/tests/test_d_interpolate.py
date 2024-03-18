@@ -1,4 +1,4 @@
-import pprint
+# import pprint
 
 import ee
 import pytest
@@ -29,9 +29,14 @@ def scene_coll(variables, et_fraction=0.4, et=5, ndvi=0.6):
     )
     mask = img.add(1).updateMask(1).uint8()
 
-    time1 = ee.Number(ee.Date.fromYMD(2017, 7, 8).millis())
-    time2 = ee.Number(ee.Date.fromYMD(2017, 7, 16).millis())
-    time3 = ee.Number(ee.Date.fromYMD(2017, 7, 24).millis())
+    # The "date" is used for the time band since it needs to be the 0 UTC time
+    # The "time" is advanced to match the typical Landsat overpass time
+    date1 = ee.Number(ee.Date.fromYMD(2017, 7, 8).millis())
+    date2 = ee.Number(ee.Date.fromYMD(2017, 7, 16).millis())
+    date3 = ee.Number(ee.Date.fromYMD(2017, 7, 24).millis())
+    time1 = ee.Number(ee.Date.fromYMD(2017, 7, 8).advance(18, 'hours').millis())
+    time2 = ee.Number(ee.Date.fromYMD(2017, 7, 16).advance(18, 'hours').millis())
+    time3 = ee.Number(ee.Date.fromYMD(2017, 7, 24).advance(18, 'hours').millis())
 
     # Mask and time bands currently get added on to the scene collection
     #   and images are unscaled just before interpolating in the export tool
@@ -42,13 +47,13 @@ def scene_coll(variables, et_fraction=0.4, et=5, ndvi=0.6):
     # CGM - I was having issues when I removed these backslashes,
     #   even though they shouldn't be needed
     scene_coll = ee.ImageCollection([
-        scene_img.addBands([img.add(time1).rename('time')]) \
+        scene_img.addBands([img.add(date1).rename('time')])
             .set({'system:index': 'LE07_044033_20170708',
                   'system:time_start': time1}),
-        scene_img.addBands([img.add(time2).rename('time')]) \
+        scene_img.addBands([img.add(date2).rename('time')])
             .set({'system:index': 'LC08_044033_20170716',
                   'system:time_start': time2}),
-        scene_img.addBands([img.add(time3).rename('time')]) \
+        scene_img.addBands([img.add(date3).rename('time')])
             .set({'system:index': 'LE07_044033_20170724',
                   'system:time_start': time3}),
     ])
@@ -68,13 +73,11 @@ def test_from_scene_et_fraction_t_interval_daily_values(tol=0.0001):
         t_interval='daily')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['ndvi']['2017-07-10'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-10'] - 0.4) <= tol
     assert abs(output['et_reference']['2017-07-10'] - 10.5) <= tol
     assert abs(output['et']['2017-07-10'] - (10.5 * 0.4)) <= tol
-    # assert abs(output['et_reference']['2017-07-10'] - 10.508799553) <= tol
-    # assert abs(output['et']['2017-07-10'] - (10.508799553 * 0.4)) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_fraction']['2017-07-31'] - 0.4) <= tol
     assert '2017-08-01' not in output['et_fraction'].keys()
@@ -94,13 +97,11 @@ def test_from_scene_et_fraction_t_interval_monthly_values(tol=0.0001):
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
     assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol
-    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -117,13 +118,11 @@ def test_from_scene_et_fraction_t_interval_custom_values(tol=0.0001):
         t_interval='custom')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
     assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol
-    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -140,17 +139,14 @@ def test_from_scene_et_fraction_t_interval_monthly_et_reference_factor(tol=0.000
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
     assert abs(output['et_reference']['2017-07-01'] - 310.3 * 0.5) <= tol
     assert abs(output['et']['2017-07-01'] - (310.3 * 0.5 * 0.4)) <= tol
-    # assert abs(output['et_reference']['2017-07-01'] - 303.622559 * 0.5) <= tol
-    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.5 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
-# CGM - Resampling is not being applied so this should be equal to nearest
 def test_from_scene_et_fraction_t_interval_monthly_et_reference_resample(tol=0.0001):
     output_coll = interpolate.from_scene_et_fraction(
         scene_coll(['et_fraction', 'ndvi', 'time', 'mask']),
@@ -164,13 +160,15 @@ def test_from_scene_et_fraction_t_interval_monthly_et_reference_resample(tol=0.0
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['ndvi']['2017-07-01'] - 0.6) <= tol
     assert abs(output['et_fraction']['2017-07-01'] - 0.4) <= tol
-    assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
-    assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol
-    # assert abs(output['et_reference']['2017-07-01'] - 303.622559) <= tol
-    # assert abs(output['et']['2017-07-01'] - (303.622559 * 0.4)) <= tol
+    # CGM - ETo (and ET) test values are slightly different with bilinear resampling
+    #   but ET fraction should be the same
+    assert abs(output['et_reference']['2017-07-01'] - 309.4239807128906) <= tol
+    assert abs(output['et']['2017-07-01'] - (309.4239807128906 * 0.4)) <= tol
+    # assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
+    # assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol
     assert output['count']['2017-07-01'] == 3
 
 
@@ -189,7 +187,7 @@ def test_from_scene_et_fraction_t_interval_monthly_et_reference_date_type_doy(to
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['et_reference']['2017-07-01'] - 291.56) <= tol
 
 
@@ -208,7 +206,7 @@ def test_from_scene_et_fraction_t_interval_monthly_et_reference_date_type_daily(
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
 
 
@@ -254,7 +252,7 @@ def test_from_scene_et_fraction_interp_args_use_joins_true(tol=0.01):
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
     assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol
 
@@ -273,6 +271,6 @@ def test_from_scene_et_fraction_interp_args_use_joins_false(tol=0.01):
         t_interval='monthly')
 
     TEST_POINT = (-121.5265, 38.7399)
-    output = utils.point_coll_value(output_coll, TEST_POINT, scale=10)
+    output = utils.point_coll_value(output_coll, TEST_POINT, scale=30)
     assert abs(output['et_reference']['2017-07-01'] - 310.3) <= tol
     assert abs(output['et']['2017-07-01'] - (310.3 * 0.4)) <= tol

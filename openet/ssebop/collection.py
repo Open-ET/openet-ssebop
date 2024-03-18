@@ -1,5 +1,6 @@
 import copy
 import datetime
+from importlib import metadata
 # import pprint
 import warnings
 
@@ -11,11 +12,6 @@ import openet.core.interpolate
 
 from . import utils
 from .image import Image
-
-try:
-    from importlib import metadata
-except ImportError:  # for Python<3.8
-    import importlib_metadata as metadata
 
 
 def lazy_property(fn):
@@ -468,22 +464,6 @@ class Collection:
         for k in et_reference_keywords:
             if k in kwargs.keys() and kwargs[k] is not None:
                 self.model_args[k] = kwargs[k]
-        # DEADBEEF
-        # if ('et_reference_source' in kwargs.keys() and
-        #         kwargs['et_reference_source'] is not None):
-        #     self.model_args['et_reference_source'] = kwargs['et_reference_source']
-        # if ('et_reference_band' in kwargs.keys() and
-        #         kwargs['et_reference_band'] is not None):
-        #     self.model_args['et_reference_band'] = kwargs['et_reference_band']
-        # if ('et_reference_factor' in kwargs.keys() and
-        #         kwargs['et_reference_factor'] is not None):
-        #     self.model_args['et_reference_factor'] = kwargs['et_reference_factor']
-        # if ('et_reference_resample' in kwargs.keys() and
-        #         kwargs['et_reference_resample'] is not None):
-        #     self.model_args['et_reference_resample'] = kwargs['et_reference_resample']
-        # if ('et_reference_date_type' in kwargs.keys() and
-        #         kwargs['et_reference_date_type'] is not None):
-        #     self.model_args['et_reference_date_type'] = kwargs['et_reference_date_type']
 
         # Check that all reference ET parameters were set
         for et_reference_param in ['et_reference_source', 'et_reference_band',
@@ -609,14 +589,23 @@ class Collection:
             interp_method=interp_method,
             interp_days=interp_days,
             use_joins=use_joins,
+            compute_product=False,
+            # resample_method=et_reference_resample,
         )
 
         # Compute ET from ET fraction and reference ET (if necessary)
         # CGM - The conditional is needed if only interpolating NDVI
-        if 'et' in variables or 'et_fraction' in variables:
+        if ('et' in variables) or ('et_fraction' in variables):
             def compute_et(img):
                 """This function assumes reference ET and ET fraction are present"""
-                et_img = img.select(['et_fraction']).multiply(img.select(['et_reference']))
+                # Apply any resampling to the reference ET image before computing ET
+                et_ref_img = img.select(['et_reference'])
+                if (self.model_args['et_reference_resample'] and
+                        (self.model_args['et_reference_resample'] in ['bilinear', 'bicubic'])):
+                    et_ref_img = et_ref_img.resample(self.model_args['et_reference_resample'])
+
+                et_img = img.select(['et_fraction']).multiply(et_ref_img)
+
                 return img.addBands(et_img.rename('et'))
 
             daily_coll = daily_coll.map(compute_et)
@@ -655,14 +644,24 @@ class Collection:
             for each time interval by separate mappable functions
 
             """
-            if 'et' in variables or 'et_fraction' in variables:
-                et_img = daily_coll.filterDate(agg_start_date, agg_end_date).select(['et']).sum()
-            if 'et_reference' in variables or 'et_fraction' in variables:
-                # et_reference_img = daily_et_ref_coll
+            if ('et' in variables) or ('et_fraction' in variables):
+                et_img = (
+                    daily_coll.filterDate(agg_start_date, agg_end_date)
+                    .select(['et']).sum()
+                )
+
+            if ('et_reference' in variables) or ('et_fraction' in variables):
                 et_reference_img = (
                     daily_coll.filterDate(agg_start_date, agg_end_date)
                     .select(['et_reference']).sum()
                 )
+                if (self.model_args['et_reference_resample'] and
+                        (self.model_args['et_reference_resample'] in ['bilinear', 'bicubic'])):
+                    et_reference_img = (
+                        et_reference_img
+                        .setDefaultProjection(daily_et_ref_coll.first().projection())
+                        .resample(self.model_args['et_reference_resample'])
+                    )
 
             image_list = []
             if 'et' in variables:
