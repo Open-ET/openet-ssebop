@@ -339,9 +339,11 @@ class Image:
             if (self.et_reference_date_type is None or
                     self.et_reference_date_type.lower() == 'daily'):
                 # Assume the collection is daily with valid system:time_start values
-                et_reference_coll = ee.ImageCollection(self.et_reference_source)\
-                    .filterDate(self._start_date, self._end_date)\
+                et_reference_coll = (
+                    ee.ImageCollection(self.et_reference_source)
+                    .filterDate(self._start_date, self._end_date)
                     .select([self.et_reference_band])
+                )
             elif self.et_reference_date_type.lower() == 'doy':
                 # Assume the image collection is a climatology with a "DOY" property
                 et_reference_coll = (
@@ -673,11 +675,11 @@ class Image:
         if 'snow_flag' not in cloudmask_args.keys():
             cloudmask_args['snow_flag'] = True
         if 'cloud_score_flag' not in cloudmask_args.keys():
-            cloudmask_args['cloud_score_flag'] = True
+            cloudmask_args['cloud_score_flag'] = False
         if 'cloud_score_pct' not in cloudmask_args.keys():
             cloudmask_args['cloud_score_pct'] = 100
         if 'filter_flag' not in cloudmask_args.keys():
-            cloudmask_args['filter_flag'] = True
+            cloudmask_args['filter_flag'] = False
         # Will need to add the QA_RADSAT band above if this is set to True
         if 'saturated_flag' not in cloudmask_args.keys():
             cloudmask_args['saturated_flag'] = False
