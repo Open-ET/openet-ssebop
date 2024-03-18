@@ -199,7 +199,7 @@ References
  | Senay, G.B., Parrish, G. E., Schauer, M., Friedrichs, M., Khand, K., Boiko, O., Kagone, S., Dittmeier, R., Arab, S., Ji, L. (2023). Improving the Operational Simplified Surface Energy Balance evapotranspiration model using the Forcing and Normalizing Operation. *Remote Sensing*, 15(1):260.
  | `https://doi.org/10.3390/rs15010260 <https://doi.org/10.3390/rs15010260>`__
 
-.. |build| image:: https://github.com/Open-ET/openet-ssebop/actions/workflows/build.yml/badge.svg
+.. |build| image:: https://github.com/Open-ET/openet-ssebop/actions/workflows/tests.yml/badge.svg
    :alt: Build status
    :target: https://github.com/Open-ET/openet-ssebop
 .. |version| image:: https://badge.fury.io/py/openet-ssebop.svg
