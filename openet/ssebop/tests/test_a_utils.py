@@ -29,29 +29,34 @@ def test_constant_image_value(expected=10.123456789, tol=0.000001):
 @pytest.mark.parametrize(
     'image_id, xy, scale, expected, tol',
     [
-        ['USGS/NED', [-106.03249, 37.17777], 10, 2364.351, 0.001],
-        ['USGS/NED', [-106.03249, 37.17777], 1, 2364.351, 0.001],
+        ['USGS/3DEP/10m', [-106.03249, 37.17777], 30, 2364.169, 0.001],
+        ['USGS/3DEP/10m', [-106.03249, 37.17777], 10, 2364.138, 0.001],
+        ['USGS/3DEP/10m', [-106.03249, 37.17777], 1, 2364.138, 0.001],
+        ['NASA/NASADEM_HGT/001', [-106.03249, 37.17777], 30, 2361, 0.001],
     ]
 )
 def test_point_image_value(image_id, xy, scale, expected, tol):
-    output = utils.point_image_value(ee.Image(image_id).rename('output'), xy)
+    output = utils.point_image_value(
+        ee.Image(image_id).select(['elevation'], ['output']), xy, scale
+    )
     assert abs(output['output'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
     'image_id, image_date, xy, scale, expected, tol',
     [
-        # CGM - This test stopped working for a scale of 1 and returns a different
-        #   value for a scale of 10 than the point_image_value() function above.
-        # This function uses getRegion() instead of a reduceRegion() call,
-        #   so there might have been some sort of change in getRegion().
-        ['USGS/NED', '2012-04-04', [-106.03249, 37.17777], 10, 2364.286, 0.001],
-        # CGM - The default scale of 1 now returns None/Null for some reason
-        # ['USGS/NED', '2012-04-04', [-106.03249, 37.17777], 1, 2364.351, 0.001],
+        ['USGS/3DEP/10m', '2012-04-04', [-106.03249, 37.17777], 30, 2364.169, 0.001],
+        ['USGS/3DEP/10m', '2012-04-04', [-106.03249, 37.17777], 10, 2364.097, 0.001],
+        ['USGS/3DEP/10m', '2012-04-04', [-106.03249, 37.17777], 1, 2364.138, 0.001],
+        ['NASA/NASADEM_HGT/001', '2012-04-04', [-106.03249, 37.17777], 30, 2361, 0.001],
     ]
 )
 def test_point_coll_value(image_id, image_date, xy, scale, expected, tol):
-    input_img = ee.Image(image_id).rename(['output'])
+    # The image must have a system:time_start for this function to work correctly
+    input_img = (
+        ee.Image(image_id).select(['elevation'], ['output'])
+        .set({'system:time_start': ee.Date(image_date).millis()})
+    )
     output = utils.point_coll_value(ee.ImageCollection([input_img]), xy, scale)
     assert abs(output['output'][image_date] - expected) <= tol
 
