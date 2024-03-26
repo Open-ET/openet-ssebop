@@ -883,7 +883,7 @@ class Image:
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
-        # Everywhere else, use the FANO adjusted Tc_warm, ignoring masked water pixels.
+        # Everywhere else, use the FANO adjusted  Tc_warm, ignoring masked water pixels.
         # In places where there is too much land covered by water 10% or greater,
         #   use a FANO adjusted Tc_warm from a coarser resolution (100km) that ignored masked water pixels.
         Tc_cold = (
