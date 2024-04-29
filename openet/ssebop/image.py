@@ -36,6 +36,7 @@ class Image:
     """Earth Engine based SSEBop Image"""
 
     _C2_LST_CORRECT = True  # C2 LST correction to recalculate LST default value
+    _LST_DEFAULT_SOURCE = 'c2_corr'
 
     def __init__(
             self, image,
@@ -693,11 +694,32 @@ class Image:
             c2_lst_correct = kwargs.pop('c2_lst_correct')
         else:
             c2_lst_correct = cls._C2_LST_CORRECT
-
         if c2_lst_correct:
             lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
         else:
             lst = prep_image.select(['tir'])
+
+        # options to change lst source
+        lst_source_list = ['c2_corr', 'c2', 'low_latency']
+        if 'lst_source' in kwargs.keys():
+            assert isinstance(kwargs['lst_source'], str), 'selection type must be a string'
+            # make sure it's a valid one....
+            assert kwargs['lst_source'] in lst_source_list, f'selection must be from between' \
+                                                            f' {lst_source_list[0]} or ' \
+                                                            f'{lst_source_list[1]} or' \
+                                                            f' {lst_source_list[2]}'
+            # Remove from kwargs since it is not a valid argument for Image init
+            lst_source = kwargs.pop('lst_source')
+        else:
+            # same as l
+            lst_source = cls._LST_DEFAULT_SOURCE
+        if lst_source == 'c2_corr':
+            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
+        elif lst_source == 'c2':
+            lst = prep_image.select(['tir'])
+        elif lst_source == 'low_latency':
+            # Mac n gabe
+            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
 
         # Build the input image
         # Don't compute LST since it is being provided
