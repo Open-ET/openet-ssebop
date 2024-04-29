@@ -699,7 +699,7 @@ class Image:
         else:
             lst = prep_image.select(['tir'])
 
-        # options to change lst source
+        # options to change lst source.
         lst_source_list = ['c2_corr', 'c2', 'low_latency']
         if 'lst_source' in kwargs.keys():
             assert isinstance(kwargs['lst_source'], str), 'selection type must be a string'
