@@ -428,7 +428,6 @@ class Image:
         #     'system:id': self.image.get('system:id'),
         # })
 
-
         if type(self._lst_source) is str:
             # LST source assumptions (for now)
             #   String lst_source is an image collection ID
@@ -447,8 +446,8 @@ class Image:
             lst = lst.multiply(ee.Number(lst.get('scale_factor')))
             # Not sure exactly what properties to set to indicate what
             #   LST image, source, version was actually used
-            self._properties = self._properties.set('landsat_lst_source', self._lst_source)
-
+            # # todo - not sure how to properly set properties
+            # self._properties = self._properties.set('landsat_lst_source', self._lst_source)
             return lst
 
         else:
