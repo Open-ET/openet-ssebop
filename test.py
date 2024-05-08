@@ -57,5 +57,4 @@ model_obj = model.Image.from_landsat_c2_sr(
     tmax_source='projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
 )
 
-
 et_property = model_obj.et_fraction

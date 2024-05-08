@@ -36,7 +36,6 @@ class Image:
     """Earth Engine based SSEBop Image"""
 
     _C2_LST_CORRECT = True  # C2 LST correction to recalculate LST default value
-    _LST_DEFAULT_SOURCE = 'c2_corr'
 
     def __init__(
             self, image,
@@ -51,6 +50,7 @@ class Image:
             elr_flag=False,
             et_fraction_type='alfalfa',
             et_fraction_grass_source=None,
+            lst_source=None,
             **kwargs,
     ):
         """Construct a generic SSEBop Image
@@ -168,6 +168,7 @@ class Image:
         self._dt_source = dt_source
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
+        self._lst_source = lst_source
 
         # TODO: Move into keyword args section below
         self._elr_flag = elr_flag
@@ -419,7 +420,42 @@ class Image:
     @lazy_property
     def lst(self):
         """Input land surface temperature (LST) [K]"""
-        return self.image.select(['lst']).set(self._properties)
+
+        # @charles, not sure if we needed these properties.
+        # properties = ee.Dictionary({
+        #     'system:index': self.image.get('system:index'),
+        #     'system:time_start': self.image.get('system:time_start'),
+        #     'system:id': self.image.get('system:id'),
+        # })
+
+
+        if type(self._lst_source) is str:
+            # LST source assumptions (for now)
+            #   String lst_source is an image collection ID
+            #   Images are single band and don't need a .select()
+            #   LST images always need to be scaled
+            # This also assumes the input Landsat SR image has system:index
+            #   that has not been modified by a .merge() call
+            # This will raise an EE exception later on in the code
+            #   if the image is not in the collection
+            # todo - fill in the backup images behind lst in the collection.
+            lst = ee.Image(
+                ee.ImageCollection(self._lst_source)
+                .filterMetadata('scene_id', 'equals', self._index)
+                .first()
+            )
+            lst = lst.multiply(ee.Number(lst.get('scale_factor')))
+            # Not sure exactly what properties to set to indicate what
+            #   LST image, source, version was actually used
+            self._properties = self._properties.set('landsat_lst_source', self._lst_source)
+
+            return lst
+
+        else:
+            # the default lst set during .from_landsat_c2_sr() applies
+            return self.image.select(['lst']).set(self._properties)
+
+
 
     @lazy_property
     def mask(self):
@@ -687,6 +723,7 @@ class Image:
 
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
+        # GELP - I am assuming, we leave this... keep the heretofore default behavior?
         # Check if passing c2_lst_correct arguments
         if 'c2_lst_correct' in kwargs.keys():
             assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
@@ -698,28 +735,6 @@ class Image:
             lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
         else:
             lst = prep_image.select(['tir'])
-
-        # options to change lst source...
-        lst_source_list = ['c2_corr', 'c2', 'low_latency']
-        if 'lst_source' in kwargs.keys():
-            assert isinstance(kwargs['lst_source'], str), 'selection type must be a string'
-            # make sure it's a valid one....
-            assert kwargs['lst_source'] in lst_source_list, f'selection must be from between' \
-                                                            f' {lst_source_list[0]} or ' \
-                                                            f'{lst_source_list[1]} or' \
-                                                            f' {lst_source_list[2]}'
-            # Remove from kwargs since it is not a valid argument for Image init
-            lst_source = kwargs.pop('lst_source')
-        else:
-            # same as l
-            lst_source = cls._LST_DEFAULT_SOURCE
-        if lst_source == 'c2_corr':
-            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
-        elif lst_source == 'c2':
-            lst = prep_image.select(['tir'])
-        elif lst_source == 'low_latency':
-            # Mac n gabe
-            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
 
         # Build the input image
         # Don't compute LST since it is being provided
