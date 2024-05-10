@@ -155,10 +155,11 @@ def test_Image_init_default_parameters():
     assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
-    assert m._elev_source is None
-    assert m._elr_flag is False
     assert m.et_fraction_type == 'alfalfa'
     assert m.et_fraction_grass_source is None
+    assert m._lst_source is None
+    assert m._elr_flag is False
+    assert m._elev_source is None
     assert m._dt_resample == 'bilinear'
     assert m._tmax_resample == 'bilinear'
     assert m._tcorr_resample == 'bilinear'
@@ -479,6 +480,38 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
     assert corrected['lst'] > 0
     # # Exact test values copied from openet-core
     # assert abs(corrected['lst'] - 306.83) <= 0.25
+
+
+def test_Image_from_landsat_c2_sr_lst_source_arg():
+    """Test if the lst_source parameter can be set (not if it works)"""
+    # image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20160702'
+    output = ssebop.Image.from_landsat_c2_sr(
+        image_id, lst_source='projects/openet/assets/lst/landsat/c02')
+    assert type(output) == type(default_image_obj())
+
+
+def test_Image_from_landsat_c2_sr_lst_source_values():
+    """Test if the lst_source image can be read"""
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20160702'
+    xy = (-102.4, 36.1)
+    # # CGM - This image is not currently in the collection
+    # image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+    # xy = (-102.08284, 37.81728)
+    lst_source = 'projects/openet/assets/lst/landsat/c02'
+    output = utils.point_image_value(
+        ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst, xy)
+    assert abs(output['lst'] - 322.8) <= 0.25
+
+
+# def test_Image_from_landsat_c2_sr_lst_source_missing():
+#     """Test if the input LST image is used if not present in lst_source"""
+#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+#     xy = (-102.08284, 37.81728)
+#     lst_source = 'projects/openet/assets/lst/landsat/c02'
+#     output = utils.point_image_value(
+#         ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst, xy)
+#     assert abs(output['lst'] - 306.83) <= 0.25
 
 
 @pytest.mark.parametrize(

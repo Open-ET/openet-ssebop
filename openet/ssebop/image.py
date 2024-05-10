@@ -94,6 +94,10 @@ class Image:
             Parameter must be set if et_fraction_type is 'grass'.
             The default is currently the NLDAS hourly collection,
             but having a default will likely be removed in a future version.
+        lst_source : str, optional
+            Land surface temperature source image collection ID.
+            CGM - Add text detailing any properties, image names, band names, etc
+              that are required for the source image collection
         kwargs : dict, optional
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
@@ -420,41 +424,39 @@ class Image:
     @lazy_property
     def lst(self):
         """Input land surface temperature (LST) [K]"""
-
-        # @charles, not sure if we needed these properties.
-        # properties = ee.Dictionary({
-        #     'system:index': self.image.get('system:index'),
-        #     'system:time_start': self.image.get('system:time_start'),
-        #     'system:id': self.image.get('system:id'),
-        # })
-
-        if type(self._lst_source) is str:
+        if ((type(self._lst_source) is str) and (
+                self._lst_source.lower().startswith('projects/') or
+                self._lst_source.lower().startswith('users/'))):
             # LST source assumptions (for now)
-            #   String lst_source is an image collection ID
-            #   Images are single band and don't need a .select()
-            #   LST images always need to be scaled
-            # This also assumes the input Landsat SR image has system:index
-            #   that has not been modified by a .merge() call
-            # This will raise an EE exception later on in the code
-            #   if the image is not in the collection
-            # todo - fill in the backup images behind lst in the collection.
-            lst = ee.Image(
+            # String lst_source is an image collection ID
+            # Source images have a "scene_id" property with a Landsat ID (LXSS_PPPRRR_YYYYMMDD)
+            # Images are single band and don't need a .select()
+            # If a "scale_factor" property is present it will be applied by multiplying
+            # TODO: Consider adding support for setting some sort of "lst_source_index"
+            #   parameter to allow for joining on a different property
+            lst_img = ee.Image(
                 ee.ImageCollection(self._lst_source)
-                .filterMetadata('scene_id', 'equals', self._index)
+                .filter(ee.Filter.eq('scene_id', self._index))
                 .first()
+                .select([0], ['lst'])
             )
-            lst = lst.multiply(ee.Number(lst.get('scale_factor')))
-            # Not sure exactly what properties to set to indicate what
-            #   LST image, source, version was actually used
-            # # todo - not sure how to properly set properties
-            # self._properties = self._properties.set('landsat_lst_source', self._lst_source)
-            return lst
 
+            # The OpenET LST images are scaled, so assume the image need to be unscaled
+            lst_scale_factor = (
+                ee.Dictionary({'scale_factor': lst_img.get('scale_factor')})
+                .combine({'scale_factor': '1.0'}, overwrite=False)
+            )
+            lst_img = lst_img.multiply(ee.Number(lst_scale_factor.get('scale_factor')))
         else:
-            # the default lst set during .from_landsat_c2_sr() applies
-            return self.image.select(['lst']).set(self._properties)
+            # Return the LST band from the input image
+            lst_img = self.image.select(['lst'])
 
+        # TODO: Add support for setting lst_source to a computed object
+        #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
+        # elif isinstance(self._lst_source, ee.computedobject.ComputedObject):
+        #     lst_img = self.lst_source
 
+        return lst_img.set(self._properties)
 
     @lazy_property
     def mask(self):
