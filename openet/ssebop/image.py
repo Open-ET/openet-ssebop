@@ -396,34 +396,47 @@ class Image:
     @lazy_property
     def lst(self):
         """Input land surface temperature (LST) [K]"""
+        lst_img = self.image.select(['lst'])
+
         if ((type(self._lst_source) is str) and (
                 self._lst_source.lower().startswith('projects/') or
                 self._lst_source.lower().startswith('users/'))):
+            # Use a custom LST image from a separate LST source collection
             # LST source assumptions (for now)
-            # String lst_source is an image collection ID
-            # Source images have a "scene_id" property with a Landsat ID (LXSS_PPPRRR_YYYYMMDD)
-            # Images are single band and don't need a .select()
-            # If a "scale_factor" property is present it will be applied by multiplying
+            #   String lst_source is an image collection ID
+            #   Images in LST source collection are single band
+            #   Images have a "scene_id" property with a Landsat ID (LXSS_PPPRRR_YYYYMMDD)
+            #   If a "scale_factor" property is present it will be applied by multiplying
             # TODO: Consider adding support for setting some sort of "lst_source_index"
             #   parameter to allow for joining on a different property
             lst_img = ee.Image(
                 ee.ImageCollection(self._lst_source)
                 .filter(ee.Filter.eq('scene_id', self._index))
-                .first()
                 .select([0], ['lst'])
+                .first()
             )
+            # # Adding these two lines after the .first() above would allow for the input LST
+            # # image to be used as a fallback if the scene is missing from LST source
+            # .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
+            # .merge(ee.ImageCollection([lst_img.set({'lst_source_id': self._id})]))
+
+            # The scale_factor multiply call below drops the lst_source property
+            lst_source_id = lst_img.get('system:id')
+            # lst_source_id = lst_img.get('lst_source_id')
 
             # The OpenET LST images are scaled, so assume the image need to be unscaled
             lst_scale_factor = (
                 ee.Dictionary({'scale_factor': lst_img.get('scale_factor')})
-                .combine({'scale_factor': '1.0'}, overwrite=False)
+                .combine({'scale_factor': 1.0}, overwrite=False)
             )
             lst_img = lst_img.multiply(ee.Number(lst_scale_factor.get('scale_factor')))
-        else:
-            # Return the LST band from the input image
-            lst_img = self.image.select(['lst'])
 
-        # TODO: Add support for setting lst_source to a computed object
+            # Save the actual LST source image ID as a general class property and
+            #   as a specific property on the lst image
+            lst_img = lst_img.set('lst_source_id', lst_source_id)
+            # self._properties['lst_source_id'] = lst_source_id
+
+        # TODO: Add support for setting lst_source with a computed object
         #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
         # elif isinstance(self._lst_source, ee.computedobject.ComputedObject):
         #     lst_img = self.lst_source
@@ -433,8 +446,10 @@ class Image:
     @lazy_property
     def mask(self):
         """Mask of all active pixels (based on the final et_fraction)"""
-        return self.et_fraction.multiply(0).add(1).updateMask(1)\
+        return (
+            self.et_fraction.multiply(0).add(1).updateMask(1)
             .rename(['mask']).set(self._properties).uint8()
+        )
 
     @lazy_property
     def ndvi(self):
@@ -486,14 +501,16 @@ class Image:
             # Use precomputed dT median assets
             # Assumes a string source is an image collection ID (not an image ID),
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
-            dt_coll = ee.ImageCollection(self._dt_source)\
+            dt_coll = (
+                ee.ImageCollection(self._dt_source)
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
+            )
             # MF: scale factor property only applied for string ID dT collections, and
             #  no clamping used for string ID dT collections.
             dt_img = ee.Image(dt_coll.first())
             dt_scale_factor = (
                 ee.Dictionary({'scale_factor': dt_img.get('scale_factor')})
-                .combine({'scale_factor': '1.0'}, overwrite=False)
+                .combine({'scale_factor': 1.0}, overwrite=False)
             )
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         else:

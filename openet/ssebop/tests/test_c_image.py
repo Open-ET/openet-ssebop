@@ -493,25 +493,40 @@ def test_Image_from_landsat_c2_sr_lst_source_arg():
 
 def test_Image_from_landsat_c2_sr_lst_source_values():
     """Test if the lst_source image can be read"""
+    # CGM - The default image is not currently in the collection
+    #   Using a different one that is for now
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20160702'
     xy = (-102.4, 36.1)
-    # # CGM - This image is not currently in the collection
     # image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
     # xy = (-102.08284, 37.81728)
     lst_source = 'projects/openet/assets/lst/landsat/c02'
-    output = utils.point_image_value(
-        ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst, xy)
+    output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+    output = utils.point_image_value(output_img, xy)
     assert abs(output['lst'] - 322.8) <= 0.25
+    assert output_img.get('lst_source_id').getInfo().startswith(lst_source)
 
 
+def test_Image_from_landsat_c2_sr_lst_source_missing():
+    """Test if the input LST image is used if not present in lst_source"""
+    # Testing with a 100% CLOUD_COVER_LAND image that shouldn't be in the LST source collection
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20220820'
+    lst_source = 'projects/openet/assets/lst/landsat/c02'
+    with pytest.raises(Exception):
+        ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst.getInfo()
+
+
+# # CGM - Falling back on input LST image is not currently supported but may be added
 # def test_Image_from_landsat_c2_sr_lst_source_missing():
 #     """Test if the input LST image is used if not present in lst_source"""
+#     # This image does not currently exist in the source collection,
+#     #   but if this test stops working check to see if this image was added
 #     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
 #     xy = (-102.08284, 37.81728)
 #     lst_source = 'projects/openet/assets/lst/landsat/c02'
-#     output = utils.point_image_value(
-#         ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst, xy)
+#     output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+#     output = utils.point_image_value(output_img, xy)
 #     assert abs(output['lst'] - 306.83) <= 0.25
+#     assert output_img.get('lst_source_id').getInfo().startswith('LANDSAT/LC08')
 
 
 @pytest.mark.parametrize(
