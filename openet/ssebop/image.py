@@ -58,10 +58,9 @@ class Image:
         Parameters
         ----------
         image : ee.Image
-            A "prepped" SSEBop input image.
-            Image must have bands: "ndvi" and "lst" and "ndwi" and "qa_water"
-            Image must have properties: 'system:id', 'system:index', and
-                'system:time_start'.
+            A 'prepped' SSEBop input image.
+            Image must have bands: 'ndvi', 'ndwi', 'lst', 'qa_water'.
+            Image must have properties: 'system:id', 'system:index', 'system:time_start'.
         et_reference_source : str, float, optional
             Reference ET source (the default is None).
             Parameter is required if computing 'et' or 'et_reference'.
@@ -75,19 +74,21 @@ class Image:
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
         dt_source : str or float, optional
-            dT source collection ID. The default is
-            'projects/usgs-ssebop/dt/daymet_median_v6'.
+            dT source image collection ID.
+            The default is 'projects/usgs-ssebop/dt/daymet_median_v6'.
         tcorr_source : 'FANO' or float, optional
-            Tcorr source keyword (the default is 'FANO').
+            Tcorr source keyword.  The default is 'FANO' which will compute Tcorr
+            using the 'Forcing And Normalizing Operation' process.
         tmax_source : collection ID or float, optional
-            Maximum air temperature source.  The default is
-            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
+            Maximum air temperature source image collection ID.
+            The default is 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
         elr_flag : bool, str, optional
-            If True, apply Elevation Lapse Rate (ELR) adjustment
-            (the default is False).
+            If True, apply Elevation Lapse Rate (ELR) adjustment (the default is False).
+            The 'elev_source' keyword argument will need to be set to a valid
+            elevation asset image ID.
         et_fraction_type : {'alfalfa', 'grass'}, optional
-            ET fraction reference type (the default is 'alfalfa').
-            If set to "grass" the et_fraction_grass_source must also be set.
+            ET fraction reference type.  The default is 'alfalfa'.
+            If set to "grass", the et_fraction_grass_source parameter must also be set.
         et_fraction_grass_source : {'NASA/NLDAS/FORA0125_H002',
                                     'ECMWF/ERA5_LAND/HOURLY'}, float, optional
             Reference ET source for alfalfa to grass reference adjustment.
@@ -107,8 +108,8 @@ class Image:
 
         Notes
         -----
-        Input image must have a Landsat style 'system:index' in order to
-        lookup Tcorr value from table asset.  (i.e. LC08_043033_20150805)
+        Input image must have an uppercase Landsat style 'system:index'
+        (i.e. LC08_043033_20150805)
 
         """
         self.image = ee.Image(image)
@@ -157,15 +158,15 @@ class Image:
         # Check reference ET parameters
         if et_reference_factor and not utils.is_number(et_reference_factor):
             raise ValueError('et_reference_factor must be a number')
-        if et_reference_factor and self.et_reference_factor < 0:
+        if et_reference_factor and (self.et_reference_factor < 0):
             raise ValueError('et_reference_factor must be greater than zero')
         et_reference_resample_methods = ['nearest', 'bilinear', 'bicubic']
         if (et_reference_resample and
-                et_reference_resample.lower() not in et_reference_resample_methods):
+                (et_reference_resample.lower() not in et_reference_resample_methods)):
             raise ValueError('unsupported et_reference_resample method')
         et_reference_date_type_methods = ['doy', 'daily']
         if (et_reference_date_type and
-                et_reference_date_type.lower() not in et_reference_date_type_methods):
+                (et_reference_date_type.lower() not in et_reference_date_type_methods)):
             raise ValueError('unsupported et_reference_date_type method')
 
         # Model input parameters
@@ -186,6 +187,7 @@ class Image:
                 self._elr_flag = False
             else:
                 raise ValueError(f'elr_flag "{self._elr_flag}" could not be interpreted as bool')
+        # assert isinstance(self._elr_flag, bool), "selection type must be a boolean"
 
         # ET fraction type
         if et_fraction_type.lower() not in ['alfalfa', 'grass']:
@@ -283,15 +285,6 @@ class Image:
         return ee.Image(output_images).set(self._properties)
 
     @lazy_property
-    def qa_water_mask(self):
-        """
-        Extract water mask from the Landsat Collection 2 SR QA_PIXEL band.
-        :return: ee.Image
-        """
-
-        return self.image.select(['qa_water']).set(self._properties)
-
-    @lazy_property
     def et_fraction(self):
         """Fraction of reference ET"""
 
@@ -357,27 +350,6 @@ class Image:
                     .filter(ee.Filter.rangeContains('DOY', self._doy, self._doy))
                     .select([self.et_reference_band])
                 )
-                #     .limit(1, 'system:time_start', True)
-                # DEADBEEF
-                # # CGM - Is this mapped function over GRIDMET really needed?
-                # #   Couldn't you just filter the source to the image DOY
-                # def et_reference_replace_daily(image):
-                #     """Mapping function to get daily time_start and system:index
-                #
-                #     Returns the doy-based reference et with daily time properties from GRIDMET
-                #     """
-                #     image_date = ee.Algorithms.Date(image.get("system:time_start"))
-                #     doy = ee.Number(image_date.getRelative('day', 'year')).add(1).double()
-                #     coll_doy = ee.ImageCollection(self.et_reference_source)\
-                #         .filter(ee.Filter.rangeContains('DOY', doy, doy))\
-                #         .select([self.et_reference_band]).mean() #.first() returns a FC not IC
-                #     return coll_doy.copyProperties(image, ['system:index', 'system:time_start'])
-                # # Map over the GRIDMET collection to get a collection with the
-                # #   a single image for the target date
-                # et_reference_coll = ee.ImageCollection(('IDAHO_EPSCOR/GRIDMET'))\
-                #     .filterDate(self._start_date, self._end_date)\
-                #     .select([self.et_reference_band])\
-                #     .map(et_reference_replace_daily)
             else:
                 raise ValueError(
                     f'unsupported et_reference_date_type: {self.et_reference_date_type}'
@@ -475,6 +447,11 @@ class Image:
         return self.image.select(['ndwi']).set(self._properties)
 
     @lazy_property
+    def qa_water_mask(self):
+        """Landsat Collection 2 QA_PIXEL water mask"""
+        return self.image.select(['qa_water']).set(self._properties)
+
+    @lazy_property
     def quality(self):
         """Set quality to 1 for all active pixels (for now)"""
         return self.mask.rename(['quality']).set(self._properties)
@@ -482,9 +459,11 @@ class Image:
     @lazy_property
     def time(self):
         """Return an image of the 0 UTC time (in milliseconds)"""
-        return self.mask\
-            .double().multiply(0).add(utils.date_to_time_0utc(self._date))\
+        return (
+            self.mask
+            .double().multiply(0).add(utils.date_to_time_0utc(self._date))
             .rename(['time']).set(self._properties)
+        )
 
     @lazy_property
     def dt(self):
@@ -603,9 +582,11 @@ class Image:
         elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?', self._tmax_source):
             # Process Tmax source as a collection ID
             # The Tmax collections do not have a time_start so filter use the "doy" property instead
-            tmax_coll = ee.ImageCollection(self._tmax_source)\
+            tmax_coll = (
+                ee.ImageCollection(self._tmax_source)
                 .filterMetadata('doy', 'equals', self._doy)
-            #     .filterMetadata('doy', 'equals', self._doy.format('%03d'))
+                #.filterMetadata('doy', 'equals', self._doy.format('%03d'))
+            )
             tmax_image = ee.Image(tmax_coll.first()).set({'tmax_source': self._tmax_source})
         else:
             raise ValueError(f'Unsupported tmax_source: {self._tmax_source}\n')
@@ -663,9 +644,11 @@ class Image:
         sr_image : ee.Image, str
             A raw Landsat Collection 2 level 2 (SR) SR image or image ID.
         cloudmask_args : dict
-            keyword arguments to pass through to cloud mask function
+            keyword arguments to pass through to cloud mask function.
         kwargs : dict
-            Keyword arguments to pass through to Image init function
+            Keyword arguments to pass through to Image init function.
+            c2_lst_correct : boolean, optional
+                Apply the Landsat Collection 2 LST emissivity correction.
 
         Returns
         -------
@@ -693,7 +676,7 @@ class Image:
                           'ST_B10', 'QA_PIXEL', 'QA_RADSAT'],
         })
         output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
-                        'tir', 'QA_PIXEL', 'QA_RADSAT']
+                        'lst', 'QA_PIXEL', 'QA_RADSAT']
         band_scale = [0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275,
                       0.00341802, 1, 1]
         band_offset = [-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0]
@@ -718,29 +701,26 @@ class Image:
             cloudmask_args['cloud_score_pct'] = 100
         if 'filter_flag' not in cloudmask_args.keys():
             cloudmask_args['filter_flag'] = False
-        # Will need to add the QA_RADSAT band above if this is set to True
         if 'saturated_flag' not in cloudmask_args.keys():
             cloudmask_args['saturated_flag'] = False
 
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
-        # GELP - I am assuming, we leave this... keep the heretofore default behavior?
-        # Check if passing c2_lst_correct arguments
         if 'c2_lst_correct' in kwargs.keys():
             assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
             # Remove from kwargs since it is not a valid argument for Image init
             c2_lst_correct = kwargs.pop('c2_lst_correct')
         else:
             c2_lst_correct = cls._C2_LST_CORRECT
+
         if c2_lst_correct:
             lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
         else:
-            lst = prep_image.select(['tir'])
+            lst = prep_image.select(['lst'])
 
         # Build the input image
-        # Don't compute LST since it is being provided
         input_image = ee.Image([
-            lst.rename(['lst']),
+            lst,
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),
@@ -910,14 +890,16 @@ class Image:
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
                 'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
-            })
+            }
+        )
 
         Tc_warm100 = lst_avg_masked100.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
                 'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100,
-            })
+            }
+        )
 
         # In places where NDVI is really high, use the masked original lst at those places.
         # In places where NDVI is really low (water) use the unmasked original lst.
