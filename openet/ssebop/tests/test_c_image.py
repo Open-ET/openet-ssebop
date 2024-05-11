@@ -507,17 +507,21 @@ def test_Image_from_landsat_c2_sr_lst_source_values():
 
 
 def test_Image_from_landsat_c2_sr_lst_source_missing():
-    """Test if the input LST image is used if not present in lst_source"""
-    # Testing with a 100% CLOUD_COVER_LAND image that shouldn't be in the LST source collection
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20220820'
+    """Test that the LST is masked if the scene is not present in lst_source"""
+    # This image does not currently exist in the source collection,
+    #   but if this test stops working check to see if this image was added
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+    xy = (-102.08284, 37.81728)
     lst_source = 'projects/openet/assets/lst/landsat/c02'
-    with pytest.raises(Exception):
-        ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst.getInfo()
+    output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+    output = utils.point_image_value(output_img, xy)
+    assert output['lst'] == None
+    assert output_img.get('lst_source_id').getInfo() == 'None'
 
 
-# # CGM - Falling back on input LST image is not currently supported but may be added
+# # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
 # def test_Image_from_landsat_c2_sr_lst_source_missing():
-#     """Test if the input LST image is used if not present in lst_source"""
+#     """Test if the input LST image is used if the scene is not present in lst_source"""
 #     # This image does not currently exist in the source collection,
 #     #   but if this test stops working check to see if this image was added
 #     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
@@ -527,6 +531,16 @@ def test_Image_from_landsat_c2_sr_lst_source_missing():
 #     output = utils.point_image_value(output_img, xy)
 #     assert abs(output['lst'] - 306.83) <= 0.25
 #     assert output_img.get('lst_source_id').getInfo().startswith('LANDSAT/LC08')
+
+
+# # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
+# def test_Image_from_landsat_c2_sr_lst_source_missing():
+#     """Test if an exception is raised if the scene is not present in lst_source"""
+#     # Testing with a 100% CLOUD_COVER_LAND image that shouldn't be in the LST source collection
+#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20220820'
+#     lst_source = 'projects/openet/assets/lst/landsat/c02'
+#     with pytest.raises(Exception):
+#         ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst.getInfo()
 
 
 @pytest.mark.parametrize(

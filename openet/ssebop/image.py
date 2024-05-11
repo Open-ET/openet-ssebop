@@ -405,24 +405,28 @@ class Image:
             # LST source assumptions (for now)
             #   String lst_source is an image collection ID
             #   Images in LST source collection are single band
-            #   Images have a "scene_id" property with a Landsat ID (LXSS_PPPRRR_YYYYMMDD)
+            #   Images have a "scene_id" property with an upper case ID in the
+            #     system:index format (LXSS_PPPRRR_YYYYMMDD)
             #   If a "scale_factor" property is present it will be applied by multiplying
+            # A masked LST image will be used if scene is not in LST source
             # TODO: Consider adding support for setting some sort of "lst_source_index"
-            #   parameter to allow for joining on a different property
+            #   parameter to allow for joining on a property other than "scene_id"
+            mask_img = lst_img.multiply(0).selfMask().set({'lst_source_id': 'None'})
             lst_img = ee.Image(
                 ee.ImageCollection(self._lst_source)
                 .filter(ee.Filter.eq('scene_id', self._index))
                 .select([0], ['lst'])
+                .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
+                .merge(ee.ImageCollection([mask_img]))
                 .first()
             )
-            # # Adding these two lines after the .first() above would allow for the input LST
+            # # Switching to this merge line (above) would allow for the input LST
             # # image to be used as a fallback if the scene is missing from LST source
-            # .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
+            # # instead of returning a masked image
             # .merge(ee.ImageCollection([lst_img.set({'lst_source_id': self._id})]))
 
             # The scale_factor multiply call below drops the lst_source property
-            lst_source_id = lst_img.get('system:id')
-            # lst_source_id = lst_img.get('lst_source_id')
+            lst_source_id = lst_img.get('lst_source_id')
 
             # The OpenET LST images are scaled, so assume the image need to be unscaled
             lst_scale_factor = (
@@ -431,12 +435,12 @@ class Image:
             )
             lst_img = lst_img.multiply(ee.Number(lst_scale_factor.get('scale_factor')))
 
-            # Save the actual LST source image ID as a general class property and
-            #   as a specific property on the lst image
+            # Save the actual LST source image ID as a property on the lst image
+            # Source ID could also be added to general properties
             lst_img = lst_img.set('lst_source_id', lst_source_id)
             # self._properties['lst_source_id'] = lst_source_id
 
-        # TODO: Add support for setting lst_source with a computed object
+        # TODO: Consider adding support for setting lst_source with a computed object
         #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
         # elif isinstance(self._lst_source, ee.computedobject.ComputedObject):
         #     lst_img = self.lst_source
