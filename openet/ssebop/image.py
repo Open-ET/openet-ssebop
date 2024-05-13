@@ -438,7 +438,7 @@ class Image:
             # Save the actual LST source image ID as a property on the lst image
             # Source ID could also be added to general properties
             lst_img = lst_img.set('lst_source_id', lst_source_id)
-            # self._properties['lst_source_id'] = lst_source_id
+            self._properties['lst_source_id'] = lst_source_id
 
         # TODO: Consider adding support for setting lst_source with a computed object
         #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
