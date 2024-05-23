@@ -819,7 +819,7 @@ class Image:
         dt_coeff = 0.125
         ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
-        water_pct = 10
+        water_pct = 50
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
