@@ -1,5 +1,5 @@
 import datetime
-# import pprint
+import pprint
 
 import ee
 import pytest
@@ -47,16 +47,18 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     #     })
 
 
-def default_image(lst=305, ndvi=0.8, qa_water=0):
+def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
     # First construct a fake 'prepped' input image
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
-    return ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(qa_water)]) \
-        .rename(['lst', 'ndvi', 'qa_water']) \
+    return (
+        ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(ndwi), mask_img.add(qa_water)])
+        .rename(['lst', 'ndvi', 'ndwi', 'qa_water'])
         .set({
             'system:index': SCENE_ID,
             'system:time_start': SCENE_TIME,
             'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
+    )
     # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
     #     .set({
     #         'system:index': SCENE_ID,
@@ -68,7 +70,10 @@ def default_image(lst=305, ndvi=0.8, qa_water=0):
 # Setting et_reference_source and et_reference_band on the default image to
 #   simplify testing but these do not have defaults in the Image class init
 def default_image_args(
-        lst=305, ndvi=0.85,
+        lst=305,
+        ndvi=0.85,
+        ndwi=-0.5,
+        qa_water=0,
         # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
         et_reference_band='etr',
@@ -87,7 +92,7 @@ def default_image_args(
         tcorr_resample='nearest',
         ):
     return {
-        'image': default_image(lst=lst, ndvi=ndvi),
+        'image': default_image(lst=lst, ndvi=ndvi, ndwi=ndwi, qa_water=qa_water),
         'et_reference_source': et_reference_source,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
@@ -107,7 +112,10 @@ def default_image_args(
 
 
 def default_image_obj(
-        lst=305, ndvi=0.85,
+        lst=305,
+        ndvi=0.85,
+        ndwi=-0.5,
+        qa_water=0,
         # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
         et_reference_band='etr',
@@ -126,7 +134,10 @@ def default_image_obj(
         tcorr_resample='nearest',
         ):
     return ssebop.Image(**default_image_args(
-        lst=lst, ndvi=ndvi,
+        lst=lst,
+        ndvi=ndvi,
+        ndwi=ndwi,
+        qa_water=qa_water,
         et_reference_source=et_reference_source,
         et_reference_band=et_reference_band,
         et_reference_factor=et_reference_factor,
@@ -221,6 +232,94 @@ def test_Image_lst_properties():
     assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
 
 
+def test_Image_mask_properties():
+    """Test if properties are set on the time image"""
+    output = utils.getinfo(default_image_obj().mask)
+    assert output['bands'][0]['id'] == 'mask'
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
+
+
+def test_Image_mask_values():
+    output_img = default_image_obj(
+        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).mask
+    output = utils.point_image_value(output_img, TEST_POINT)
+    assert output['mask'] == 1
+
+
+def test_Image_time_properties():
+    """Test if properties are set on the time image"""
+    output = utils.getinfo(default_image_obj().time)
+    assert output['bands'][0]['id'] == 'time'
+    assert output['properties']['system:index'] == SCENE_ID
+    assert output['properties']['system:time_start'] == SCENE_TIME
+    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
+
+
+def test_Image_time_values():
+    # The time band should be the 0 UTC datetime, not the system:time_start
+    # The time image is currently being built from the et_fraction image, so all
+    #   the ancillary values must be set.
+    output_img = default_image_obj(
+        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
+        tcorr_source=0.98, tmax_source=310).time
+    output = utils.point_image_value(output_img, TEST_POINT)
+    assert output['time'] == utils.millis(SCENE_DT)
+
+
+@pytest.mark.parametrize(
+    'qa_water, expected',
+    [
+        [0, 0],
+        [1, 1],
+    ]
+)
+def test_Image_qa_water_mask_values(qa_water, expected):
+    """Test QA water mask"""
+    output_img = default_image_obj(qa_water=qa_water)
+    mask_img = output_img.qa_water_mask
+    output = utils.point_image_value(mask_img, SCENE_POINT)
+    assert output['qa_water'] == expected
+
+
+@pytest.mark.parametrize(
+    'ndvi, ndwi, qa_water, expected',
+    [
+        # Not water (Land) Tests
+        # Start with all not water conditions
+        [0.85, -0.5, 0, 1],
+        # NDVI is not currently checked in the Tcorr water/not-water mask function
+        #   so setting NDVI negative will not change mask here
+        #   but NDVI in Tcorr calculation may/will be adjusted
+        [-0.5, -0.5, 0, 1],
+
+        # Water Tests
+        # Any indication of water will set mask to 0
+        # So either qa_water being True or NDWI being > threshold
+        [-0.5, 0.5, 1, 0],
+        [-0.5, -0.5, 1, 0],
+        [-0.5, 0.5, 0, 0],
+        # NDVI is not considered so changing NDVI to positive here will not change mask value
+        [0.5, 0.5, 1, 0],
+        [0.5, -0.5, 1, 0],
+        [0.5, 0.5, 0, 0],
+
+        # Check right around NDWI threshold
+        [0.85, -0.149, 0, 0],
+        [0.85, -0.150, 0, 0],
+        [0.85, -0.151, 0, 1],
+    ]
+)
+def test_Image_tcorr_not_water_mask_values(ndvi, ndwi, qa_water, expected):
+    """Test water mask values"""
+    output_img = default_image_obj(ndvi=ndvi, ndwi=ndwi, qa_water=qa_water)
+    mask_img = output_img.tcorr_not_water_mask
+    output = utils.point_image_value(mask_img, SCENE_POINT)
+    assert output['tcorr_not_water'] == expected
+
+
 @pytest.mark.parametrize(
     'elev_source',
     [None],
@@ -234,6 +333,11 @@ def test_Image_elev_source_exception(elev_source):
         utils.getinfo(default_image_obj(elev_source=elev_source).elev)
 
 
+def test_Image_elev_band_name():
+    output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
+    assert output == 'elev'
+
+
 @pytest.mark.parametrize(
     'elev_source, xy, expected',
     [
@@ -244,6 +348,7 @@ def test_Image_elev_source_exception(elev_source):
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
          [-106.03249, 37.17777], 2369.0],
+        # TODO: This image collection is deprecated!
         ['USGS/NED', [-106.03249, 37.17777], 2364.351],
     ]
 )
@@ -252,11 +357,6 @@ def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
     output = utils.point_image_value(default_image_obj(
         elev_source=elev_source).elev, xy)
     assert abs(output['elev'] - expected) <= tol
-
-
-def test_Image_elev_band_name():
-    output = utils.getinfo(default_image_obj().elev)['bands'][0]['id']
-    assert output == 'elev'
 
 
 @pytest.mark.parametrize(
@@ -506,17 +606,18 @@ def test_Image_from_landsat_c2_sr_lst_source_values():
     assert output_img.get('lst_source_id').getInfo().startswith(lst_source)
 
 
-def test_Image_from_landsat_c2_sr_lst_source_missing():
-    """Test that the LST is masked if the scene is not present in lst_source"""
-    # This image does not currently exist in the source collection,
-    #   but if this test stops working check to see if this image was added
-    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-    xy = (-102.08284, 37.81728)
-    lst_source = 'projects/openet/assets/lst/landsat/c02'
-    output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
-    output = utils.point_image_value(output_img, xy)
-    assert output['lst'] == None
-    assert output_img.get('lst_source_id').getInfo() == 'None'
+# # TODO: Find a new missing LST source image
+# def test_Image_from_landsat_c2_sr_lst_source_missing():
+#     """Test that the LST is masked if the scene is not present in lst_source"""
+#     # This image does not currently exist in the source collection,
+#     #   but if this test stops working check to see if this image was added
+#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+#     xy = (-102.08284, 37.81728)
+#     lst_source = 'projects/openet/assets/lst/landsat/c02'
+#     output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+#     output = utils.point_image_value(output_img, xy)
+#     assert output['lst'] == None
+#     assert output_img.get('lst_source_id').getInfo() == 'None'
 
 
 # # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
@@ -873,32 +974,6 @@ def test_Image_from_landsat_c2_sr_et():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-def test_Image_mask_properties():
-    """Test if properties are set on the time image"""
-    output = utils.getinfo(default_image_obj().mask)
-    assert output['bands'][0]['id'] == 'mask'
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
-
-
-def test_Image_mask_values():
-    output_img = default_image_obj(
-        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).mask
-    output = utils.point_image_value(output_img, TEST_POINT)
-    assert output['mask'] == 1
-
-
-def test_Image_time_properties():
-    """Test if properties are set on the time image"""
-    output = utils.getinfo(default_image_obj().time)
-    assert output['bands'][0]['id'] == 'time'
-    assert output['properties']['system:index'] == SCENE_ID
-    assert output['properties']['system:time_start'] == SCENE_TIME
-    assert output['properties']['image_id'] == f'{COLL_ID}/{SCENE_ID}'
-
-
 @pytest.mark.parametrize(
     'image_id, xy, expected',
     [
@@ -906,7 +981,7 @@ def test_Image_time_properties():
         ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292), 1],
     ]
 )
-def test_Image_qa_water_mask(image_id, xy, expected):
+def test_Image_qa_water_mask_image_values(image_id, xy, expected):
     """Test if qa pixel waterband exists"""
     output_img = ssebop.Image.from_image_id(image_id)
     mask_img = output_img.qa_water_mask
@@ -914,15 +989,19 @@ def test_Image_qa_water_mask(image_id, xy, expected):
     assert output['qa_water'] == expected
 
 
-def test_Image_time_values():
-    # The time band should be the 0 UTC datetime, not the system:time_start
-    # The time image is currently being built from the et_fraction image, so all
-    #   the ancillary values must be set.
-    output_img = default_image_obj(
-        ndvi=0.5, lst=308, dt_source=10, elev_source=50,
-        tcorr_source=0.98, tmax_source=310).time
-    output = utils.point_image_value(output_img, TEST_POINT)
-    assert output['time'] == utils.millis(SCENE_DT)
+@pytest.mark.parametrize(
+    'image_id, xy, expected',
+    [
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.15, 38.6153), 1],
+        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716', (-122.2571, 38.6292), 0],
+    ]
+)
+def test_Image_tcorr_not_water_mask_image_values(image_id, xy, expected):
+    """Test water mask values"""
+    output_img = ssebop.Image.from_image_id(image_id)
+    mask_img = output_img.tcorr_not_water_mask
+    output = utils.point_image_value(mask_img, xy)
+    assert output['tcorr_not_water'] == expected
 
 
 def test_Image_calculate_properties():

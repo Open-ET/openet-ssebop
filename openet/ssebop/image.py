@@ -476,6 +476,29 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
+    def tcorr_not_water_mask(self):
+        """Mask used for FANO Tcorr calculation indicating pixels that are not water
+
+        The purpose for this mask is to get water pixels out of the FANO calculation,
+            but then put the water pixels back in with the original LST value at the end
+
+        Output image will be 0 for water and 1 for not-water (land?)
+
+        """
+
+        ndwi_threshold = -0.15
+
+        # TODO: Check if .multiply() is the same as .And() here
+        #   The .And() seems more readable
+        not_water_mask = (
+            ee.Image(self.ndwi).lt(ndwi_threshold)
+            .multiply(self.qa_water_mask.eq(0))
+            # .And(self.qa_water_mask.eq(0))
+        )
+
+        return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
+
+    @lazy_property
     def time(self):
         """Return an image of the 0 UTC time (in milliseconds)"""
         return (
@@ -817,7 +840,6 @@ class Image:
         coarse_transform = [5000, 0, 15, 0, -5000, 15]
         coarse_transform100 = [100000, 0, 15, 0, -100000, 15]
         dt_coeff = 0.125
-        ndwi_threshold = -0.15
         high_ndvi_threshold = 0.9
         water_pct = 10
         # max pixels argument for .reduceResolution()
@@ -827,26 +849,26 @@ class Image:
         ndvi = ee.Image(self.ndvi).clamp(-1.0, 1.0)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
-        ndwi = ee.Image(self.ndwi)
-        qa_watermask = ee.Image(self.qa_water_mask)
 
-        # setting NDVI to negative values where Landsat QA Pixel detects water.
+        # Setting NDVI to negative values where Landsat QA Pixel detects water.
+        # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
+        qa_watermask = ee.Image(self.qa_water_mask)
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
-        watermask = ndwi.lt(ndwi_threshold)
-        # combining NDWI mask with QA Pixel watermask.
-        watermask = watermask.multiply(qa_watermask.eq(0))
-        # returns qa_watermask layer masked by combined watermask to get a count of valid pixels
-        watermask_for_coarse = qa_watermask.updateMask(watermask)
+        # Mask with not_water pixels set to 1 and water pixels set to 0
+        not_water_mask = self.tcorr_not_water_mask
 
+        # Count not-water pixels and the total number of pixels
+        # TODO: Rename "watermask_coarse_count" here to "not_water_pixels_count"
         watermask_coarse_count = (
-            watermask_for_coarse
+            self.qa_water_mask.updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.count(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
             .updateMask(1).select([0], ['count'])
         )
+
         total_pixels_count = (
-            ndvi
+            self.qa_water_mask
             .reduceResolution(ee.Reducer.count(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
             .updateMask(1).select([0], ['count'])
@@ -865,13 +887,13 @@ class Image:
 
         ndvi_avg_masked = (
             ndvi
-            .updateMask(watermask)
+            .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
         ndvi_avg_masked100 = (
             ndvi
-            .updateMask(watermask)
+            .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, coarse_transform100)
         )
@@ -883,13 +905,13 @@ class Image:
         )
         lst_avg_masked = (
             lst
-            .updateMask(watermask)
+            .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
         lst_avg_masked100 = (
             lst
-            .updateMask(watermask)
+            .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, coarse_transform100)
         )
