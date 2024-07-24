@@ -348,8 +348,9 @@ def test_Image_elev_band_name():
         ['projects/usgs-ssebop/srtm_1km', [-106.03249, 37.17777], 2369.0],
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/srtm_1km',
          [-106.03249, 37.17777], 2369.0],
-        # TODO: This image collection is deprecated!
-        ['USGS/NED', [-106.03249, 37.17777], 2364.351],
+        ['USGS/3DEP/10m', [-106.03249, 37.17777], 2364.1377],
+        # # NED collection is deprecated
+        # ['USGS/NED', [-106.03249, 37.17777], 2364.351],
     ]
 )
 def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
