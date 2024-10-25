@@ -477,15 +477,18 @@ class Image:
 
     @lazy_property
     def tcorr_not_water_mask(self):
-        """Mask used for FANO Tcorr calculation indicating pixels that are not water
+        """Mask of pixels that have a high confidence of not being water
 
-        The purpose for this mask is to get water pixels out of the FANO calculation,
-            but then put the water pixels back in with the original LST value at the end
+        The purpose for this mask is to ensure that water pixels are not used in
+            the Tcorr FANO calculation.
 
-        Output image will be 0 for water and 1 for not-water (land?)
+        Output image will be 1 for pixels that are not-water and 0 otherwise
+
+        NDWI in landsat.py is defined as "green - swir1", which is "flipped"
+            compared to NDVI and other NDWI calculations,
+            so water will be positive and land will be negative
 
         """
-
         ndwi_threshold = -0.15
 
         # TODO: Check if .multiply() is the same as .And() here
