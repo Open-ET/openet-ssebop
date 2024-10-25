@@ -683,7 +683,7 @@ class Collection:
             if 'count' in variables:
                 count_img = (
                     aggregate_coll.filterDate(agg_start_date, agg_end_date)
-                    .select(['mask']).count().rename('count').uint8()
+                    .select(['mask']).reduce(ee.Reducer.count()).rename('count').uint8()
                 )
                 image_list.append(count_img)
 
