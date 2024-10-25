@@ -1,5 +1,5 @@
 import datetime
-import pprint
+# import pprint
 
 import ee
 import pytest
@@ -607,18 +607,16 @@ def test_Image_from_landsat_c2_sr_lst_source_values():
     assert output_img.get('lst_source_id').getInfo().startswith(lst_source)
 
 
-# # TODO: Find a new missing LST source image
-# def test_Image_from_landsat_c2_sr_lst_source_missing():
-#     """Test that the LST is masked if the scene is not present in lst_source"""
-#     # This image does not currently exist in the source collection,
-#     #   but if this test stops working check to see if this image was added
-#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-#     xy = (-102.08284, 37.81728)
-#     lst_source = 'projects/openet/assets/lst/landsat/c02'
-#     output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
-#     output = utils.point_image_value(output_img, xy)
-#     assert output['lst'] == None
-#     assert output_img.get('lst_source_id').getInfo() == 'None'
+def test_Image_from_landsat_c2_sr_lst_source_missing():
+    """Test that the LST is masked if the scene is not present in lst_source"""
+    # LST source collection is empty so that join will work but not join to anything
+    image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
+    xy = (-102.08284, 37.81728)
+    lst_source = 'projects/openet/assets/lst/landsat/empty'
+    output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+    output = utils.point_image_value(output_img, xy)
+    assert output['lst'] is None
+    assert output_img.get('lst_source_id').getInfo() == 'None'
 
 
 # # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
@@ -746,10 +744,16 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     'tcorr_src, tmax_src, image_id, xy, expected',
     [
         ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456],
         ['FANO',
          'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
+         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456],
+        # # Old test values for pre 0.5.0 implementation with 5 Km FANO cells and 10%
+        # ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
+        # ['FANO',
+        #  'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
@@ -896,9 +900,9 @@ def test_Image_et_reference_properties():
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
         ['projects/openet/assets/reference_et/california/cimis/daily/v1',
          'etr', 1, TEST_POINT, 10.0760],
-        ['projects/openet/reference_et/california/cimis/daily/v1',
-         'etr', 1, TEST_POINT, 10.0760],
-        # DEADBEEF
+        # DEADBEEF - Legacy collections have been removed and/or moved to cloud project
+        # ['projects/openet/reference_et/california/cimis/daily/v1',
+        #  'etr', 1, TEST_POINT, 10.0760],
         # ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
         #  'ETr_ASCE', 1, TEST_POINT, 10.0220],
         # CGM - Why are these not the same?
