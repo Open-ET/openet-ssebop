@@ -870,8 +870,9 @@ class Image:
             .updateMask(1).select([0], ['count'])
         )
 
+        # TODO: Maybe chance ndvi to self.qa_water_mask?
         total_pixels_count = (
-            self.qa_water_mask
+            ndvi
             .reduceResolution(ee.Reducer.count(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
             .updateMask(1).select([0], ['count'])
