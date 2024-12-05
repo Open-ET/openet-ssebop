@@ -124,8 +124,6 @@ def ndvi(landsat_image):
     ee.Image
 
     """
-    # ndvi_img = landsat_image.normalizedDifference(['nir', 'red'])
-
     # Force the input values to be at greater than or equal to zero
     #   since C02 surface reflectance values can be negative
     #   but the normalizedDifference function will return nodata
@@ -148,7 +146,6 @@ def ndvi(landsat_image):
         b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
         -0.1
     )
-
     # Should there be an additional check for if either value was negative?
     # ndvi_img = ndvi_img.where(b1.lt(0).Or(b2.lt(0)), 0)
 
@@ -168,8 +165,6 @@ def ndwi(landsat_image):
     ee.Image
 
     """
-    # ndwi_img = landsat_image.normalizedDifference(['green', 'swir1'])
-
     # # Force the input values to be at greater than or equal to zero
     # #   since C02 surface reflectance values can be negative
     # #   but the normalizedDifference function will return nodata
@@ -184,14 +179,9 @@ def ndwi(landsat_image):
     ndwi_img = ndwi_img.where(b1.gte(0.5).Or(b2.gte(0.5)), 0)
 
     # Assume that low reflectance values are unreliable for computing the index
-    # If both reflectance values are below the threshold:
-    #   If the pixel is flagged as water set the output to -0.1 (should this be -1?)
-    #   Otherwise, set the output to 0
+    # If both reflectance values are below the threshold set the output to 0
+    # May want to check the QA water mask here also, similar to the NDVI calculation
     ndwi_img = ndwi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
-    # ndwi_img = ndwi_img.where(
-    #     b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
-    #     0.1
-    # )
 
     return ndwi_img.clamp(-1.0, 1.0).rename(['ndwi'])
 

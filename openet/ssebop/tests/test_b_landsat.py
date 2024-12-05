@@ -10,11 +10,11 @@ import openet.ssebop.utils as utils
 # import openet.core.utils as utils
 
 
-def sr_image(blue=0.1, green=0.1, red=0.1, nir=0.9, swir1=0.1, swir2=0.1, bt=305):
+def sr_image(blue=0.1, green=0.1, red=0.1, nir=0.9, swir1=0.1, swir2=0.1, bt=305, qa=1):
     """Construct a fake Landsat 8 SR image with renamed bands"""
     return (
-        ee.Image.constant([blue, green, red, nir, swir1, swir2, bt])
-        .rename(['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir'])
+        ee.Image.constant([blue, green, red, nir, swir1, swir2, bt, qa])
+        .rename(['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'tir', 'QA_PIXEL'])
         .set({
             # 'system:time_start': ee.Date(SCENE_DATE).millis(),
             'k1_constant': ee.Number(607.76),
