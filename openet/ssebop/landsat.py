@@ -134,13 +134,13 @@ def ndvi(landsat_image):
 
     # Assume that very high reflectance values are unreliable for computing the index
     #   and set the output value to 0
-    # Threshold value could be set lower but for now only trying to catch saturated pixels
+    # Threshold value could be set lower, but for now only trying to catch saturated pixels
     ndvi_img = ndvi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
 
     # Assume that low reflectance values are unreliable for computing the index
-    # If both reflectance values are below the threshold:
-    #   If the pixel is flagged as water set the output to -0.1 (should this be -1?)
-    #   Otherwise, set the output to 0
+    # If both reflectance values are below the threshold,
+    #   and if the pixel is flagged as water, set the output to -0.1 (should this be -1?)
+    #   otherwise set the output to 0
     ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
     ndvi_img = ndvi_img.where(
         b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
@@ -165,9 +165,9 @@ def ndwi(landsat_image):
     ee.Image
 
     """
-    # # Force the input values to be at greater than or equal to zero
-    # #   since C02 surface reflectance values can be negative
-    # #   but the normalizedDifference function will return nodata
+    # Force the input values to be at greater than or equal to zero
+    #   since C02 surface reflectance values can be negative
+    #   but the normalizedDifference function will return nodata
     ndwi_img = landsat_image.max(0).normalizedDifference(['green', 'swir1'])
 
     b1 = landsat_image.select(['green'])
@@ -175,7 +175,7 @@ def ndwi(landsat_image):
 
     # Assume that very high reflectance values are unreliable for computing the index
     #   and set the output value to 0
-    # Threshold value could be set lower but for now only trying to catch saturated pixels
+    # Threshold value could be set lower, but for now only trying to catch saturated pixels
     ndwi_img = ndwi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
 
     # Assume that low reflectance values are unreliable for computing the index
@@ -192,7 +192,7 @@ def landsat_c2_qa_water_mask(landsat_image):
     Parameters
     ----------
     landsat_image : ee.Image
-        Image from a Landsat C02 image collection with a QA_PIXEL band.
+        Landsat C02 image with a QA_PIXEL band.
 
     Returns
     -------

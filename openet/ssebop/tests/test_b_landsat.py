@@ -41,26 +41,59 @@ def test_ndvi_band_name():
         [0.02, 0.08, 0.6],
         [0.01, 0.17 / 3, 0.7],
         [0.01, 0.09, 0.8],
-        # Check that high reflectance values (>0.5) return 0
+    ]
+)
+def test_ndvi_calculation(red, nir, expected, tol=0.000001):
+    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir)))
+    assert abs(output['ndvi'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'red, nir, expected',
+    [
         [1.0, 0.4, 0.0],
         [0.4, 1.0, 0.0],
         [1.0, 1.0, 0.0],
-        # Check that negative values are not masked
-        [-0.01, 0.1, 1.0],
-        [0.1, -0.01, -1.0],
-        # Check that low values are set to 0
+    ]
+)
+def test_ndvi_saturated_reflectance(red, nir, expected, tol=0.000001):
+    # Check that saturated reflectance values return 0
+    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir)))
+    assert abs(output['ndvi'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'red, nir, expected',
+    [
         [-0.1, -0.1, 0.0],
         [0.0, 0.0, 0.0],
         [0.009, 0.009, 0.0],
         [0.009, -0.01, 0.0],
         [-0.01, 0.009, 0.0],
-        # Don't adjust NDVI if only one reflectance value is low
-        [0.005, 0.1, 0.9047619104385376],
+        # Check that calculation works correctly if one value is above threshold
+        [-0.01, 0.1, 1.0],
+        [0.1, -0.01, -1.0],
     ]
 )
-def test_ndvi_calculation(red, nir, expected, tol=0.000001):
-    # TODO: Add qa_pixel to check if negative reflectance water pixels are set  to -0.1
-    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir)))
+def test_ndvi_negative_non_water(red, nir, expected, tol=0.000001):
+    # Check that non-water pixels with very low or negative reflectance values are set to 0.0
+    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir, qa=1)))
+    assert abs(output['ndvi'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'red, nir, expected',
+    [
+        [-0.1, -0.1, -0.1],
+        [0.0, 0.0, -0.1],
+        [0.009, 0.009, -0.1],
+        [0.009, -0.01, -0.1],
+        [-0.01, 0.009, -0.1],
+    ]
+)
+def test_ndvi_negative_water(red, nir, expected, tol=0.000001):
+    # Check that water pixels with very low or negative reflectance values are set to -0.1
+    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir, qa=128)))
     assert abs(output['ndvi'] - expected) <= tol
 
 
@@ -79,22 +112,42 @@ def test_ndwi_band_name():
         [0.11 / 9, 0.01, 0.1],
         [0.07, 0.03, 0.4],
         [0.09, 0.01, 0.8],
-        # Check that high reflectance values (>0.5) return 0
-        [1.0, 0.4, 0.0],
-        [0.4, 1.0, 0.0],
-        [1.0, 1.0, 0.0],
-        # Check that negative values are not masked
-        [-0.01, 0.1, -1.0],
-        [0.1, -0.01, 1.0],
-        # Check that low values are set to 0
+    ]
+)
+def test_ndwi_calculation(green, swir1, expected, tol=0.000001):
+    output = utils.constant_image_value(landsat.ndwi(sr_image(green=green, swir1=swir1)))
+    assert abs(output['ndwi'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'green, swir1, expected',
+    [
         [-0.1, -0.1, 0.0],
         [0.0, 0.0, 0.0],
         [0.009, 0.009, 0.0],
         [0.009, -0.01, 0.0],
         [-0.01, 0.009, 0.0],
+        # Check that calculation works correctly if one value is above threshold
+        [-0.01, 0.1, -1.0],
+        [0.1, -0.01, 1.0],
     ]
 )
-def test_ndwi_calculation(green, swir1, expected, tol=0.000001):
+def test_ndwi_negative_reflectance(green, swir1, expected, tol=0.000001):
+    # Check that very low or negative reflectance values are set to 0
+    output = utils.constant_image_value(landsat.ndwi(sr_image(green=green, swir1=swir1)))
+    assert abs(output['ndwi'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'green, swir1, expected',
+    [
+        [1.0, 0.4, 0.0],
+        [0.4, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+    ]
+)
+def test_ndwi_saturated_reflectance(green, swir1, expected, tol=0.000001):
+    # Check that saturated reflectance values return 0
     output = utils.constant_image_value(landsat.ndwi(sr_image(green=green, swir1=swir1)))
     assert abs(output['ndwi'] - expected) <= tol
 
