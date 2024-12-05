@@ -602,7 +602,11 @@ class Image:
                 .set({'tcorr_source': f'custom_{self._tcorr_source}'})
             )
         elif 'FANO' == self._tcorr_source.upper():
-            return ee.Image(self.tcorr_FANO).select(['tcorr']).set({'tcorr_source': 'FANO'})
+            return (
+                ee.Image(self.tcorr_FANO).select(['tcorr'])
+                .updateMask(1)
+                .set({'tcorr_source': 'FANO'})
+            )
         else:
             raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
 
