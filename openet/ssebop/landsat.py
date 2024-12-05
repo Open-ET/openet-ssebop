@@ -124,7 +124,35 @@ def ndvi(landsat_image):
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['nir', 'red']).rename(['ndvi'])
+    ndvi_img = landsat_image.normalizedDifference(['nir', 'red'])
+
+    # # Force the input values to be at greater than or equal to zero
+    # #   since C02 surface reflectance values can be negative
+    # #   but the normalizedDifference function will return nodata
+    # ndvi_img = landsat_image.max(0).normalizedDifference(['nir', 'red'])
+
+    b1 = landsat_image.select(['nir'])
+    b2 = landsat_image.select(['red'])
+
+    # Assume that very high reflectance values are unreliable for computing the index
+    #   and set the output value to 0
+    # Threshold value could be set lower but for now only trying to catch saturated pixels
+    ndvi_img = ndvi_img.where(b1.gte(0.5).Or(b2.gte(0.5)), 0)
+
+    # # Assume that low reflectance values are unreliable for computing the index
+    # # If both reflectance values are below the threshold:
+    # #   If the pixel is flagged as water set the output to -0.1 (should this be -1?)
+    # #   Otherwise, set the output to 0
+    # ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
+    # ndvi_img = ndvi_img.where(
+    #     b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
+    #     -0.1
+    # )
+
+    # Should there be an additional check for if either value was negative?
+    # ndvi_img = ndvi_img.where(b1.lt(0).Or(b2.lt(0)), 0)
+
+    return ndvi_img.clamp(-1.0, 1.0).rename(['ndvi'])
 
 
 def ndwi(landsat_image):
@@ -140,7 +168,32 @@ def ndwi(landsat_image):
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['green', 'swir1']).rename(['ndwi'])
+    ndwi_img = landsat_image.normalizedDifference(['green', 'swir1'])
+
+    # # Force the input values to be at greater than or equal to zero
+    # #   since C02 surface reflectance values can be negative
+    # #   but the normalizedDifference function will return nodata
+    # ndwi_img = landsat_image.max(0).normalizedDifference(['green', 'swir1'])
+
+    b1 = landsat_image.select(['green'])
+    b2 = landsat_image.select(['swir1'])
+
+    # Assume that very high reflectance values are unreliable for computing the index
+    #   and set the output value to 0
+    # Threshold value could be set lower but for now only trying to catch saturated pixels
+    ndwi_img = ndwi_img.where(b1.gte(0.5).Or(b2.gte(0.5)), 0)
+
+    # # Assume that low reflectance values are unreliable for computing the index
+    # # If both reflectance values are below the threshold:
+    # #   If the pixel is flagged as water set the output to -0.1 (should this be -1?)
+    # #   Otherwise, set the output to 0
+    # ndwi_img = ndwi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
+    # # ndwi_img = ndwi_img.where(
+    # #     b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
+    # #     0.1
+    # # )
+
+    return ndwi_img.clamp(-1.0, 1.0).rename(['ndwi'])
 
 
 def landsat_c2_qa_water_mask(landsat_image):
