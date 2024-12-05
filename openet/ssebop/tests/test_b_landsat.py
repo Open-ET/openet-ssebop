@@ -42,23 +42,24 @@ def test_ndvi_band_name():
         [0.01, 0.17 / 3, 0.7],
         [0.01, 0.09, 0.8],
         # Check that high reflectance values (>0.5) return 0
-        [0.6, 0.4, 0.0],
-        [0.4, 0.6, 0.0],
-        [0.6, 0.6, 0.0],
-        # # Check that negative values are not masked
-        # [-0.01, 0.1, 1.0],
-        # [0.1, -0.01, -1.0],
-        # # Check that low values are set to 0
-        # [-0.1, -0.1, 0.0],
-        # [0.0, 0.0, 0.0],
-        # [0.009, 0.009, 0.0],
-        # [0.009, -0.01, 0.0],
-        # [-0.01, 0.009, 0.0],
-        # # Don't adjust NDVI if only one reflectance value is low
-        # [0.005, 0.1, 0.9047619104385376],
+        [1.0, 0.4, 0.0],
+        [0.4, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        # Check that negative values are not masked
+        [-0.01, 0.1, 1.0],
+        [0.1, -0.01, -1.0],
+        # Check that low values are set to 0
+        [-0.1, -0.1, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.009, 0.009, 0.0],
+        [0.009, -0.01, 0.0],
+        [-0.01, 0.009, 0.0],
+        # Don't adjust NDVI if only one reflectance value is low
+        [0.005, 0.1, 0.9047619104385376],
     ]
 )
 def test_ndvi_calculation(red, nir, expected, tol=0.000001):
+    # TODO: Add qa_pixel to check if negative reflectance water pixels are set  to -0.1
     output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir)))
     assert abs(output['ndvi'] - expected) <= tol
 
@@ -79,9 +80,18 @@ def test_ndwi_band_name():
         [0.07, 0.03, 0.4],
         [0.09, 0.01, 0.8],
         # Check that high reflectance values (>0.5) return 0
-        [0.6, 0.4, 0.0],
-        [0.4, 0.6, 0.0],
-        [0.6, 0.6, 0.0],
+        [1.0, 0.4, 0.0],
+        [0.4, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        # Check that negative values are not masked
+        [-0.01, 0.1, -1.0],
+        [0.1, -0.01, 1.0],
+        # Check that low values are set to 0
+        [-0.1, -0.1, 0.0],
+        [0.0, 0.0, 0.0],
+        [0.009, 0.009, 0.0],
+        [0.009, -0.01, 0.0],
+        [-0.01, 0.009, 0.0],
     ]
 )
 def test_ndwi_calculation(green, swir1, expected, tol=0.000001):

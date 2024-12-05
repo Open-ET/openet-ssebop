@@ -135,7 +135,7 @@ def ndvi(landsat_image):
     # Assume that very high reflectance values are unreliable for computing the index
     #   and set the output value to 0
     # Threshold value could be set lower but for now only trying to catch saturated pixels
-    ndvi_img = ndvi_img.where(b1.gte(0.5).Or(b2.gte(0.5)), 0)
+    ndvi_img = ndvi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
 
     # Assume that low reflectance values are unreliable for computing the index
     # If both reflectance values are below the threshold:
@@ -176,7 +176,7 @@ def ndwi(landsat_image):
     # Assume that very high reflectance values are unreliable for computing the index
     #   and set the output value to 0
     # Threshold value could be set lower but for now only trying to catch saturated pixels
-    ndwi_img = ndwi_img.where(b1.gte(0.5).Or(b2.gte(0.5)), 0)
+    ndwi_img = ndwi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
 
     # Assume that low reflectance values are unreliable for computing the index
     # If both reflectance values are below the threshold set the output to 0

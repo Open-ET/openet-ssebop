@@ -717,17 +717,17 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
         [
             'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            {'tcorr_value': 0.9766275501488573, 'tcorr_count': 86489}
+            {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}
         ],
         [
             'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1303648}
+            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365748}
         ],
         [
             'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
-            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1303648}
+            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365748}
         ],
         # # Old test values before normalized difference updates
         # [
@@ -763,12 +763,12 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9689295677023027
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9689295677023027
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
         ],
         # # Old test values before normalized difference updates
         # [
