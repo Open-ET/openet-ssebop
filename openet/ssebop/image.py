@@ -849,7 +849,7 @@ class Image:
         m_pixels = 65535
 
         lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi).clamp(-1.0, 1.0)
+        ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
@@ -858,7 +858,7 @@ class Image:
         qa_watermask = ee.Image(self.qa_water_mask)
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
-        # Mask with not_water pixels set to 1 and water pixels set to 0
+        # Mask with not_water pixels set to 1 and other (likely water) pixels set to 0
         not_water_mask = self.tcorr_not_water_mask
 
         # Count not-water pixels and the total number of pixels

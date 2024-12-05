@@ -713,10 +713,6 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # DEADBEEF
-        # ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-        #  {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
         # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
          'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
@@ -900,14 +896,6 @@ def test_Image_et_reference_properties():
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
         ['projects/openet/assets/reference_et/california/cimis/daily/v1',
          'etr', 1, TEST_POINT, 10.0760],
-        # DEADBEEF - Legacy collections have been removed and/or moved to cloud project
-        # ['projects/openet/reference_et/california/cimis/daily/v1',
-        #  'etr', 1, TEST_POINT, 10.0760],
-        # ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
-        #  'ETr_ASCE', 1, TEST_POINT, 10.0220],
-        # CGM - Why are these not the same?
-        # ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/daily',
-        #  'etr_asce', 1, TEST_POINT, 10.0760],
         [10, 'FOO', 1, TEST_POINT, 10.0],
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]
