@@ -141,9 +141,13 @@ def ndvi(landsat_image):
     # If both reflectance values are below the threshold,
     #   and if the pixel is flagged as water, set the output to -0.1 (should this be -1?)
     #   otherwise set the output to 0
+    # Including the global surface water maximum extent to help remove shadows that
+    #   are misclassified as water
     ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
     ndvi_img = ndvi_img.where(
-        b1.lt(0.01).And(b2.lt(0.01)).And(landsat_c2_qa_water_mask(landsat_image)),
+        b1.lt(0.01).And(b2.lt(0.01))
+            .And(landsat_c2_qa_water_mask(landsat_image))
+            .And(ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)),
         -0.1
     )
     # Should there be an additional check for if either value was negative?
