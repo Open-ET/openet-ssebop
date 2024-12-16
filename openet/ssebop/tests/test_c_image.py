@@ -713,20 +713,38 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # DEADBEEF
-        # ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-        #  'projects/usgs-ssebop/tmax/daymet_v3_median_1980_2018',
-        #  {'tcorr_value': 0.9757137560969104, 'tcorr_count': 221975}],
         # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
-        ['LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}],
-        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
-         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}],
-        ['LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
-         'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
-         {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}],
+        [
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+            {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}
+        ],
+        [
+            'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365748}
+        ],
+        [
+            'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+            'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+            {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365748}
+        ],
+        # # Old test values before normalized difference updates
+        # [
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
+        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}
+        # ],
+        # [
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}
+        # ],
+        # [
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
+        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
+        #     {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}
+        # ],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001):
@@ -743,17 +761,35 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
 @pytest.mark.parametrize(
     'tcorr_src, tmax_src, image_id, xy, expected',
     [
-        ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456],
-        ['FANO',
-         'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456],
+        [
+            'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+        ],
+        [
+            'FANO',
+            'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+        ],
+        # # Old test values before normalized difference updates
+        # [
+        #     'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456
+        # ],
+        # [
+        #     'FANO',
+        #     'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456
+        # ],
         # # Old test values for pre 0.5.0 implementation with 5 Km FANO cells and 10%
-        # ['FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
-        # ['FANO',
-        #  'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #  'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566],
+        # [
+        #     'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566
+        # ],
+        # [
+        #     'FANO',
+        #     'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
+        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566
+        # ],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
@@ -900,14 +936,6 @@ def test_Image_et_reference_properties():
         ['IDAHO_EPSCOR/GRIDMET', 'etr', 0.85, TEST_POINT, 9.5730 * 0.85],
         ['projects/openet/assets/reference_et/california/cimis/daily/v1',
          'etr', 1, TEST_POINT, 10.0760],
-        # DEADBEEF - Legacy collections have been removed and/or moved to cloud project
-        # ['projects/openet/reference_et/california/cimis/daily/v1',
-        #  'etr', 1, TEST_POINT, 10.0760],
-        # ['projects/earthengine-legacy/assets/projects/climate-engine/cimis/daily',
-        #  'ETr_ASCE', 1, TEST_POINT, 10.0220],
-        # CGM - Why are these not the same?
-        # ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/daily',
-        #  'etr_asce', 1, TEST_POINT, 10.0760],
         [10, 'FOO', 1, TEST_POINT, 10.0],
         [10, 'FOO', 0.85, TEST_POINT, 8.5],
     ]
