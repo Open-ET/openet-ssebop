@@ -93,7 +93,9 @@ def test_ndvi_negative_non_water(red, nir, expected, tol=0.000001):
 )
 def test_ndvi_negative_water(red, nir, expected, tol=0.000001):
     # Check that water pixels with very low or negative reflectance values are set to -0.1
-    output = utils.constant_image_value(landsat.ndvi(sr_image(red=red, nir=nir, qa=128)))
+    output = utils.constant_image_value(landsat.ndvi(
+        sr_image(red=red, nir=nir, qa=128), gsw_extent_flag=False
+    ))
     assert abs(output['ndvi'] - expected) <= tol
 
 

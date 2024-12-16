@@ -111,13 +111,16 @@ def lst(landsat_image):
     return lst.rename(['lst'])
 
 
-def ndvi(landsat_image):
+def ndvi(landsat_image, gsw_extent_flag=True):
     """Normalized difference vegetation index
 
     Parameters
     ----------
     landsat_image : ee.Image
         "Prepped" Landsat image with standardized band names.
+    gsw_extent_flag : boolean
+        If True, apply the global surface water extent mask to the QA_PIXEL water mask
+        The default is True.
 
     Returns
     -------
@@ -137,19 +140,20 @@ def ndvi(landsat_image):
     # Threshold value could be set lower, but for now only trying to catch saturated pixels
     ndvi_img = ndvi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
 
+    # Including the global surface water maximum extent to help remove shadows that
+    #   are misclassified as water
+    # The flag is needed so that the image can be bypassed during testing with constant images
+    qa_water_mask = landsat_c2_qa_water_mask(landsat_image)
+    if gsw_extent_flag:
+        gsw_mask = ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)
+        qa_water_mask = qa_water_mask.And(gsw_mask)
+
     # Assume that low reflectance values are unreliable for computing the index
     # If both reflectance values are below the threshold,
     #   and if the pixel is flagged as water, set the output to -0.1 (should this be -1?)
     #   otherwise set the output to 0
-    # Including the global surface water maximum extent to help remove shadows that
-    #   are misclassified as water
     ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
-    ndvi_img = ndvi_img.where(
-        b1.lt(0.01).And(b2.lt(0.01))
-            .And(landsat_c2_qa_water_mask(landsat_image))
-            .And(ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)),
-        -0.1
-    )
+    ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)).And(qa_water_mask), -0.1)
     # Should there be an additional check for if either value was negative?
     # ndvi_img = ndvi_img.where(b1.lt(0).Or(b2.lt(0)), 0)
 
