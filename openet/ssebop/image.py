@@ -476,28 +476,55 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
-    def tcorr_not_water_mask(self):
+    def tcorr_not_water_mask(self, tf_5km):
         """Mask of pixels that have a high confidence of not being water
+
+        param: tf_5km - a geotransform of 5km [5000, 0, 15, 0, -5000, 15]
 
         The purpose for this mask is to ensure that water pixels are not used in
             the Tcorr FANO calculation.
 
         Output image will be 1 for pixels that are not-water and 0 otherwise
 
-        NDWI in landsat.py is defined as "green - swir1", which is "flipped"
-            compared to NDVI and other NDWI calculations,
-            so water will be positive and land will be negative
-
         """
-        ndwi_threshold = -0.15
+        # modifies Kelvin temperature threshold for inclusion in water mask slightly.
+        temperature_threshold_modifier = 0.998
+        # max pixels argument for .reduceResolution()
+        m_pixels = 65535
 
-        # TODO: Check if .multiply() is the same as .And() here
-        #   The .And() seems more readable
-        not_water_mask = (
-            ee.Image(self.ndwi).lt(ndwi_threshold)
-            .multiply(self.qa_water_mask.eq(0))
-            # .And(self.qa_water_mask.eq(0))
+        lst = ee.Image(self.lst)
+        ndvi = ee.Image(self.ndvi)
+
+        # create average ndvi and average lst
+        ndvi_avg = (
+            lst
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, tf_5km)
+            .updateMask(1)
         )
+        lst_avg = (
+            ndvi
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, tf_5km)
+        )
+
+        # create mask from lst and NDVI
+        watermask_lst = lst.lt(lst_avg.multiply(0.998))
+        watermask_ndvi = ndvi.lt(ndvi_avg)
+
+        # image will be 1 for pixels that are not-water and 0 otherwise
+        # same as java?.."var lowNDVI_lowLST_watermask = watermask_lst.multiply(watermask_ndvi).not()"
+        lowNDVI_lowLST_watermask = (not watermask_lst.multiply(watermask_ndvi))
+
+
+        ## DEADBEEF
+        # not_water_mask = (
+        #     ee.Image(self.ndwi).lt(ndwi_threshold)
+        #     .multiply(self.qa_water_mask.eq(0))
+        #     # .And(self.qa_water_mask.eq(0))
+        # )
+        # TODO - TEST.
+        not_water_mask = self.qa_water_mask.eq(0).updateMask(lowNDVI_lowLST_watermask)
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
@@ -844,7 +871,9 @@ class Image:
         ee.Image of Tcorr values
 
         """
+        fine_transform = [500,  0, 15, 0, -500, 15]
         coarse_transform = [1000, 0, 15, 0, -1000, 15]
+        coarse_transform_5km = [5000, 0, 15, 0, -5000, 15]
         coarse_transform100 = [100000, 0, 15, 0, -100000, 15]
         dt_coeff = 0.125
         high_ndvi_threshold = 0.9
@@ -857,20 +886,23 @@ class Image:
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
+        # TODO - talk to Charles... What part of this addresses FANO metldowns
         # Setting NDVI to negative values where Landsat QA Pixel detects water.
         # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
         qa_watermask = ee.Image(self.qa_water_mask)
+        # this is good to do. Make qa waters agree with an NDVI necessarily negative value.
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
         # Mask with not_water pixels set to 1 and other (likely water) pixels set to 0
-        not_water_mask = self.tcorr_not_water_mask
+        not_water_mask = self.tcorr_not_water_mask(tf_5km=coarse_transform_5km)
 
         # Count not-water pixels and the total number of pixels
-        # TODO: Rename "watermask_coarse_count" here to "not_water_pixels_count"
+        # GP Gonna use fine_transform now...
+        # TODO - the qa watermask is already updated with lowNDVI_lowLST_watermask in 'tcorr_not_water_mask'
         watermask_coarse_count = (
             self.qa_water_mask.updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.count(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
             .updateMask(1).select([0], ['count'])
         )
 
@@ -878,7 +910,7 @@ class Image:
         total_pixels_count = (
             ndvi
             .reduceResolution(ee.Reducer.count(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
             .updateMask(1).select([0], ['count'])
         )
 
@@ -891,7 +923,7 @@ class Image:
 
         percentage_bad = watermask_coarse_count.divide(total_pixels_count)
         pct_value = (1 - (water_pct / 100))
-        wet_region_mask_5km = percentage_bad.lte(pct_value)
+        wet_region_mask = percentage_bad.lte(pct_value)
 
         ndvi_avg_masked = (
             ndvi
@@ -961,7 +993,7 @@ class Image:
             lst_avg_unmasked
             .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)
             .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)
-            .where(wet_region_mask_5km, Tc_warm100)
+            .where(wet_region_mask, Tc_warm100)
             .where(ndvi_avg_unmasked.lt(0), Tc_warm100)
         )
 
