@@ -111,20 +111,53 @@ def lst(landsat_image):
     return lst.rename(['lst'])
 
 
-def ndvi(landsat_image):
+def ndvi(landsat_image, gsw_extent_flag=True):
     """Normalized difference vegetation index
 
     Parameters
     ----------
     landsat_image : ee.Image
         "Prepped" Landsat image with standardized band names.
+    gsw_extent_flag : boolean
+        If True, apply the global surface water extent mask to the QA_PIXEL water mask
+        The default is True.
 
     Returns
     -------
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['nir', 'red']).rename(['ndvi'])
+    # Force the input values to be at greater than or equal to zero
+    #   since C02 surface reflectance values can be negative
+    #   but the normalizedDifference function will return nodata
+    ndvi_img = landsat_image.max(0).normalizedDifference(['nir', 'red'])
+
+    b1 = landsat_image.select(['nir'])
+    b2 = landsat_image.select(['red'])
+
+    # Assume that very high reflectance values are unreliable for computing the index
+    #   and set the output value to 0
+    # Threshold value could be set lower, but for now only trying to catch saturated pixels
+    ndvi_img = ndvi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
+
+    # Including the global surface water maximum extent to help remove shadows that
+    #   are misclassified as water
+    # The flag is needed so that the image can be bypassed during testing with constant images
+    qa_water_mask = landsat_c2_qa_water_mask(landsat_image)
+    if gsw_extent_flag:
+        gsw_mask = ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)
+        qa_water_mask = qa_water_mask.And(gsw_mask)
+
+    # Assume that low reflectance values are unreliable for computing the index
+    # If both reflectance values are below the threshold,
+    #   and if the pixel is flagged as water, set the output to -0.1 (should this be -1?)
+    #   otherwise set the output to 0
+    ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
+    ndvi_img = ndvi_img.where(b1.lt(0.01).And(b2.lt(0.01)).And(qa_water_mask), -0.1)
+    # Should there be an additional check for if either value was negative?
+    # ndvi_img = ndvi_img.where(b1.lt(0).Or(b2.lt(0)), 0)
+
+    return ndvi_img.clamp(-1.0, 1.0).rename(['ndvi'])
 
 
 def ndwi(landsat_image):
@@ -140,7 +173,25 @@ def ndwi(landsat_image):
     ee.Image
 
     """
-    return ee.Image(landsat_image).normalizedDifference(['green', 'swir1']).rename(['ndwi'])
+    # Force the input values to be at greater than or equal to zero
+    #   since C02 surface reflectance values can be negative
+    #   but the normalizedDifference function will return nodata
+    ndwi_img = landsat_image.max(0).normalizedDifference(['green', 'swir1'])
+
+    b1 = landsat_image.select(['green'])
+    b2 = landsat_image.select(['swir1'])
+
+    # Assume that very high reflectance values are unreliable for computing the index
+    #   and set the output value to 0
+    # Threshold value could be set lower, but for now only trying to catch saturated pixels
+    ndwi_img = ndwi_img.where(b1.gte(1).Or(b2.gte(1)), 0)
+
+    # Assume that low reflectance values are unreliable for computing the index
+    # If both reflectance values are below the threshold set the output to 0
+    # May want to check the QA water mask here also, similar to the NDVI calculation
+    ndwi_img = ndwi_img.where(b1.lt(0.01).And(b2.lt(0.01)), 0)
+
+    return ndwi_img.clamp(-1.0, 1.0).rename(['ndwi'])
 
 
 def landsat_c2_qa_water_mask(landsat_image):
@@ -149,7 +200,7 @@ def landsat_c2_qa_water_mask(landsat_image):
     Parameters
     ----------
     landsat_image : ee.Image
-        Image from a Landsat C02 image collection with a QA_PIXEL band.
+        Landsat C02 image with a QA_PIXEL band.
 
     Returns
     -------
