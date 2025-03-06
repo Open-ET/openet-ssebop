@@ -114,7 +114,6 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
         fcd = 1
     else:
         fcd = rs.divide(rso).max(0.3).min(1.0).multiply(1.35).subtract(0.35)
-        # fcd = rs.divide(rso).clamp(0.3, 1).multiply(1.35).subtract(0.35)
 
     # Net shortwave radiation [MJ m-2 d-1] (FAO56 Eqn 38)
     rns = rs.multiply(1 - 0.23)
@@ -286,11 +285,6 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinea
         .set({'system:time_start': time_start})
     )
 
-    # # DEADBEEF - This will select the NLDAS image before the Landsat scene time
-    # interp_img = ee.Image(
-    #     hourly_coll.filterDate(self._date.advance(-1, 'hour'), self._date).first()
-    # )
-
     if src_coll_id.upper() == 'NASA/NLDAS/FORA0125_H002':
         ratio = (
             openet.refetgee.Hourly.nldas(interp_img).etr
@@ -307,6 +301,5 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinea
         if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
             ratio = ratio.resample(resample_method)
         etf_grass = etf.multiply(ratio)
-    # else:
 
     return etf_grass
