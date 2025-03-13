@@ -916,90 +916,157 @@ class Image:
         ag_lc = self.ag_landcover
 
         #  ****subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
+
         # create the masked ndvi for NDVI > 0.50
-        coarse_masked_ndvi = (ndvi_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
-                              .reproject(self.crs, self.transform))
+        coarse_masked_ndvi = (ndvi_masked
+                              .updateMask(ndvi_masked.gte(0.5).And(ag_lc))
+                              .reproject(self.crs, self.transform)
+                              .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+                              .reproject(self.crs, coarse_transform))
+        # backup condition (NDVI > 0.35)
+        coarse_masked_ndvi_backup = (ndvi_masked
+                                     .updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
+                                     .reproject(self.crs, self.transform)
+                                     .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+                                     .reproject(self.crs, coarse_transform))
+        # Mosaic High NDVI at 5km
+        high_ndvi_coarse_mosaic = coarse_masked_ndvi.unmask(coarse_masked_ndvi_backup);
 
-        # Apply focal mean (smoothing)
+        # same process for LST
+        lst_coarse_wmasked_high_ndvi = (lst_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
+                                        .reproject(self.crs, self.transform)
+                                        .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+                                        .reproject(self.crs, coarse_transform))
+        lst_coarse_wmasked_high_ndvi_backup = (lst_masked.updateMask(ndvi_masked.gte(0.35)).And(ndvi_masked.lt(0.5))
+                                               .reproject(self.crs, self.transform)
+                                               .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+                                               .reproject(self.crs, coarse_transform))
 
-        ndvi_avg_masked = (
-            ndvi
-            .updateMask(not_water_mask)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, fine_transform)
-        )
-        ndvi_avg_masked100 = (
-            ndvi
-            .updateMask(not_water_mask)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
-        ndvi_avg_unmasked = (
-            ndvi
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-        )
-        lst_avg_masked = (
-            lst
-            .updateMask(not_water_mask)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, fine_transform)
-        )
-        lst_avg_masked100 = (
-            lst
-            .updateMask(not_water_mask)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
-        lst_avg_unmasked = (
-            lst
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-        )
+        # Mosaic High LST at 5km
+        lst_coarse_high_ndvi_mosaic = lst_coarse_wmasked_high_ndvi.unmask(lst_coarse_wmasked_high_ndvi_backup)
+
+
+        # -------- Fine NDVI and LST (watermasked always)-------------
+        # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
+        ndvi_fine_wmasked = (ndvi_masked
+                             .reproject(self.crs, self.transform)
+                             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+                             .reproject(self.crs, fine_transform)
+                             .updateMask(1))
+        lst_fine_wmasked = (lst_masked
+                             .reproject(self.crs, self.transform)
+                             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+                             .reproject(self.crs, fine_transform)
+                             .updateMask(1))
+
 
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
-        dt_avg = dt.reproject(self.crs, fine_transform)
-        dt_avg100 = dt.reproject(self.crs, coarse_transform).updateMask(1)
-        tmax_avg = tmax.reproject(self.crs, fine_transform)
+        dt_fine = dt.reproject(self.crs, fine_transform).updateMask(1)
+        dt_coarse = dt.reproject(self.crs, coarse_transform).updateMask(1)
+        tmax_avg = tmax.reproject(self.crs, fine_transform).updateMask(1)
+
+        ## =======================================================================================
+        ## FANO TCORR
+        ## =======================================================================================
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        Tc_warm = lst_avg_masked.expression(
+        Tc_fine= lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_avg_masked, 'dt': dt_avg, 'lst': lst_avg_masked,
+                'ndvi': ndvi_fine_wmasked, 'dt': dt_fine, 'lst': lst_fine_wmasked,
             }
         )
 
-        Tc_warm100 = lst_avg_masked100.expression(
+        Tc_coarse_high_ndvi = lst_coarse_high_ndvi_mosaic.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_avg_masked100, 'dt': dt_avg100, 'lst': lst_avg_masked100,
+                'ndvi': high_ndvi_coarse_mosaic, 'dt': dt_coarse, 'lst': lst_coarse_high_ndvi_mosaic,
             }
         )
 
-        # In places where NDVI is really high, use the masked original lst at those places.
-        # In places where NDVI is really low (water) use the unmasked original lst.
-        # Everywhere else, use the FANO adjusted  Tc_warm, ignoring masked water pixels.
-        # In places where there is too much land covered by water 10% or greater,
-        #   use a FANO adjusted Tc_warm from a coarser resolution (100km) that ignored masked water pixels.
-        Tc_cold = (
-            lst_avg_unmasked
-            .where((ndvi_avg_masked.gte(0).And(ndvi_avg_masked.lte(high_ndvi_threshold))), Tc_warm)
-            .where(ndvi_avg_masked.gt(high_ndvi_threshold), lst_avg_masked)
-            .where(wet_region_mask_5km, Tc_warm100)
-            .where(ndvi_avg_unmasked.lt(0), Tc_warm100)
-        )
+        # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
 
+        vegetated_mask = ndvi_fine_wmasked.gte(0.5)
+        vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
+
+        # for 100km Ag areas with enough NDVI to run FANO
+        vegetated_tcorr = Tc_fine.updateMask(vegetated_mask).reproject(self.crs, fine_transform)
+        vegetated_tcorr_backup = Tc_fine.updateMask(vegetated_mask_backup).reproject(self.crs, fine_transform)
+
+        veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
+
+        # for all non-ag areas we run hot dry tcorr at 100m
+        hot_dry_tcorr = Tc_fine.reproject(self.crs, fine_transform)
+
+        # wet, low NDVI fields (shoulder seasons)
+        mixed_landscape_tcorr = Tc_coarse_high_ndvi.reproject(self.crs, coarse_transform).updateMask(1)
+
+        ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
+        mixed_landscape_tcorr_focal_smooth = (mixed_landscape_tcorr
+                                                    .reproject(self.crs, coarse_transform)
+                                                    .focalMean(5, 'circle', 'pixels')
+                                                    .rename('lst')
+                                                    .reproject(self.crs, coarse_transform))
+        # the coarse ag pixels.
+        ag_coarse = mixed_landscape_tcorr.unmask(mixed_landscape_tcorr_focal_smooth)
+
+        # smooth the mosaic
+        smooth_mixed_landscape_tcorr_ag = (ag_coarse
+                                           .reproject(self.crs, coarse_transform)
+                                           .reduceNeighborhood(ee.Reducer.mean(),
+                                                               ee.Kernel.square(1, "pixels",
+                                                                                True, 1))
+                                           .rename('lst').reproject(self.crs, coarse_transform)
+                                           .updateMask(1))
+        # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
+        mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
+
+        # ============== SMOOTH TCOLD 100km ag ================
+        smooth_mixed_landscape_tcorr_ag_plus_veg = (mixed_landscape_tcorr_ag_plus_veg
+                                                    .reproject(self.crs, fine_transform)
+                                                    .focalMean(1, 'circle', 'pixels')
+                                                    .rename('lst')
+                                                    .reproject(self.crs, fine_transform))
+
+        # ============ Smooth Tcold 100km hot dry ===========
+        smooth_hotdry_landscape_tcorr = (hot_dry_tcorr.reproject(self.crs, fine_transform)
+                                         .reduceNeighborhood(ee.Reducer.mean(),
+                                                               ee.Kernel.square(1, "pixels",
+                                                                                True, 1))
+                                        .rename('lst')
+                                        .reproject(self.crs, fine_transform)
+                                        .updateMask(1))
+
+        Tc_Layered = (smooth_mixed_landscape_tcorr_ag_plus_veg
+                      .reproject(self.crs, fine_transform)
+                      .updateMask(ag_lc)
+                      .unmask(smooth_hotdry_landscape_tcorr))
+
+        # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        lst_fine_unmasked = (lst
+                             .reproject(self.crs, self.transform)
+                             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+                             .reproject(self.crs, fine_transform)
+                             .updateMask(1))
+        ndvi_fine_unmasked = (ndvi
+                             .reproject(self.crs, self.transform)
+                             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+                             .reproject(self.crs, fine_transform)
+                             .updateMask(1))
+        # ~~~~~~~~~~~~~~~~~~~~~~
+
+        # TCold with edge-cases handled.
+        Tc_cold = (lst_fine_unmasked
+                            .where(not_water_mask.Not(), mixed_landscape_tcorr_ag_plus_veg)
+                            .where(ndvi.gt(0), Tc_Layered)
+                            .reproject(self.crs, fine_transform))
+
+        # obviated, now that we are at 100m resolution, but carry on to avoid a major code refactor while testing.
         c_factor = Tc_cold.divide(tmax_avg)
 
-        # bilinearly smooth the gridded c factor
-        c_factor_bilinear = c_factor.resample('bilinear')
-
-        return c_factor_bilinear.rename(['tcorr'])\
+        return c_factor.rename(['tcorr'])\
             .set({'system:index': self._index,
                   'system:time_start': self._time_start,
                   'tmax_source': tmax.get('tmax_source'),
