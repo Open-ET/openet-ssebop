@@ -510,15 +510,28 @@ class Image:
         if self._lc_source != 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
             raise Exception(f'Non NALCMS landcover is not supported at this time.')
 
+        # TODO: Convert this to a dictionary of remaps
+        #   to make it easier to support other landuse/landcover datasets
+        # # Grasslands and ag lands
+        # remaps = {
+        #     'USGS/NLCD_RELEASES/2020_REL/NALCMS': [[9, 10, 12, 14, 15], [1,  1,  1,  1,  1]]
+        # }
+        # ag_lc =  (
+        #     ee.Image(self._lc_source)
+        #     .remap(remaps[self._lc_source][0], remaps[self._lc_source][1], 0)
+        # )
+
         nalcms = ee.Image(self._lc_source)
 
         # grasslands and ag lands
-        ag_lc = (nalcms.eq(ee.Number(9))  # Tropical or sub-tropical grassland
-                 .Or(nalcms.eq(ee.Number(10)))  # Temperate or sub-polar grassland.
-                 .Or(nalcms.eq(ee.Number(12)))  # Sub-polar or polar grassland-lichen-moss
-                 .Or(nalcms.eq(ee.Number(14)))  # Wetland
-                 .Or(nalcms.eq(ee.Number(14)))  # Cropland
-                 )
+        ag_lc = (
+            nalcms.eq(ee.Number(9))        # Tropical or sub-tropical grassland
+            .Or(nalcms.eq(ee.Number(10)))  # Temperate or sub-polar grassland.
+            .Or(nalcms.eq(ee.Number(12)))  # Sub-polar or polar grassland-lichen-moss
+            .Or(nalcms.eq(ee.Number(14)))  # Wetland
+            .Or(nalcms.eq(ee.Number(15)))  # Cropland
+        )
+
         return ag_lc
 
     @lazy_property
