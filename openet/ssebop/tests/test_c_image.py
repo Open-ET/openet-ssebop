@@ -47,12 +47,12 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     #     })
 
 
-def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
+def default_image(lst=305, ndvi=0.8, qa_water=0):
     # First construct a fake 'prepped' input image
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
     return (
-        ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(ndwi), mask_img.add(qa_water)])
-        .rename(['lst', 'ndvi', 'ndwi', 'qa_water'])
+        ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(qa_water)])
+        .rename(['lst', 'ndvi', 'qa_water'])
         .set({
             'system:index': SCENE_ID,
             'system:time_start': SCENE_TIME,
@@ -72,7 +72,6 @@ def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
 def default_image_args(
         lst=305,
         ndvi=0.85,
-        ndwi=-0.5,
         qa_water=0,
         # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
@@ -90,9 +89,9 @@ def default_image_args(
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
-        ):
+):
     return {
-        'image': default_image(lst=lst, ndvi=ndvi, ndwi=ndwi, qa_water=qa_water),
+        'image': default_image(lst=lst, ndvi=ndvi, qa_water=qa_water),
         'et_reference_source': et_reference_source,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
@@ -114,7 +113,6 @@ def default_image_args(
 def default_image_obj(
         lst=305,
         ndvi=0.85,
-        ndwi=-0.5,
         qa_water=0,
         # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
@@ -132,11 +130,10 @@ def default_image_obj(
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
-        ):
+):
     return ssebop.Image(**default_image_args(
         lst=lst,
         ndvi=ndvi,
-        ndwi=ndwi,
         qa_water=qa_water,
         et_reference_source=et_reference_source,
         et_reference_band=et_reference_band,
@@ -163,7 +160,7 @@ def test_Image_init_default_parameters():
     assert m.et_reference_factor is None
     assert m.et_reference_resample is None
     assert m.et_reference_date_type is None
-    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
+    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     assert m.et_fraction_type == 'alfalfa'
@@ -285,36 +282,25 @@ def test_Image_qa_water_mask_values(qa_water, expected):
 
 
 @pytest.mark.parametrize(
-    'ndvi, ndwi, qa_water, expected',
+    'ndvi, qa_water, expected',
     [
-        # Not water (Land) Tests
-        # Start with all not water conditions
-        [0.85, -0.5, 0, 1],
-        # NDVI is not currently checked in the Tcorr water/not-water mask function
-        #   so setting NDVI negative will not change mask here
-        #   but NDVI in Tcorr calculation may/will be adjusted
-        [-0.5, -0.5, 0, 1],
+        # Both NDVI must be greater than or equal to 0 and QA must not be water
+        #   for the pixel to be flagged as not-water
+        # Intentionally treat NDVI of 0 as not-water
+        [0.85, 0, 1],
+        [0.5, 0, 1],
+        [0.0, 0, 1],
+        [-0.5, 0, 0],
+        [-0.5, 1, 0],
+        [-0.5, 1, 0],
+        [0.0, 1, 0],
+        [0.5, 1, 0],
 
-        # Water Tests
-        # Any indication of water will set mask to 0
-        # So either qa_water being True or NDWI being > threshold
-        [-0.5, 0.5, 1, 0],
-        [-0.5, -0.5, 1, 0],
-        [-0.5, 0.5, 0, 0],
-        # NDVI is not considered so changing NDVI to positive here will not change mask value
-        [0.5, 0.5, 1, 0],
-        [0.5, -0.5, 1, 0],
-        [0.5, 0.5, 0, 0],
-
-        # Check right around NDWI threshold
-        [0.85, -0.149, 0, 0],
-        [0.85, -0.150, 0, 0],
-        [0.85, -0.151, 0, 1],
     ]
 )
-def test_Image_tcorr_not_water_mask_values(ndvi, ndwi, qa_water, expected):
+def test_Image_tcorr_not_water_mask_values(ndvi, qa_water, expected):
     """Test water mask values"""
-    output_img = default_image_obj(ndvi=ndvi, ndwi=ndwi, qa_water=qa_water)
+    output_img = default_image_obj(ndvi=ndvi, qa_water=qa_water)
     mask_img = output_img.tcorr_not_water_mask
     output = utils.point_image_value(mask_img, SCENE_POINT)
     assert output['tcorr_not_water'] == expected
@@ -363,6 +349,7 @@ def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
+        ['projects/usgs-ssebop/dt/daymet_median_v7', SCENE_DOY, TEST_POINT, 20.1],
         ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
          SCENE_DOY, TEST_POINT, 20.77],
@@ -393,20 +380,6 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
 def test_Image_dt_source_exception():
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(dt_source='').dt)
-
-
-@pytest.mark.parametrize(
-    'dt_source, doy, xy, expected',
-    [
-        ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
-    ]
-)
-def test_Image_dt_scale_factor(dt_source, doy, xy, expected, tol=0.001):
-    """Test that dT scale factor property is being applied for daymet_median_v6"""
-    m = default_image_obj(dt_source=dt_source)
-    m._doy = doy
-    output = utils.point_image_value(ee.Image(m.dt), xy)
-    assert abs(output['dt'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -763,12 +736,12 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9867561243396151
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9867561243396151
         ],
         # # Old test values before normalized difference updates
         # [
