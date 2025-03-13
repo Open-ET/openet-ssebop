@@ -478,7 +478,7 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
-    def tcorr_not_water_mask(self, focalmax_rad=10):
+    def tcorr_not_water_mask(self, focalmax_rad=5):
         """Mask of pixels that have a high confidence of not being water
 
         The purpose for this mask is to ensure that water pixels are not used in
