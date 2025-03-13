@@ -175,6 +175,7 @@ class Image:
         self._tcorr_source = tcorr_source
         self._tmax_source = tmax_source
         self._lst_source = lst_source
+        self._lc_source = lc_source
 
         # TODO: Move into keyword args section below
         self._elr_flag = elr_flag
@@ -504,13 +505,21 @@ class Image:
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
     @lazy_property
-    def ag_landcover(self, global_lc=False):
+    def ag_landcover(self):
 
-        if global_lc:
-            raise Exception(f'Global landcover is not supported at this time. '
-                            f'Set global_lc in ag_landcover lazy prop to False')
+        if self._lc_source != 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
+            raise Exception(f'Non NALCMS landcover is not supported at this time.')
 
-        nalcms = ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
+        nalcms = ee.Image(self._lc_source)
+
+        # grasslands and ag lands
+        ag_lc = (nalcms.eq(ee.Number(9))  # Tropical or sub-tropical grassland
+                 .Or(nalcms.eq(ee.Number(10)))  # Temperate or sub-polar grassland.
+                 .Or(nalcms.eq(ee.Number(12)))  # Sub-polar or polar grassland-lichen-moss
+                 .Or(nalcms.eq(ee.Number(14)))  # Wetland
+                 .Or(nalcms.eq(ee.Number(14)))  # Cropland
+                 )
+        return ag_lc
 
     @lazy_property
     def time(self):
@@ -903,10 +912,11 @@ class Image:
 
         # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
+        # ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
 
         #  ****subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
-
+        # create the masked ndvi for NDVI > 0.50
         coarse_masked_ndvi = (ndvi_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
                               .reproject(self.crs, self.transform))
 
