@@ -44,13 +44,14 @@ class Image:
             et_reference_factor=None,
             et_reference_resample=None,
             et_reference_date_type=None,
-            dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
+            dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7',
             tcorr_source='FANO',
             tmax_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
             elr_flag=False,
             et_fraction_type='alfalfa',
             et_fraction_grass_source=None,
             lst_source=None,
+            lc_source='USGS/NLCD_RELEASES/2020_REL/NALCMS',
             **kwargs,
     ):
         """Construct a generic SSEBop Image
@@ -476,30 +477,40 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
-    def tcorr_not_water_mask(self):
+    def tcorr_not_water_mask(self, focalmax_rad=10):
         """Mask of pixels that have a high confidence of not being water
 
         The purpose for this mask is to ensure that water pixels are not used in
             the Tcorr FANO calculation.
 
         Output image will be 1 for pixels that are not-water and 0 otherwise
-
-        NDWI in landsat.py is defined as "green - swir1", which is "flipped"
-            compared to NDVI and other NDWI calculations,
-            so water will be positive and land will be negative
-
         """
-        ndwi_threshold = -0.15
+        ndvi = ee.Image(self.ndvi)
 
-        # TODO: Check if .multiply() is the same as .And() here
-        #   The .And() seems more readable
-        not_water_mask = (
-            ee.Image(self.ndwi).lt(ndwi_threshold)
-            .multiply(self.qa_water_mask.eq(0))
-            # .And(self.qa_water_mask.eq(0))
-        )
+        qa_watermask = ee.Image(self.qa_water_mask)
+
+        # Set NDVI to NEGATIVE if it is labeled as water...
+        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
+
+        # this produces a water mask.
+        landsat_water_mask = qa_watermask.eq(1).Or(ndvi.lt(0))
+
+        not_water_mask = (landsat_water_mask
+                          .reproject(self.crs, self.transform)
+                          .focalMax(focalmax_rad, 'circle', 'pixels')
+                          .reproject(self.crs, self.transform)
+                          .Not())
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
+
+    @lazy_property
+    def ag_landcover(self, global_lc=False):
+
+        if global_lc:
+            raise Exception(f'Global landcover is not supported at this time. '
+                            f'Set global_lc in ag_landcover lazy prop to False')
+
+        nalcms = ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
 
     @lazy_property
     def time(self):
@@ -844,11 +855,15 @@ class Image:
         ee.Image of Tcorr values
 
         """
-        coarse_transform = [1000, 0, 15, 0, -1000, 15]
-        coarse_transform100 = [100000, 0, 15, 0, -100000, 15]
+        gridsize_fine = 100
+        gridsize_coarse = 5000
+        fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
+        coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
         high_ndvi_threshold = 0.9
-        water_pct = 50
+
+        # water_pct = 50  # DEADBEEF
+
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
 
@@ -860,80 +875,84 @@ class Image:
         # Setting NDVI to negative values where Landsat QA Pixel detects water.
         # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
         qa_watermask = ee.Image(self.qa_water_mask)
+
+        # Set NDVI to NEGATIVE if it is labeled as water...
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
         # Mask with not_water pixels set to 1 and other (likely water) pixels set to 0
         not_water_mask = self.tcorr_not_water_mask
 
-        # Count not-water pixels and the total number of pixels
-        # TODO: Rename "watermask_coarse_count" here to "not_water_pixels_count"
-        watermask_coarse_count = (
-            self.qa_water_mask.updateMask(not_water_mask)
-            .reduceResolution(ee.Reducer.count(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-            .updateMask(1).select([0], ['count'])
-        )
 
-        # TODO: Maybe chance ndvi to self.qa_water_mask?
-        total_pixels_count = (
-            ndvi
-            .reduceResolution(ee.Reducer.count(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-            .updateMask(1).select([0], ['count'])
-        )
+        # ============== SMOOTH NDVI to match 30m LST from 100m downscaling...================
+        # before smoothing separate NDVI from water.
+        ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
 
-        # Doing a layering mosaic check to fill any remaining Null watermask coarse pixels with valid mask data.
-        #   This can happen if the reduceResolution count contained exclusively water pixels from 30 meters.
-        watermask_coarse_count = (
-            ee.Image([watermask_coarse_count, total_pixels_count.multiply(0).add(1)])
-            .reduce(ee.Reducer.firstNonNull())
-        )
+        # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
+        # only regular NDVI is used in edge cases.
+        ndvi_masked = (ndvi_masked_pre
+                       .reproject(self.crs, self.transform)
+                       .reduceNeighborhood(ee.Reducer.mean(),
+                                           kernel=ee.Kernel.square(radius=1, units='pixels',
+                                                                   normalize=True, magnitude=1))
+                       .rename('ndvi')
+                       .reproject(self.crs, self.transform)
+                       .updateMask(1))
 
-        percentage_bad = watermask_coarse_count.divide(total_pixels_count)
-        pct_value = (1 - (water_pct / 100))
-        wet_region_mask_5km = percentage_bad.lte(pct_value)
+        # Note LST is not smoothed.
+        lst_masked = lst.reproject(self.crs, self.transform).updateMask(not_water_mask)
+
+        # ================= LANDCOVER LAZY Property creates ag_lc ==================
+
+        ag_lc = self.ag_landcover
+
+        #  ****subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
+
+        coarse_masked_ndvi = (ndvi_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
+                              .reproject(self.crs, self.transform))
+
+        # Apply focal mean (smoothing)
 
         ndvi_avg_masked = (
             ndvi
             .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
         )
         ndvi_avg_masked100 = (
             ndvi
             .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, coarse_transform100)
+            .reproject(self.crs, coarse_transform)
         )
         ndvi_avg_unmasked = (
             ndvi
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
         lst_avg_masked = (
             lst
             .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
         )
         lst_avg_masked100 = (
             lst
             .updateMask(not_water_mask)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, coarse_transform100)
+            .reproject(self.crs, coarse_transform)
         )
         lst_avg_unmasked = (
             lst
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
+            .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
 
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
-        dt_avg = dt.reproject(self.crs, coarse_transform)
-        dt_avg100 = dt.reproject(self.crs, coarse_transform100).updateMask(1)
-        tmax_avg = tmax.reproject(self.crs, coarse_transform)
+        dt_avg = dt.reproject(self.crs, fine_transform)
+        dt_avg100 = dt.reproject(self.crs, coarse_transform).updateMask(1)
+        tmax_avg = tmax.reproject(self.crs, fine_transform)
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
         Tc_warm = lst_avg_masked.expression(
