@@ -461,10 +461,10 @@ class Image:
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
 
-    @lazy_property
-    def ndwi(self):
-        """Input normalized difference water index (NDWI) to mask water features"""
-        return self.image.select(['ndwi']).set(self._properties)
+    # @lazy_property
+    # def ndwi(self):
+    #     """Input normalized difference water index (NDWI) to mask water features"""
+    #     return self.image.select(['ndwi']).set(self._properties)
 
     @lazy_property
     def qa_water_mask(self):
@@ -485,48 +485,33 @@ class Image:
 
         Output image will be 1 for pixels that are not-water and 0 otherwise
         """
+
         not_water_mask = (
             ee.Image(self.qa_water_mask).eq(1).Or(ee.Image(self.ndvi).lt(0))
-            .focalMax(focalmax_rad, 'circle', 'pixels')
-            .reproject(self.crs, self.transform)
+            .focalMax(focalmax_rad * 30, 'circle', 'meters')
+            #.focalMax(focalmax_rad, 'circle', 'pixels')
+            #.reproject(self.crs, self.transform)
             .Not()
         )
+        # TODO: Test if reduceNeighborhood is any cheaper/faster for buffer
+        # .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
-    # CGM - Could we rename this to tcorr_ag_mask or tcorr_ag_landcover?
     @lazy_property
     def ag_landcover(self):
         """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
-
-        # TODO: Convert the approach to build the mask using remaps
-        #   to make it easier to support other landuse/landcover datasets
-        # # Grasslands and ag lands
-        # remaps = {
-        #     'USGS/NLCD_RELEASES/2020_REL/NALCMS': [[9, 10, 12, 14, 15], [1,  1,  1,  1,  1]]
-        # }
-        # ag_lc =  (
-        #     ee.Image(self._lc_source)
-        #     .remap(remaps[self._lc_source][0], remaps[self._lc_source][1], 0)
-        # )
-
         if utils.is_number(self._lc_source):
-            return ee.Image.constant(float(self._lc_source)).rename('ag_mask')
-        elif self._lc_source != 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            raise ValueError(f'Non NALCMS landcover is not supported at this time.')
-
-        nalcms = ee.Image(self._lc_source)
-
-        # grasslands and ag lands
-        ag_lc = (
-            nalcms.eq(ee.Number(9))        # Tropical or sub-tropical grassland
-            .Or(nalcms.eq(ee.Number(10)))  # Temperate or sub-polar grassland.
-            .Or(nalcms.eq(ee.Number(12)))  # Sub-polar or polar grassland-lichen-moss
-            .Or(nalcms.eq(ee.Number(14)))  # Wetland
-            .Or(nalcms.eq(ee.Number(15)))  # Cropland
-        )
-
-        return ag_lc.rename('ag_landcover')
+            return ee.Image.constant(float(self._lc_source)).rename('ag_landcover')
+        elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
+            # Grasslands and ag lands
+            return (
+                ee.Image(self._lc_source)
+                .remap([9, 10, 12, 14, 15], [1,  1,  1,  1,  1], 0)
+                .rename('ag_landcover')
+            )
+        else:
+            raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
 
     @lazy_property
     def time(self):
@@ -887,28 +872,31 @@ class Image:
         # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
         qa_watermask = ee.Image(self.qa_water_mask)
 
-        # Set NDVI to NEGATIVE if it is labeled as water...
+        # # CGM - The problem with this is that the QA water mask can be true for shadows
+        # #   and on its own is probably not a good enough indicator of water to overwrite NDVI
+        # # Set NDVI to NEGATIVE if it is labeled as water...
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
-        # Mask with not_water pixels set to 1 and other (likely water) pixels set to 0
         not_water_mask = self.tcorr_not_water_mask
 
         # ============== SMOOTH NDVI to match 30m LST from 100m downscaling...================
         # before smoothing separate NDVI from water.
+        # CGM - Is this reproject needed?
         ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
 
         # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
         # only regular NDVI is used in edge cases.
         ndvi_masked = (
             ndvi_masked_pre
+            # CGM - Is this reproject needed?
             .reproject(self.crs, self.transform)
             .reduceNeighborhood(
                 ee.Reducer.mean(),
                 kernel=ee.Kernel.square(radius=1, units='pixels', normalize=True, magnitude=1)
             )
-            .rename('ndvi')
             .reproject(self.crs, self.transform)
             .updateMask(1)
+            .rename('ndvi')
         )
 
         # Note LST is not smoothed.
@@ -1007,8 +995,16 @@ class Image:
         vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
 
         # for 100km Ag areas with enough NDVI to run FANO
-        vegetated_tcorr = Tc_fine.updateMask(vegetated_mask).reproject(self.crs, fine_transform)
-        vegetated_tcorr_backup = Tc_fine.updateMask(vegetated_mask_backup).reproject(self.crs, fine_transform)
+        vegetated_tcorr = (
+            Tc_fine.updateMask(vegetated_mask)
+            # CGM - Is this reproject needed?
+            .reproject(self.crs, fine_transform)
+        )
+        vegetated_tcorr_backup = (
+            Tc_fine.updateMask(vegetated_mask_backup)
+            # CGM - Is this reproject needed?
+            .reproject(self.crs, fine_transform)
+        )
 
         veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
 
@@ -1034,8 +1030,9 @@ class Image:
             ag_coarse
             .reproject(self.crs, coarse_transform)
             .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
-            .rename('lst').reproject(self.crs, coarse_transform)
+            .reproject(self.crs, coarse_transform)
             .updateMask(1)
+            .rename('lst')
         )
         # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
         mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
@@ -1045,17 +1042,18 @@ class Image:
             mixed_landscape_tcorr_ag_plus_veg
             .reproject(self.crs, fine_transform)
             .focalMean(1, 'circle', 'pixels')
-            .rename('lst')
             .reproject(self.crs, fine_transform)
+            .rename('lst')
         )
 
         # ============ Smooth Tcold 100km hot dry ===========
         smooth_hotdry_landscape_tcorr = (
-            hot_dry_tcorr.reproject(self.crs, fine_transform)
+            hot_dry_tcorr
+            .reproject(self.crs, fine_transform)
             .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
-            .rename('lst')
             .reproject(self.crs, fine_transform)
             .updateMask(1)
+            .rename('lst')
         )
 
         Tc_Layered = (
@@ -1073,7 +1071,7 @@ class Image:
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
-        # CGM - This parameter is not used?
+        # CGM - This parameter is not used below, should it be?
         ndvi_fine_unmasked = (
             ndvi
             .reproject(self.crs, self.transform)
