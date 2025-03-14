@@ -668,8 +668,8 @@ def test_Image_from_method_kwargs():
 
 
 # CGM - Test tcorr_image since it is called by tcorr_stats
-def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804, tol=0.0001):
-    output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+def test_Image_tcorr_image_values(lst=300, ndvi=0.85, ndwi=0.5, tmax=306, expected=0.9804, tol=0.0001):
+    output_img = default_image_obj(lst=lst, ndvi=ndvi, ndwi=ndwi, tmax_source=tmax).tcorr_image
     output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
 
@@ -746,12 +746,12 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9867561243396151
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9861203325945954
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9867561243396151
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9834986164454207
         ],
     ]
 )

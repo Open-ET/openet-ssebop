@@ -789,6 +789,7 @@ class Image:
         input_image = ee.Image([
             lst,
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),
         ])
 
@@ -897,7 +898,7 @@ class Image:
         ndvi_masked = (
             ndvi_masked_pre
             # CGM - Is this reproject needed?
-            .reproject(self.crs, self.transform)
+            #.reproject(self.crs, self.transform)
             .reduceNeighborhood(
                 ee.Reducer.mean(),
                 kernel=ee.Kernel.square(radius=1, units='pixels', normalize=True, magnitude=1)
@@ -921,7 +922,8 @@ class Image:
         coarse_masked_ndvi = (
             ndvi_masked
             .updateMask(ndvi_masked.gte(0.5).And(ag_lc))
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
@@ -929,7 +931,8 @@ class Image:
         coarse_masked_ndvi_backup = (
             ndvi_masked
             .updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
@@ -939,13 +942,15 @@ class Image:
         # same process for LST
         lst_coarse_wmasked_high_ndvi = (
             lst_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
         lst_coarse_wmasked_high_ndvi_backup = (
             lst_masked.updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
@@ -957,23 +962,38 @@ class Image:
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
         ndvi_fine_wmasked = (
             ndvi_masked
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
         lst_fine_wmasked = (
             lst_masked
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
 
+        # TODO: Test out commenting out reproject here?
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
-        dt_fine = dt.reproject(self.crs, fine_transform).updateMask(1)
-        dt_coarse = dt.reproject(self.crs, coarse_transform).updateMask(1)
-        tmax_avg = tmax.reproject(self.crs, fine_transform).updateMask(1)
+        dt_fine = (
+            dt
+            .reproject(self.crs, fine_transform)
+            .updateMask(1)
+        )
+        dt_coarse = (
+            dt
+            .reproject(self.crs, coarse_transform)
+            .updateMask(1)
+        )
+        tmax_avg = (
+            tmax
+            .reproject(self.crs, fine_transform)
+            .updateMask(1)
+        )
 
         ## =======================================================================================
         ## FANO TCORR
@@ -992,7 +1012,8 @@ class Image:
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': high_ndvi_coarse_mosaic, 'dt': dt_coarse, 'lst': lst_coarse_high_ndvi_mosaic,
+                'ndvi': high_ndvi_coarse_mosaic, 'dt': dt_coarse,
+                'lst': lst_coarse_high_ndvi_mosaic,
             }
         )
 
@@ -1005,26 +1026,36 @@ class Image:
         vegetated_tcorr = (
             Tc_fine.updateMask(vegetated_mask)
             # CGM - Is this reproject needed?
-            .reproject(self.crs, fine_transform)
+            #.reproject(self.crs, fine_transform)
         )
         vegetated_tcorr_backup = (
             Tc_fine.updateMask(vegetated_mask_backup)
             # CGM - Is this reproject needed?
-            .reproject(self.crs, fine_transform)
+            #.reproject(self.crs, fine_transform)
         )
 
         veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
 
         # for all non-ag areas we run hot dry tcorr at 100m
-        hot_dry_tcorr = Tc_fine.reproject(self.crs, fine_transform)
+        hot_dry_tcorr = (
+            Tc_fine
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, fine_transform)
+        )
 
         # wet, low NDVI fields (shoulder seasons)
-        mixed_landscape_tcorr = Tc_coarse_high_ndvi.reproject(self.crs, coarse_transform).updateMask(1)
+        mixed_landscape_tcorr = (
+            Tc_coarse_high_ndvi
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, coarse_transform)
+            .updateMask(1)
+        )
 
         ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
         mixed_landscape_tcorr_focal_smooth = (
             mixed_landscape_tcorr
-            .reproject(self.crs, coarse_transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, coarse_transform)
             .focalMean(5, 'circle', 'pixels')
             .reproject(self.crs, coarse_transform)
             .rename('lst')
@@ -1035,7 +1066,8 @@ class Image:
         # smooth the mosaic
         smooth_mixed_landscape_tcorr_ag = (
             ag_coarse
-            .reproject(self.crs, coarse_transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, coarse_transform)
             .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
             .reproject(self.crs, coarse_transform)
             .updateMask(1)
@@ -1047,7 +1079,8 @@ class Image:
         # ============== SMOOTH TCOLD 100km ag ================
         smooth_mixed_landscape_tcorr_ag_plus_veg = (
             mixed_landscape_tcorr_ag_plus_veg
-            .reproject(self.crs, fine_transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, fine_transform)
             .focalMean(1, 'circle', 'pixels')
             .reproject(self.crs, fine_transform)
             .rename('lst')
@@ -1056,7 +1089,8 @@ class Image:
         # ============ Smooth Tcold 100km hot dry ===========
         smooth_hotdry_landscape_tcorr = (
             hot_dry_tcorr
-            .reproject(self.crs, fine_transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, fine_transform)
             .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
             .reproject(self.crs, fine_transform)
             .updateMask(1)
@@ -1066,7 +1100,8 @@ class Image:
         # The main Tc where we make use of landcovers
         Tc_Layered = (
             smooth_mixed_landscape_tcorr_ag_plus_veg
-            .reproject(self.crs, fine_transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, fine_transform)
             .updateMask(ag_lc)
             .unmask(smooth_hotdry_landscape_tcorr)
         )
@@ -1074,7 +1109,8 @@ class Image:
         # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         lst_fine_unmasked = (
             lst
-            .reproject(self.crs, self.transform)
+            # CGM - Is this reproject needed?
+            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
@@ -1082,7 +1118,8 @@ class Image:
         # # CGM - This parameter is not used below, should it be?
         # ndvi_fine_unmasked = (
         #     ndvi
-        #     .reproject(self.crs, self.transform)
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, self.transform)
         #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)
         #     .reproject(self.crs, fine_transform)
         #     .updateMask(1)
