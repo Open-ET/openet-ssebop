@@ -47,24 +47,18 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     #     })
 
 
-def default_image(lst=305, ndvi=0.8, qa_water=0):
+def default_image(lst=305, ndvi=0.8, ndwi=0.5, qa_water=0):
     # First construct a fake 'prepped' input image
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
     return (
-        ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(qa_water)])
-        .rename(['lst', 'ndvi', 'qa_water'])
+        ee.Image([mask_img.add(lst), mask_img.add(ndvi), mask_img.add(ndwi), mask_img.add(qa_water)])
+        .rename(['lst', 'ndvi', 'ndwi', 'qa_water'])
         .set({
             'system:index': SCENE_ID,
             'system:time_start': SCENE_TIME,
             'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
     )
-    # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
-    #     .set({
-    #         'system:index': SCENE_ID,
-    #         'system:time_start': ee.Date(SCENE_DATE).millis(),
-    #         'system:id': f'{COLL_ID}/{SCENE_ID}',
-    #     })
 
 
 # Setting et_reference_source and et_reference_band on the default image to
@@ -72,6 +66,7 @@ def default_image(lst=305, ndvi=0.8, qa_water=0):
 def default_image_args(
         lst=305,
         ndvi=0.85,
+        ndwi=0.5,
         qa_water=0,
         et_reference_source=9.5730,
         et_reference_band='etr',
@@ -91,7 +86,7 @@ def default_image_args(
         tcorr_resample='nearest',
 ):
     return {
-        'image': default_image(lst=lst, ndvi=ndvi, qa_water=qa_water),
+        'image': default_image(lst=lst, ndvi=ndvi, ndwi=ndwi, qa_water=qa_water),
         'et_reference_source': et_reference_source,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
@@ -114,6 +109,7 @@ def default_image_args(
 def default_image_obj(
         lst=305,
         ndvi=0.85,
+        ndwi=0.5,
         qa_water=0,
         et_reference_source=9.5730,
         et_reference_band='etr',
@@ -135,6 +131,7 @@ def default_image_obj(
     return ssebop.Image(**default_image_args(
         lst=lst,
         ndvi=ndvi,
+        ndwi=ndwi,
         qa_water=qa_water,
         et_reference_source=et_reference_source,
         et_reference_band=et_reference_band,
@@ -192,8 +189,7 @@ def test_Image_init_date_properties():
     assert utils.getinfo(m._year) == int(SCENE_DATE.split('-')[0])
     assert utils.getinfo(m._month) == int(SCENE_DATE.split('-')[1])
     assert utils.getinfo(m._start_date)['value'] == utils.millis(SCENE_DT)
-    assert utils.getinfo(m._end_date)['value'] == (
-        utils.millis(SCENE_DT) + 24 * 3600 * 1000)
+    assert utils.getinfo(m._end_date)['value'] == (utils.millis(SCENE_DT) + 24 * 3600 * 1000)
     # assert utils.getinfo(m._end_date)['value'] == utils.millis(
     #     SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
@@ -285,25 +281,25 @@ def test_Image_qa_water_mask_values(qa_water, expected):
 
 
 @pytest.mark.parametrize(
-    'ndvi, qa_water, expected',
+    'ndvi, ndwi, qa_water, expected',
     [
         # Both NDVI must be greater than or equal to 0 and QA must not be water
         #   for the pixel to be flagged as not-water
         # Intentionally treat NDVI of 0 as not-water
-        [0.85, 0, 1],
-        [0.5, 0, 1],
-        [0.0, 0, 1],
-        [-0.5, 0, 0],
-        [-0.5, 1, 0],
-        [-0.5, 1, 0],
-        [0.0, 1, 0],
-        [0.5, 1, 0],
+        [0.85, 0.0, 0, 1],
+        [0.5, 0.0, 0, 1],
+        [0.0, 0.0, 0, 1],
+        [-0.5, 0.0, 0, 0],
+        [-0.5, 0.0, 1, 0],
+        [-0.5, 0.0, 1, 0],
+        [0.0, 0.0, 1, 0],
+        [0.5, 0.0, 1, 0],
 
     ]
 )
-def test_Image_tcorr_not_water_mask_values(ndvi, qa_water, expected):
+def test_Image_tcorr_not_water_mask_values(ndvi, ndwi, qa_water, expected):
     """Test water mask values"""
-    output_img = default_image_obj(ndvi=ndvi, qa_water=qa_water)
+    output_img = default_image_obj(ndvi=ndvi, ndwi=ndwi, qa_water=qa_water)
     mask_img = output_img.tcorr_not_water_mask
     output = utils.point_image_value(mask_img, SCENE_POINT)
     assert output['tcorr_not_water'] == expected

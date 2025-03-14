@@ -60,7 +60,7 @@ class Image:
         ----------
         image : ee.Image
             A 'prepped' SSEBop input image.
-            Image must have bands: 'ndvi', 'lst', 'qa_water'.
+            Image must have bands: 'ndvi', 'ndwi', 'lst', 'qa_water'.
             Image must have properties: 'system:id', 'system:index', 'system:time_start'.
         et_reference_source : str, float, optional
             Reference ET source (the default is None).
@@ -461,10 +461,10 @@ class Image:
         """Input normalized difference vegetation index (NDVI)"""
         return self.image.select(['ndvi']).set(self._properties)
 
-    # @lazy_property
-    # def ndwi(self):
-    #     """Input normalized difference water index (NDWI) to mask water features"""
-    #     return self.image.select(['ndwi']).set(self._properties)
+    @lazy_property
+    def ndwi(self):
+        """Input normalized difference water index (NDWI) to mask water features"""
+        return self.image.select(['ndwi']).set(self._properties)
 
     @lazy_property
     def qa_water_mask(self):
@@ -477,7 +477,7 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
-    def tcorr_not_water_mask(self, focalmax_rad=5):
+    def tcorr_not_water_mask(self):
         """Mask of pixels that have a high confidence of not being water
 
         The purpose for this mask is to ensure that water pixels are not used in
@@ -486,40 +486,25 @@ class Image:
         Output image will be 1 for pixels that are not-water and 0 otherwise
         """
 
-        # ORIGINAL High EECUs
-        # not_water_mask = (
-        #     ee.Image(self.qa_water_mask).eq(1).Or(ee.Image(self.ndvi).lt(0))
-        #     .focalMax(focalmax_rad * 30, 'circle', 'meters')
-        #     #.focalMax(focalmax_rad, 'circle', 'pixels')
-        #     #.reproject(self.crs, self.transform)
-        #     .Not()
-        # )
+        # # Originally intended to buffer the mask a small number of pixels,
+        # #   but this is not working correctly and causes lakes to disappear entirely
+        # # Here are some of the approaches that were tried
+        # focalmax_rad = 5
+        # .focalMax(focalmax_rad * 30, 'circle', 'meters')
+        # #.focalMax(focalmax_rad, 'circle', 'pixels')
+        # #.reproject(self.crs, self.transform)
+        # .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
+        # .multiply(-1).distance(ee.Kernel.euclidean(buffersize)).lt(buffersize).unmask(0)
 
-        # Implemented in Notebook...
-        """var buffersize_dist = 20
-            // Compute distance from water pixels
-            var dist = landsat_water_mask.multiply(-1).distance(ee.Kernel.euclidean(buffersize_dist)); // Buffer 300m
-            Map.addLayer(dist, {}, 'distance', 0)
-            // Convert to binary mask (buffered region = 1)
-            var bufferedMask = dist.lt(buffersize_dist).unmask(0);
-            Map.addLayer(bufferedMask, {}, 'bufferedMask', 0)"""
-
-        # # commented out for now. Try reduce Neighborhood first.
-        # buffersize = 20
-        # not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
-        #                   .Or(ee.Image(self.ndvi).lt(0))
-        #                   .multiply(-1)
-        #                   .distance(ee.Kernel.euclidean(buffersize))
-        #                   .lt(buffersize)
-        #                   .unmask(0))
-
-        # Test if reduceNeighborhood is any cheaper/faster for buffer
-        not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
-                          .Or(ee.Image(self.ndvi).lt(0))
-                          .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
-                          .Not())
-
-        return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
+        return (
+            ee.Image(self.qa_water_mask).eq(1)
+            .Or(ee.Image(self.ndvi).lt(0))
+            .Or(ee.Image(self.ndwi).lt(0))
+            .Not()
+            .rename(['tcorr_not_water'])
+            .set(self._properties)
+            .uint8()
+        )
 
     @lazy_property
     def ag_landcover(self):
@@ -804,6 +789,7 @@ class Image:
         input_image = ee.Image([
             lst,
             landsat.ndvi(prep_image),
+            landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),
         ])
 
@@ -888,6 +874,7 @@ class Image:
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
+        ndwi = ee.Image(self.ndwi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
@@ -949,7 +936,7 @@ class Image:
             .reproject(self.crs, coarse_transform)
         )
         # Mosaic High NDVI at 5km
-        high_ndvi_coarse_mosaic = coarse_masked_ndvi.unmask(coarse_masked_ndvi_backup);
+        high_ndvi_coarse_mosaic = coarse_masked_ndvi.unmask(coarse_masked_ndvi_backup)
 
         # same process for LST
         lst_coarse_wmasked_high_ndvi = (
@@ -967,7 +954,6 @@ class Image:
 
         # Mosaic High LST at 5km
         lst_coarse_high_ndvi_mosaic = lst_coarse_wmasked_high_ndvi.unmask(lst_coarse_wmasked_high_ndvi_backup)
-
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
@@ -996,7 +982,7 @@ class Image:
         ## =======================================================================================
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        Tc_fine= lst_fine_wmasked.expression(
+        Tc_fine = lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
@@ -1042,8 +1028,8 @@ class Image:
             mixed_landscape_tcorr
             .reproject(self.crs, coarse_transform)
             .focalMean(5, 'circle', 'pixels')
-            .rename('lst')
             .reproject(self.crs, coarse_transform)
+            .rename('lst')
         )
         # the coarse ag pixels.
         ag_coarse = mixed_landscape_tcorr.unmask(mixed_landscape_tcorr_focal_smooth)
