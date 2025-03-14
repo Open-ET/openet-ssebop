@@ -509,13 +509,62 @@ class Image:
     @lazy_property
     def ag_landcover(self):
         """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
+        ag_remap = {
+            'nalcms': {
+                9: 'Tropical or sub-tropical grassland',
+                10: 'Temperate or sub-polar grassland',
+                12: 'Sub-polar or polar grassland-lichen-moss',
+                14: 'Wetland',
+                15: 'Cropland',
+            },
+            'nlcd': {
+                21: 'Developed, Open Space',
+                22: 'Developed, Low Intensity',
+                71: 'Grassland/Herbaceous',
+                81: 'Pasture/Hay',
+                82: 'Cultivated Crops',
+                90: 'Woody Wetlands',
+                95: 'Emergent Herbaceous Wetlands',
+            }
+        }
+
         if utils.is_number(self._lc_source):
             return ee.Image.constant(float(self._lc_source)).rename('ag_landcover')
         elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            # Grasslands and ag lands
             return (
                 ee.Image(self._lc_source)
-                .remap([9, 10, 12, 14, 15], [1,  1,  1,  1,  1], 0)
+                .remap(list(ag_remap['nalcms'].keys()), [1] * len(ag_remap['nalcms'].keys()), 0)
+                .rename('ag_landcover')
+            )
+        elif self._lc_source in [
+                'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
+                'USGS/NLCD_RELEASES/2021_REL/NLCD',
+                'USGS/NLCD_RELEASES/2019_REL/NLCD',
+        ]:
+            # Assume the source is the Image Collection ID
+            # Assume first band is the landcover band
+            # Select the closest image in time to the target scene
+            lc_coll = ee.ImageCollection(self._lc_source)
+            lc_year = (
+                ee.Number(self._year)
+                .max(ee.Date(lc_coll.aggregate_min('system:time_start')).get('year'))
+                .min(ee.Date(lc_coll.aggregate_max('system:time_start')).get('year'))
+            )
+            lc_date = ee.Date.fromYMD(lc_year, 1, 1)
+            return (
+                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first().select([0])
+                .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
+                .set({'NLCD_YEAR': lc_year})
+                .rename('ag_landcover')
+            )
+        elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
+              self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
+              self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
+            # Assume the source is an NLCD like image ID
+            # Assume first band is the landcover band
+            return (
+                ee.Image(self._lc_source).select([0])
+                .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
                 .rename('ag_landcover')
             )
         else:

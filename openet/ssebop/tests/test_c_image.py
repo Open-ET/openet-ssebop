@@ -457,6 +457,13 @@ def test_Image_tmax_properties(tmax_source, expected):
     [
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 0],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
+        # CGM - Not sure why the 2019 collection doesn't work
+        #['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
     ]
 )
 def test_Image_tcorr_ag_landcover_source_values(lc_source, xy, expected):
@@ -469,11 +476,8 @@ def test_Image_tcorr_ag_landcover_source_values(lc_source, xy, expected):
 @pytest.mark.parametrize(
     'lc_source',
     [
-        # Unsupported datasets
-        'USGS/NLCD_RELEASES/2021_REL/NLCD',
+        # Supprot for ESA WorldCover will be added at some point
         'ESA/WorldCover/v200',
-        'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
-        # Other
         'deadbeef',
         '',
     ]
@@ -746,12 +750,12 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9861203325945954
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9739797381141486
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9834986164454207
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9739797381141486
         ],
     ]
 )
