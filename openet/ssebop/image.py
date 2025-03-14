@@ -789,7 +789,6 @@ class Image:
         input_image = ee.Image([
             lst,
             landsat.ndvi(prep_image),
-            landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),
         ])
 
@@ -874,7 +873,6 @@ class Image:
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
-        ndwi = ee.Image(self.ndwi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
@@ -1081,21 +1079,22 @@ class Image:
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
-        # CGM - This parameter is not used below, should it be?
-        ndvi_fine_unmasked = (
-            ndvi
-            .reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-        )
+        # # CGM - This parameter is not used below, should it be?
+        # ndvi_fine_unmasked = (
+        #     ndvi
+        #     .reproject(self.crs, self.transform)
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+        #     .reproject(self.crs, fine_transform)
+        #     .updateMask(1)
+        # )
         # ~~~~~~~~~~~~~~~~~~~~~~
 
         # TCold with edge-cases handled.
         Tc_cold = (
             lst_fine_unmasked
             .where(not_water_mask.Not(), mixed_landscape_tcorr_ag_plus_veg)
-            .where(ndvi.gt(0), Tc_Layered)
+            .where(ndvi.gte(0), Tc_Layered)
+            .where(ndvi.lt(0), lst_fine_unmasked)
             .reproject(self.crs, fine_transform).updateMask(1)
         )
 
