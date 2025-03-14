@@ -506,13 +506,12 @@ class Image:
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
+    # CGM - Could we rename this to tcorr_ag_mask or tcorr_ag_landcover?
     @lazy_property
     def ag_landcover(self):
+        """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
 
-        if self._lc_source != 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            raise Exception(f'Non NALCMS landcover is not supported at this time.')
-
-        # TODO: Convert this to a dictionary of remaps
+        # TODO: Convert the approach to build the mask using remaps
         #   to make it easier to support other landuse/landcover datasets
         # # Grasslands and ag lands
         # remaps = {
@@ -522,6 +521,11 @@ class Image:
         #     ee.Image(self._lc_source)
         #     .remap(remaps[self._lc_source][0], remaps[self._lc_source][1], 0)
         # )
+
+        if utils.is_number(self._lc_source):
+            return ee.Image.constant(float(self._lc_source)).rename('ag_mask')
+        elif self._lc_source != 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
+            raise ValueError(f'Non NALCMS landcover is not supported at this time.')
 
         nalcms = ee.Image(self._lc_source)
 
@@ -534,7 +538,7 @@ class Image:
             .Or(nalcms.eq(ee.Number(15)))  # Cropland
         )
 
-        return ag_lc
+        return ag_lc.rename('ag_landcover')
 
     @lazy_property
     def time(self):
