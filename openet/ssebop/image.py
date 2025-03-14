@@ -862,8 +862,8 @@ class Image:
         ee.Image of Tcorr values
 
         """
-        gridsize_fine = 100
-        gridsize_coarse = 5000
+        gridsize_fine = 120
+        gridsize_coarse = 4800
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
         coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
@@ -874,6 +874,7 @@ class Image:
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
+        ndwi = ee.Image(self.ndwi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
@@ -888,7 +889,7 @@ class Image:
 
         not_water_mask = self.tcorr_not_water_mask
 
-        # ============== SMOOTH NDVI to match 30m LST from 100m downscaling...================
+        # ============== SMOOTH NDVI to match 30m LST from 120m downscaling...================
         # before smoothing separate NDVI from water.
         # CGM - Is this reproject needed?
         ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
@@ -981,18 +982,18 @@ class Image:
         # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
         dt_fine = (
             dt
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
+            #.reproject(self.crs, fine_transform)
+            #.updateMask(1)
         )
         dt_coarse = (
             dt
-            .reproject(self.crs, coarse_transform)
-            .updateMask(1)
+            #.reproject(self.crs, coarse_transform)
+            #.updateMask(1)
         )
         tmax_avg = (
             tmax
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
+            #.reproject(self.crs, fine_transform)
+            #.updateMask(1)
         )
 
         ## =======================================================================================
@@ -1022,21 +1023,23 @@ class Image:
         vegetated_mask = ndvi_fine_wmasked.gte(0.5)
         vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
 
-        # for 100km Ag areas with enough NDVI to run FANO
-        vegetated_tcorr = (
-            Tc_fine.updateMask(vegetated_mask)
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
-        )
+        # for 120m Ag areas with enough NDVI to run FANO
+        # # CGM - Commented out
+        # vegetated_tcorr = (
+        #     Tc_fine.updateMask(vegetated_mask)
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, fine_transform)
+        # )
         vegetated_tcorr_backup = (
             Tc_fine.updateMask(vegetated_mask_backup)
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
         )
 
-        veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
+        # # CGM - Commented out
+        #veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
 
-        # for all non-ag areas we run hot dry tcorr at 100m
+        # for all non-ag areas we run hot dry tcorr at 120m
         hot_dry_tcorr = (
             Tc_fine
             # CGM - Is this reproject needed?
@@ -1056,7 +1059,7 @@ class Image:
             mixed_landscape_tcorr
             # CGM - Is this reproject needed?
             #.reproject(self.crs, coarse_transform)
-            .focalMean(5, 'circle', 'pixels')
+            .focalMean(1, 'circle', 'pixels')
             .reproject(self.crs, coarse_transform)
             .rename('lst')
         )
@@ -1074,19 +1077,21 @@ class Image:
             .rename('lst')
         )
         # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
-        mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
+        # CGM - Switching to vegetated_tcorr_backup here
+        mixed_landscape_tcorr_ag_plus_veg = vegetated_tcorr_backup.unmask(smooth_mixed_landscape_tcorr_ag)
+        # mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
 
-        # ============== SMOOTH TCOLD 100km ag ================
+        # ============== SMOOTH TCOLD 120m ag ================
         smooth_mixed_landscape_tcorr_ag_plus_veg = (
             mixed_landscape_tcorr_ag_plus_veg
-            # CGM - Is this reproject needed?
+            # # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
             .focalMean(1, 'circle', 'pixels')
             .reproject(self.crs, fine_transform)
             .rename('lst')
         )
 
-        # ============ Smooth Tcold 100km hot dry ===========
+        # ============ Smooth Tcold 120m hot dry ===========
         smooth_hotdry_landscape_tcorr = (
             hot_dry_tcorr
             # CGM - Is this reproject needed?
@@ -1099,7 +1104,9 @@ class Image:
 
         # The main Tc where we make use of landcovers
         Tc_Layered = (
-            smooth_mixed_landscape_tcorr_ag_plus_veg
+            mixed_landscape_tcorr_ag_plus_veg
+            # # CGM - Commenting out this line to avoid previous smoothing step
+            # smooth_mixed_landscape_tcorr_ag_plus_veg
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
             .updateMask(ag_lc)
@@ -1135,7 +1142,7 @@ class Image:
             .reproject(self.crs, fine_transform).updateMask(1)
         )
 
-        # obviated, now that we are at 100m resolution, but carry on to avoid a major code refactor while testing.
+        # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
         c_factor = Tc_cold.divide(tmax_avg)
 
         return (
