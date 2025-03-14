@@ -485,20 +485,8 @@ class Image:
 
         Output image will be 1 for pixels that are not-water and 0 otherwise
         """
-        ndvi = ee.Image(self.ndvi)
-
-        qa_watermask = ee.Image(self.qa_water_mask)
-
-        # TODO: CGM - Revisit this line since I don't think it is needed (or doing anything)
-        # Set NDVI to NEGATIVE if it is labeled as water...
-        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
-
-        # this produces a water mask.
-        landsat_water_mask = qa_watermask.eq(1).Or(ndvi.lt(0))
-
         not_water_mask = (
-            landsat_water_mask
-            .reproject(self.crs, self.transform)
+            ee.Image(self.qa_water_mask).eq(1).Or(ee.Image(self.ndvi).lt(0))
             .focalMax(focalmax_rad, 'circle', 'pixels')
             .reproject(self.crs, self.transform)
             .Not()
@@ -682,9 +670,6 @@ class Image:
 
         if self._tmax_resample and (self._tmax_resample.lower() in ['bilinear', 'bicubic']):
             tmax_image = tmax_image.resample(self._tmax_resample)
-
-        # TODO: A reproject call may be needed here also
-        # tmax_image = tmax_image.reproject(self.crs, self.transform)
 
         return tmax_image
 
