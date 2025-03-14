@@ -504,20 +504,20 @@ class Image:
             var bufferedMask = dist.lt(buffersize_dist).unmask(0);
             Map.addLayer(bufferedMask, {}, 'bufferedMask', 0)"""
 
-        # # commented out for now. Try reduce Neighborhood first.
-        # buffersize = 20
-        # not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
-        #                   .Or(ee.Image(self.ndvi).lt(0))
-        #                   .multiply(-1)
-        #                   .distance(ee.Kernel.euclidean(buffersize))
-        #                   .lt(buffersize)
-        #                   .unmask(0))
-
-        # Test if reduceNeighborhood is any cheaper/faster for buffer
+        # commented out for now. Try reduce Neighborhood first.
+        buffersize = 20
         not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
                           .Or(ee.Image(self.ndvi).lt(0))
-                          .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
-                          .Not())
+                          .multiply(-1)
+                          .distance(ee.Kernel.euclidean(buffersize))
+                          .lt(buffersize)
+                          .unmask(0).Not())
+
+        # # Test if reduceNeighborhood is any cheaper/faster for buffer
+        # not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
+        #                   .Or(ee.Image(self.ndvi).lt(0))
+        #                   .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
+        #                   .Not())
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
@@ -1041,7 +1041,7 @@ class Image:
         mixed_landscape_tcorr_focal_smooth = (
             mixed_landscape_tcorr
             .reproject(self.crs, coarse_transform)
-            .focalMean(5, 'circle', 'pixels')
+            .focalMean(3, 'circle', 'pixels')
             .rename('lst')
             .reproject(self.crs, coarse_transform)
         )
@@ -1095,21 +1095,22 @@ class Image:
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
-        # CGM - This parameter is not used below, should it be?
-        ndvi_fine_unmasked = (
-            ndvi
-            .reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-        )
+        # # CGM - This parameter is not used below, should it be?
+        # ndvi_fine_unmasked = (
+        #     ndvi
+        #     .reproject(self.crs, self.transform)
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+        #     .reproject(self.crs, fine_transform)
+        #     .updateMask(1)
+        # )
         # ~~~~~~~~~~~~~~~~~~~~~~
 
         # TCold with edge-cases handled.
         Tc_cold = (
             lst_fine_unmasked
             .where(not_water_mask.Not(), mixed_landscape_tcorr_ag_plus_veg)
-            .where(ndvi.gt(0), Tc_Layered)
+            .where(ndvi.gte(0), Tc_Layered)
+            .where(ndvi.lt(0), lst_fine_unmasked)
             .reproject(self.crs, fine_transform).updateMask(1)
         )
 
