@@ -486,15 +486,38 @@ class Image:
         Output image will be 1 for pixels that are not-water and 0 otherwise
         """
 
-        not_water_mask = (
-            ee.Image(self.qa_water_mask).eq(1).Or(ee.Image(self.ndvi).lt(0))
-            .focalMax(focalmax_rad * 30, 'circle', 'meters')
-            #.focalMax(focalmax_rad, 'circle', 'pixels')
-            #.reproject(self.crs, self.transform)
-            .Not()
-        )
-        # TODO: Test if reduceNeighborhood is any cheaper/faster for buffer
-        # .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
+        # ORIGINAL High EECUs
+        # not_water_mask = (
+        #     ee.Image(self.qa_water_mask).eq(1).Or(ee.Image(self.ndvi).lt(0))
+        #     .focalMax(focalmax_rad * 30, 'circle', 'meters')
+        #     #.focalMax(focalmax_rad, 'circle', 'pixels')
+        #     #.reproject(self.crs, self.transform)
+        #     .Not()
+        # )
+
+        # Implemented in Notebook...
+        """var buffersize_dist = 20
+            // Compute distance from water pixels
+            var dist = landsat_water_mask.multiply(-1).distance(ee.Kernel.euclidean(buffersize_dist)); // Buffer 300m
+            Map.addLayer(dist, {}, 'distance', 0)
+            // Convert to binary mask (buffered region = 1)
+            var bufferedMask = dist.lt(buffersize_dist).unmask(0);
+            Map.addLayer(bufferedMask, {}, 'bufferedMask', 0)"""
+
+        # # commented out for now. Try reduce Neighborhood first.
+        # buffersize = 20
+        # not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
+        #                   .Or(ee.Image(self.ndvi).lt(0))
+        #                   .multiply(-1)
+        #                   .distance(ee.Kernel.euclidean(buffersize))
+        #                   .lt(buffersize)
+        #                   .unmask(0))
+
+        # Test if reduceNeighborhood is any cheaper/faster for buffer
+        not_water_mask = (ee.Image(self.qa_water_mask).eq(1)
+                          .Or(ee.Image(self.ndvi).lt(0))
+                          .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
+                          .Not())
 
         return not_water_mask.rename(['tcorr_not_water']).set(self._properties).uint8()
 
@@ -907,7 +930,7 @@ class Image:
         # Ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
 
-        #  ****subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
+        # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
         # Create the masked ndvi for NDVI > 0.50
         coarse_masked_ndvi = (
@@ -936,7 +959,7 @@ class Image:
             .reproject(self.crs, coarse_transform)
         )
         lst_coarse_wmasked_high_ndvi_backup = (
-            lst_masked.updateMask(ndvi_masked.gte(0.35)).And(ndvi_masked.lt(0.5))
+            lst_masked.updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
             .reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
@@ -1056,6 +1079,7 @@ class Image:
             .rename('lst')
         )
 
+        # The main Tc where we make use of landcovers
         Tc_Layered = (
             smooth_mixed_landscape_tcorr_ag_plus_veg
             .reproject(self.crs, fine_transform)
@@ -1086,7 +1110,7 @@ class Image:
             lst_fine_unmasked
             .where(not_water_mask.Not(), mixed_landscape_tcorr_ag_plus_veg)
             .where(ndvi.gt(0), Tc_Layered)
-            .reproject(self.crs, fine_transform)
+            .reproject(self.crs, fine_transform).updateMask(1)
         )
 
         # obviated, now that we are at 100m resolution, but carry on to avoid a major code refactor while testing.
