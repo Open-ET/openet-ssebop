@@ -23,25 +23,18 @@ def emissivity(landsat_image):
     """
     ndvi_img = ndvi(landsat_image)
     pv = ndvi_img.expression('((ndvi - 0.2) / 0.3) ** 2', {'ndvi': ndvi_img})
-    # ndviRangevalue = ndvi_image.where(
-    #     ndvi_image.gte(0.2).And(ndvi_image.lte(0.5)), ndvi_image
-    # )
-    # pv = ndviRangevalue.expression(
-    #     '(((ndviRangevalue - 0.2) / 0.3) ** 2',
-    #     {'ndviRangevalue':ndviRangevalue}
-    # )
 
     # Assuming typical Soil Emissivity of 0.97 and Veg Emissivity of 0.99
     #   and shape Factor mean value of 0.553
     de = pv.expression('(1 - 0.97) * (1 - Pv) * (0.55 * 0.99)', {'Pv': pv})
-    RangeEmiss = de.expression('(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': pv, 'dE': de})
+    range_emis = de.expression('(0.99 * Pv) + (0.97 * (1 - Pv)) + dE', {'Pv': pv, 'dE': de})
 
     return (
         ndvi_img
         .where(ndvi_img.lt(0), 0.985)
         .where(ndvi_img.gte(0).And(ndvi_img.lt(0.2)), 0.977)
         .where(ndvi_img.gt(0.5), 0.99)
-        .where(ndvi_img.gte(0.2).And(ndvi_img.lte(0.5)), RangeEmiss)
+        .where(ndvi_img.gte(0.2).And(ndvi_img.lte(0.5)), range_emis)
         .clamp(0.977, 0.99)
         .rename(['emissivity'])
     )
@@ -176,10 +169,10 @@ def ndwi(landsat_image):
     # Force the input values to be at greater than or equal to zero
     #   since C02 surface reflectance values can be negative
     #   but the normalizedDifference function will return nodata
-    ndwi_img = landsat_image.max(0).normalizedDifference(['green', 'swir1'])
+    ndwi_img = landsat_image.max(0).normalizedDifference(['swir1', 'green'])
 
-    b1 = landsat_image.select(['green'])
-    b2 = landsat_image.select(['swir1'])
+    b1 = landsat_image.select(['swir1'])
+    b2 = landsat_image.select(['green'])
 
     # Assume that very high reflectance values are unreliable for computing the index
     #   and set the output value to 0
