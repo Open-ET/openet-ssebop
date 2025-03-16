@@ -38,7 +38,8 @@ class Image:
     _C2_LST_CORRECT = True  # C2 LST correction to recalculate LST default value
 
     def __init__(
-            self, image,
+            self,
+            image,
             et_reference_source=None,
             et_reference_band=None,
             et_reference_factor=None,
@@ -100,6 +101,12 @@ class Image:
             Land surface temperature source image collection ID.
             CGM - Add text detailing any properties, image names, band names, etc
               that are required for the source image collection
+        lc_source : {'USGS/NLCD_RELEASES/2020_REL/NALCMS',
+                     'USGS/NLCD_RELEASES/2021_REL/NLCD',
+                     'USGS/NLCD_RELEASES/2021_REL/NLCD/2021',
+                     'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER'},
+                     optional
+            Landcover source image ID or image collection ID.
         kwargs : dict, optional
             dt_resample : {'nearest', 'bilinear'}
             tcorr_resample : {'nearest', 'bilinear'}
@@ -410,6 +417,7 @@ class Image:
             #     system:index format (LXSS_PPPRRR_YYYYMMDD)
             #   If a "scale_factor" property is present it will be applied by multiplying
             # A masked LST image will be used if scene is not in LST source
+            # Get the mask from the input LST image and apply to the source LST image
             # TODO: Consider adding support for setting some sort of "lst_source_index"
             #   parameter to allow for joining on a property other than "scene_id"
             mask_img = lst_img.multiply(0).selfMask().set({'lst_source_id': 'None'})
@@ -420,6 +428,7 @@ class Image:
                 .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
                 .merge(ee.ImageCollection([mask_img]))
                 .first()
+                .updateMask(lst_img.mask())
             )
             # # Switching to this merge line (above) would allow for the input LST
             # # image to be used as a fallback if the scene is missing from LST source
@@ -830,7 +839,7 @@ class Image:
             c2_lst_correct = cls._C2_LST_CORRECT
 
         if c2_lst_correct:
-            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image, landsat.ndvi(prep_image))
+            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image)
         else:
             lst = prep_image.select(['lst'])
 
