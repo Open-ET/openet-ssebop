@@ -417,7 +417,8 @@ class Image:
             #     system:index format (LXSS_PPPRRR_YYYYMMDD)
             #   If a "scale_factor" property is present it will be applied by multiplying
             # A masked LST image will be used if scene is not in LST source
-            # Get the mask from the input LST image and apply to the source LST image
+            # Get the mask from the input NDVI image and apply to the source LST image
+            # Can't use the input LST image since it will have the emissivity holes
             # TODO: Consider adding support for setting some sort of "lst_source_index"
             #   parameter to allow for joining on a property other than "scene_id"
             mask_img = lst_img.multiply(0).selfMask().set({'lst_source_id': 'None'})
@@ -428,7 +429,7 @@ class Image:
                 .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
                 .merge(ee.ImageCollection([mask_img]))
                 .first()
-                .updateMask(lst_img.mask())
+                .updateMask(self.image.select(['ndvi']).mask())
             )
             # # Switching to this merge line (above) would allow for the input LST
             # # image to be used as a fallback if the scene is missing from LST source
