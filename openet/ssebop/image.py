@@ -1150,16 +1150,16 @@ class Image:
         #     .rename('lst')
         # )
 
-        # ============ Smooth Tcold 120m hot dry ===========
-        smooth_hotdry_landscape_tcorr = (
-            hot_dry_tcorr
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
-            .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-            .rename('lst')
-        )
+        # # ============ Smooth Tcold 120m hot dry ===========
+        # smooth_hotdry_landscape_tcorr = (
+        #     hot_dry_tcorr
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, fine_transform)
+        #     .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
+        #     .reproject(self.crs, fine_transform)
+        #     .updateMask(1)
+        #     .rename('lst')
+        # )
 
         # The main Tc where we make use of landcovers
         Tc_Layered = (
@@ -1169,7 +1169,7 @@ class Image:
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
             .updateMask(ag_lc)
-            .unmask(smooth_hotdry_landscape_tcorr)
+            .unmask(hot_dry_tcorr)
         )
 
         # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
