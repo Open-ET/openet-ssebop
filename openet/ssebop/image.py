@@ -1141,14 +1141,14 @@ class Image:
         # mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
 
         # ============== SMOOTH TCOLD 120m ag ================
-        smooth_mixed_landscape_tcorr_ag_plus_veg = (
-            mixed_landscape_tcorr_ag_plus_veg
-            # # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
-            .focalMean(1, 'circle', 'pixels')
-            .reproject(self.crs, fine_transform)
-            .rename('lst')
-        )
+        # smooth_mixed_landscape_tcorr_ag_plus_veg = (
+        #     mixed_landscape_tcorr_ag_plus_veg
+        #     # # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, fine_transform)
+        #     .focalMean(1, 'circle', 'pixels')
+        #     .reproject(self.crs, fine_transform)
+        #     .rename('lst')
+        # )
 
         # ============ Smooth Tcold 120m hot dry ===========
         smooth_hotdry_landscape_tcorr = (
