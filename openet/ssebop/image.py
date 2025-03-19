@@ -953,20 +953,23 @@ class Image:
         # CGM - Is this reproject needed?
         ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
 
-        # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
-        # only regular NDVI is used in edge cases.
-        ndvi_masked = (
-            ndvi_masked_pre
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceNeighborhood(
-                ee.Reducer.mean(),
-                kernel=ee.Kernel.square(radius=1, units='pixels', normalize=True, magnitude=1)
-            )
-            .reproject(self.crs, self.transform)
-            .updateMask(1)
-            .rename('ndvi')
-        )
+        # # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
+        # # only regular NDVI is used in edge cases.
+        # ndvi_masked = (
+        #     ndvi_masked_pre
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, self.transform)
+        #     .reduceNeighborhood(
+        #         ee.Reducer.mean(),
+        #         kernel=ee.Kernel.square(radius=1, units='pixels', normalize=True, magnitude=1)
+        #     )
+        #     .reproject(self.crs, self.transform)
+        #     .updateMask(1)
+        #     .rename('ndvi')
+        # )
+
+        # GELP to reduce EECUs we are taking the smoothing out of NDVI....
+        ndvi_masked = ndvi_masked_pre
 
         # Note LST is not smoothed.
         lst_masked = lst.reproject(self.crs, self.transform).updateMask(not_water_mask)
