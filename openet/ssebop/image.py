@@ -1167,15 +1167,15 @@ class Image:
         mixed_landscape_tcorr_ag_plus_veg = vegetated_tcorr.unmask(smooth_mixed_landscape_tcorr_ag)
 
 
-        # ============== SMOOTH TCOLD 120m ag ================
-        smooth_mixed_landscape_tcorr_ag_plus_veg = (
-            mixed_landscape_tcorr_ag_plus_veg
-            # # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
-            .focalMean(1, 'circle', 'pixels')
-            .reproject(self.crs, fine_transform)
-            .rename('lst')
-        )
+        # # ============== SMOOTH TCOLD 120m ag ================
+        # smooth_mixed_landscape_tcorr_ag_plus_veg = (
+        #     mixed_landscape_tcorr_ag_plus_veg
+        #     # # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, fine_transform)
+        #     .focalMean(1, 'circle', 'pixels')
+        #     .reproject(self.crs, fine_transform)
+        #     .rename('lst')
+        # )
 
         # ~~DEADBEEF~~
         # # ============ Smooth Tcold 120m hot dry ===========
@@ -1192,13 +1192,22 @@ class Image:
 
         # The main Tc where we make use of landcovers
         Tc_Layered = (
-            smooth_mixed_landscape_tcorr_ag_plus_veg
+            mixed_landscape_tcorr_ag_plus_veg
             # # CGM - Commenting out this line to avoid previous smoothing step
             # smooth_mixed_landscape_tcorr_ag_plus_veg
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
             .updateMask(ag_lc)
             .unmask(hot_dry_tcorr)
+        )
+
+        smooth_Tc_Layered = (
+                Tc_Layered
+                # # CGM - Is this reproject needed?
+                #.reproject(self.crs, fine_transform)
+                .focalMean(1, 'circle', 'pixels')
+                .reproject(self.crs, fine_transform)
+                .rename('lst')
         )
 
         # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1224,11 +1233,11 @@ class Image:
         # TCold with edge-cases handled.
         Tc_cold = (
             lst_fine_unmasked
-            .where(not_water_mask.Not(), mixed_landscape_tcorr_ag_plus_veg)
-            .where(ndvi.gte(0), Tc_Layered)
-            .where(ndvi.lt(0), lst_fine_unmasked)
+            .where(ndvi.gte(0), smooth_Tc_Layered)
+            .where(not_water_mask.Not(), lst_fine_unmasked)
             .reproject(self.crs, fine_transform).updateMask(1)
         )
+
 
         # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
         c_factor = Tc_cold.divide(tmax_avg)
