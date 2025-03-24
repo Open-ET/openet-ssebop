@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.6.9"
+version = "0.7.1"
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
@@ -43,4 +43,5 @@ test = ["pytest"]
 
 [tool.setuptools.packages.find]
 # include = ["openet*"]
-exclude = ["docs*", "examples*", "assets*"]
+exclude = ["docs*", "examples*", "assets*", "build*", "dist*", "*.egg-info*"]
+
