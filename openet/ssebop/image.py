@@ -953,6 +953,7 @@ class Image:
         # CGM - Is this reproject needed?
         ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
 
+        # ~~DEADBEEF~~
         # # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
         # # only regular NDVI is used in edge cases.
         # ndvi_masked = (
@@ -967,6 +968,7 @@ class Image:
         #     .updateMask(1)
         #     .rename('ndvi')
         # )
+        # ~~END DEADBEEF~~
 
         # GELP to reduce EECUs we are taking the smoothing out of NDVI....
         ndvi_masked = ndvi_masked_pre
@@ -978,48 +980,53 @@ class Image:
 
         # Ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
+        self.ag_lc = ag_lc
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
         # Create the masked ndvi for NDVI > 0.50
         coarse_masked_ndvi = (
             ndvi_masked
-            .updateMask(ndvi_masked.gte(0.5).And(ag_lc))
+            .updateMask(ndvi_masked.gte(0.35).And(ag_lc))
             # CGM - Is this reproject needed?
             #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
-        # Backup condition (NDVI > 0.35)
-        coarse_masked_ndvi_backup = (
-            ndvi_masked
-            .updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
-        # Mosaic High NDVI at 5km
-        high_ndvi_coarse_mosaic = coarse_masked_ndvi.unmask(coarse_masked_ndvi_backup)
+        # ~~DEADBEEF~~
+        # # Backup condition (NDVI > 0.35)
+        # coarse_masked_ndvi_backup = (
+        #     ndvi_masked
+        #     .updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, self.transform)
+        #     .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+        #     .reproject(self.crs, coarse_transform)
+        # )
+        # # Mosaic High NDVI at 5km
+        # high_ndvi_coarse_mosaic = coarse_masked_ndvi.unmask(coarse_masked_ndvi_backup)
+        # ~~END DEADBEEF~~
 
         # same process for LST
         lst_coarse_wmasked_high_ndvi = (
-            lst_masked.updateMask(ndvi_masked.gte(0.5).And(ag_lc))
+            lst_masked.updateMask(ndvi_masked.gte(0.35).And(ag_lc))
             # CGM - Is this reproject needed?
             #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), False, m_pixels)
             .reproject(self.crs, coarse_transform)
         )
-        lst_coarse_wmasked_high_ndvi_backup = (
-            lst_masked.updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
+        # ~~DEADBEEF~~
+        # lst_coarse_wmasked_high_ndvi_backup = (
+        #     lst_masked.updateMask(ndvi_masked.gte(0.35).And(ndvi_masked.lt(0.5)).And(ag_lc))
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, self.transform)
+        #     .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+        #     .reproject(self.crs, coarse_transform)
+        # )
 
-        # Mosaic High LST at 5km
-        lst_coarse_high_ndvi_mosaic = lst_coarse_wmasked_high_ndvi.unmask(lst_coarse_wmasked_high_ndvi_backup)
+        # # Mosaic High LST at 5km
+        # lst_coarse_high_ndvi_mosaic = lst_coarse_wmasked_high_ndvi.unmask(lst_coarse_wmasked_high_ndvi_backup)
+        # ~~END DEADBEEF~~
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
@@ -1071,35 +1078,39 @@ class Image:
             }
         )
 
-        Tc_coarse_high_ndvi = lst_coarse_high_ndvi_mosaic.expression(
+        Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': high_ndvi_coarse_mosaic, 'dt': dt_coarse,
-                'lst': lst_coarse_high_ndvi_mosaic,
+                'ndvi': coarse_masked_ndvi, 'dt': dt_coarse,
+                'lst': lst_coarse_wmasked_high_ndvi,
             }
         )
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
 
-        vegetated_mask = ndvi_fine_wmasked.gte(0.5)
-        vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
+        vegetated_mask = ndvi_fine_wmasked.gte(0.35)
+        # ~~DEADBEEF~~
+        # vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
+        # ~~END DEADBEEF~~
 
         # for 120m Ag areas with enough NDVI to run FANO
         # # CGM - Commented out
-        # vegetated_tcorr = (
-        #     Tc_fine.updateMask(vegetated_mask)
-        #     # CGM - Is this reproject needed?
-        #     #.reproject(self.crs, fine_transform)
-        # )
-        vegetated_tcorr_backup = (
-            Tc_fine.updateMask(vegetated_mask_backup)
+        vegetated_tcorr = (
+            Tc_fine.updateMask(vegetated_mask)
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
         )
 
+        # ~~DEADBEEF~~
+        # vegetated_tcorr_backup = (
+        #     Tc_fine.updateMask(vegetated_mask_backup)
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, fine_transform)
+        # )
         # # CGM - Commented out
         #veg_tcorr_mosaic = vegetated_tcorr.unmask(vegetated_tcorr_backup)
+        # ~~END DEADBEEF~~
 
         # for all non-ag areas we run hot dry tcorr at 120m
         hot_dry_tcorr = (
@@ -1117,7 +1128,7 @@ class Image:
         )
 
         ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
-        mixed_landscape_tcorr_focal_smooth = (
+        smooth_mixed_landscape_tcorr_ag = (
             mixed_landscape_tcorr
             # CGM - Is this reproject needed?
             #.reproject(self.crs, coarse_transform)
@@ -1125,24 +1136,27 @@ class Image:
             .reproject(self.crs, coarse_transform)
             .rename('lst')
         )
-        # the coarse ag pixels.
-        ag_coarse = mixed_landscape_tcorr.unmask(mixed_landscape_tcorr_focal_smooth)
 
-        # smooth the mosaic
-        smooth_mixed_landscape_tcorr_ag = (
-            ag_coarse
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, coarse_transform)
-            .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
-            .reproject(self.crs, coarse_transform)
-            .updateMask(1)
-            .rename('lst')
-        )
+        # ~~DEADBEEF~~
+        # # the coarse ag pixels.
+        # ag_coarse = mixed_landscape_tcorr.unmask(mixed_landscape_tcorr_focal_smooth)
+        #
+        # # smooth the mosaic
+        # smooth_mixed_landscape_tcorr_ag = (
+        #     ag_coarse
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, coarse_transform)
+        #     .reduceNeighborhood(ee.Reducer.mean(), ee.Kernel.square(1, "pixels", True, 1))
+        #     .reproject(self.crs, coarse_transform)
+        #     .updateMask(1)
+        #     .rename('lst')
+        # )
+        # ~~END DEADBEEF~~
+
         # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
-        # CGM - Switching to vegetated_tcorr_backup here
-        mixed_landscape_tcorr_ag_plus_veg = vegetated_tcorr_backup.unmask(smooth_mixed_landscape_tcorr_ag)
-        # mixed_landscape_tcorr_ag_plus_veg = veg_tcorr_mosaic.unmask(smooth_mixed_landscape_tcorr_ag)
+        mixed_landscape_tcorr_ag_plus_veg = vegetated_tcorr.unmask(smooth_mixed_landscape_tcorr_ag)
 
+        # ~~DEADBEEF~~
         # ============== SMOOTH TCOLD 120m ag ================
         # smooth_mixed_landscape_tcorr_ag_plus_veg = (
         #     mixed_landscape_tcorr_ag_plus_veg
@@ -1163,6 +1177,7 @@ class Image:
         #     .updateMask(1)
         #     .rename('lst')
         # )
+        # ~~END DEADBEEF~~
 
         # The main Tc where we make use of landcovers
         Tc_Layered = (
