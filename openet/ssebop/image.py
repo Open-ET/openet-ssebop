@@ -980,7 +980,7 @@ class Image:
 
         # Ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
-        self.ag_lc = ag_lc
+        # self.ag_lc = ag_lc
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
@@ -1089,7 +1089,7 @@ class Image:
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
 
-        vegetated_mask = ndvi_fine_wmasked.gte(0.35)
+        vegetated_mask = ndvi_fine_wmasked.gte(0.35).And(ag_lc)
         # ~~DEADBEEF~~
         # vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
         # ~~END DEADBEEF~~
@@ -1156,17 +1156,18 @@ class Image:
         # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
         mixed_landscape_tcorr_ag_plus_veg = vegetated_tcorr.unmask(smooth_mixed_landscape_tcorr_ag)
 
-        # ~~DEADBEEF~~
-        # ============== SMOOTH TCOLD 120m ag ================
-        # smooth_mixed_landscape_tcorr_ag_plus_veg = (
-        #     mixed_landscape_tcorr_ag_plus_veg
-        #     # # CGM - Is this reproject needed?
-        #     #.reproject(self.crs, fine_transform)
-        #     .focalMean(1, 'circle', 'pixels')
-        #     .reproject(self.crs, fine_transform)
-        #     .rename('lst')
-        # )
 
+        # ============== SMOOTH TCOLD 120m ag ================
+        smooth_mixed_landscape_tcorr_ag_plus_veg = (
+            mixed_landscape_tcorr_ag_plus_veg
+            # # CGM - Is this reproject needed?
+            #.reproject(self.crs, fine_transform)
+            .focalMean(1, 'circle', 'pixels')
+            .reproject(self.crs, fine_transform)
+            .rename('lst')
+        )
+
+        # ~~DEADBEEF~~
         # # ============ Smooth Tcold 120m hot dry ===========
         # smooth_hotdry_landscape_tcorr = (
         #     hot_dry_tcorr
@@ -1181,7 +1182,7 @@ class Image:
 
         # The main Tc where we make use of landcovers
         Tc_Layered = (
-            mixed_landscape_tcorr_ag_plus_veg
+            smooth_mixed_landscape_tcorr_ag_plus_veg
             # # CGM - Commenting out this line to avoid previous smoothing step
             # smooth_mixed_landscape_tcorr_ag_plus_veg
             # CGM - Is this reproject needed?
