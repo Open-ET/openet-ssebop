@@ -1128,10 +1128,20 @@ class Image:
         )
 
         ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
-        smooth_mixed_landscape_tcorr_ag = (
+        smooth_mixed_landscape_tcorr_ag_pre = (
             mixed_landscape_tcorr
             # CGM - Is this reproject needed?
             #.reproject(self.crs, coarse_transform)
+            .focalMean(1, 'circle', 'pixels')
+            .reproject(self.crs, coarse_transform)
+            .rename('lst')
+        )
+
+        # double smooth to increase area...
+        smooth_mixed_landscape_tcorr_ag = (
+            smooth_mixed_landscape_tcorr_ag_pre
+            # CGM - Is this reproject needed?
+            # .reproject(self.crs, coarse_transform)
             .focalMean(1, 'circle', 'pixels')
             .reproject(self.crs, coarse_transform)
             .rename('lst')
