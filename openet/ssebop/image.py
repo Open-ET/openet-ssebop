@@ -581,16 +581,41 @@ class Image:
             raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
 
     @lazy_property
-    def tc_ag(self, vegetated_tcorr, smooth_mixed_landscape_tcorr_ag):
-        # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
-        return vegetated_tcorr.unmask(smooth_mixed_landscape_tcorr_ag)
+    def mixed_landscape_tcorr_smooth(self):
+
+        self.smooth_mixed_landscape_pre = (
+                            self.mixed_landscape_tcorr
+                                    # CGM - Is this reproject needed?
+                                    .focalMean(1, 'circle', 'pixels')
+                                    .reproject(self.crs, self.coarse_transform)
+                                    .rename('lst')
+        )
+
+        # # double smooth to increase area...
+        # self.smooth_mixed_landscape_tcorr_ag = (
+        #     self.smooth_mixed_landscape_tcorr_ag_pre
+        #     # CGM - Is this reproject needed?
+        #     # .reproject(self.crs, self.coarse_transform)
+        #     .focalMean(1, 'circle', 'pixels')
+        #     .reproject(self.crs, self.coarse_transform)
+        #     .rename('lst')
+        # )
+
+        return self.smooth_mixed_landscape_pre
+
 
     @lazy_property
-    def tc_layered(self, mixed_landscape_tcorr_ag_plus_veg, ag_lc, hot_dry_tcorr):
+    def tc_ag(self):
+        # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
+        return self.vegetated_tcorr.unmask(self.smooth_mixed_landscape_tcorr_ag)
+
+    @lazy_property
+    def tc_layered(self):
+
         return (
-            mixed_landscape_tcorr_ag_plus_veg
-            .updateMask(ag_lc)
-            .unmask(hot_dry_tcorr)
+            self.mixed_landscape_tcorr_ag_plus_veg
+            .updateMask(self.ag_landcover)
+            .unmask(self.hot_dry_tcorr)
         )
 
     @lazy_property
@@ -937,7 +962,7 @@ class Image:
         gridsize_fine = 120
         gridsize_coarse = 4800
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
-        coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
+        self.coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
         high_ndvi_threshold = 0.9
 
@@ -963,28 +988,8 @@ class Image:
 
         # ============== SMOOTH NDVI to match 30m LST from 120m downscaling...================
         # before smoothing separate NDVI from water.
-        # CGM - Is this reproject needed?
-        ndvi_masked_pre = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
-
-        # ~~DEADBEEF~~
-        # # 'ndvi_masked' is a smoothed NDVI. No other NDVIs are used for FANO,
-        # # only regular NDVI is used in edge cases.
-        # ndvi_masked = (
-        #     ndvi_masked_pre
-        #     # CGM - Is this reproject needed?
-        #     #.reproject(self.crs, self.transform)
-        #     .reduceNeighborhood(
-        #         ee.Reducer.mean(),
-        #         kernel=ee.Kernel.square(radius=1, units='pixels', normalize=True, magnitude=1)
-        #     )
-        #     .reproject(self.crs, self.transform)
-        #     .updateMask(1)
-        #     .rename('ndvi')
-        # )
-        # ~~END DEADBEEF~~
-
         # GELP to reduce EECUs we are taking the smoothing out of NDVI....
-        ndvi_masked = ndvi_masked_pre
+        ndvi_masked = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
 
         # Note LST is not smoothed.
         lst_masked = lst.reproject(self.crs, self.transform).updateMask(not_water_mask)
@@ -995,27 +1000,6 @@ class Image:
         ag_lc = self.ag_landcover
         # self.ag_lc = ag_lc
 
-        # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
-
-        # Create the masked ndvi for NDVI > 0.50
-        coarse_masked_ndvi = (
-            ndvi_masked
-            .updateMask(ndvi_masked.gte(0.35).And(ag_lc))
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
-
-
-        # same process for LST
-        lst_coarse_wmasked_high_ndvi = (
-            lst_masked.updateMask(ndvi_masked.gte(0.35).And(ag_lc))
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
-            .reproject(self.crs, coarse_transform)
-        )
 
 
         # -------- Fine NDVI and LST (watermasked always)-------------
@@ -1035,6 +1019,27 @@ class Image:
             .reduceResolution(ee.Reducer.mean(), True, m_pixels)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
+        )
+
+        # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
+
+        # Create the masked ndvi for NDVI > 0.50
+        coarse_masked_ndvi = (
+            ndvi_fine_wmasked
+            .updateMask(ndvi_masked.And(ag_lc).gte(0.35))
+            # CGM - Is this reproject needed?
+            # .reproject(self.crs, self.transform)
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, self.coarse_transform)
+        )
+
+        # same process for LST
+        lst_coarse_wmasked_high_ndvi = (
+            lst_fine_wmasked.updateMask(ndvi_masked.And(ag_lc).gte(0.35))
+            # CGM - Is this reproject needed?
+            # .reproject(self.crs, self.transform)
+            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .reproject(self.crs, self.coarse_transform)
         )
 
         # TODO: Test out commenting out reproject here?
@@ -1062,7 +1067,7 @@ class Image:
             }
         )
 
-        Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
+        self.Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
@@ -1080,48 +1085,32 @@ class Image:
 
         # for 120m Ag areas with enough NDVI to run FANO
         # # CGM - Commented out
-        vegetated_tcorr = (
+        self.vegetated_tcorr = (
             Tc_fine.updateMask(vegetated_mask)
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
         )
 
         # for all non-ag areas we run hot dry tcorr at 120m
-        hot_dry_tcorr = (
+        self.hot_dry_tcorr = (
             Tc_fine
             # CGM - Is this reproject needed?
             #.reproject(self.crs, fine_transform)
         )
 
         # wet, low NDVI fields (shoulder seasons)
-        mixed_landscape_tcorr = (
-            Tc_coarse_high_ndvi
+        self.mixed_landscape_tcorr = (
+            self.Tc_coarse_high_ndvi
             # CGM - Is this reproject needed?
             #.reproject(self.crs, coarse_transform)
             .updateMask(1)
         )
 
         ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
-        smooth_mixed_landscape_tcorr_ag_pre = (
-            mixed_landscape_tcorr
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, coarse_transform)
-            .focalMean(1, 'circle', 'pixels')
-            .reproject(self.crs, coarse_transform)
-            .rename('lst')
-        )
 
-        # double smooth to increase area...
-        smooth_mixed_landscape_tcorr_ag = (
-            smooth_mixed_landscape_tcorr_ag_pre
-            # CGM - Is this reproject needed?
-            # .reproject(self.crs, coarse_transform)
-            .focalMean(1, 'circle', 'pixels')
-            .reproject(self.crs, coarse_transform)
-            .rename('lst')
-        )
+        self.smooth_mixed_landscape_tcorr_ag = self.mixed_landscape_tcorr_smooth
 
-        mixed_landscape_tcorr_ag_plus_veg = self.tc_ag(vegetated_tcorr, smooth_mixed_landscape_tcorr_ag)
+        self.mixed_landscape_tcorr_ag_plus_veg = self.tc_ag
 
         # # ============== SMOOTH TCOLD 120m ag ================
         # smooth_mixed_landscape_tcorr_ag_plus_veg = (
@@ -1134,7 +1123,7 @@ class Image:
         # )
 
         # The main Tc where we make use of landcovers
-        Tc_Layered = self.tc_layered(mixed_landscape_tcorr_ag_plus_veg, ag_lc, hot_dry_tcorr)
+        Tc_Layered = self.tc_layered
 
         smooth_Tc_Layered = (
                 Tc_Layered
