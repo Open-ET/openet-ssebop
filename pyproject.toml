@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.7.5"
+version = "0.7.12"
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },

@@ -583,7 +583,7 @@ class Image:
     @lazy_property
     def mixed_landscape_tcorr_smooth(self):
 
-        self.smooth_mixed_landscape_pre = (
+        smooth_mixed_landscape_pre = (
                             self.mixed_landscape_tcorr
                                     # CGM - Is this reproject needed?
                                     .focalMean(1, 'circle', 'pixels')
@@ -592,8 +592,8 @@ class Image:
         )
 
         # # double smooth to increase area...
-        # self.smooth_mixed_landscape_tcorr_ag = (
-        #     self.smooth_mixed_landscape_tcorr_ag_pre
+        # smooth_mixed_landscape_tcorr = (
+        #     smooth_mixed_landscape_pre
         #     # CGM - Is this reproject needed?
         #     # .reproject(self.crs, self.coarse_transform)
         #     .focalMean(1, 'circle', 'pixels')
@@ -601,7 +601,7 @@ class Image:
         #     .rename('lst')
         # )
 
-        return self.smooth_mixed_landscape_pre
+        return smooth_mixed_landscape_pre
 
 
     @lazy_property
@@ -959,7 +959,7 @@ class Image:
         ee.Image of Tcorr values
 
         """
-        gridsize_fine = 120
+        gridsize_fine = 240
         gridsize_coarse = 4800
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
         self.coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
@@ -1106,7 +1106,7 @@ class Image:
             .updateMask(1)
         )
 
-        ## --------- Smoothing the FANO for Ag together starting with mixed landscape -----
+        ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
 
         self.smooth_mixed_landscape_tcorr_ag = self.mixed_landscape_tcorr_smooth
 
@@ -1133,21 +1133,21 @@ class Image:
         )
 
         # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        lst_fine_unmasked = (
-            lst
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-            .reproject(self.crs, fine_transform)
-            .updateMask(1)
-        )
+        # lst_fine_unmasked = (
+        #     lst
+        #     # CGM - Is this reproject needed?
+        #     #.reproject(self.crs, self.transform)
+        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+        #     .reproject(self.crs, fine_transform)
+        #     .updateMask(1)
+        # )
 
         # TCold with edge-cases handled.
         Tc_cold = (
             lst
             .where(ndvi.gte(0), smooth_Tc_Layered)
             .where(not_water_mask.Not(), lst)
-            .reproject(self.crs, fine_transform).updateMask(1)
+            .reproject(self.crs, self.transform).updateMask(1)
         )
 
         # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
