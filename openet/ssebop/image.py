@@ -1098,7 +1098,7 @@ class Image:
             #.reproject(self.crs, fine_transform)
         )
 
-        # wet, low NDVI fields (shoulder seasons)
+        # wet, low NDVI fields (shoulder seasons).
         self.mixed_landscape_tcorr = (
             self.Tc_coarse_high_ndvi
             # CGM - Is this reproject needed?
