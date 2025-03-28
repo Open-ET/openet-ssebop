@@ -505,11 +505,13 @@ class Image:
         # #.reproject(self.crs, self.transform)
         # .reduceNeighborhood(ee.Reducer.max(), ee.Kernel.circle(radius=focalmax_rad * 30, units='meters'))
         # .multiply(-1).distance(ee.Kernel.euclidean(buffersize)).lt(buffersize).unmask(0)
+        # .Or(ee.Image(self.ndwi).lt(0))
 
         return (
             ee.Image(self.qa_water_mask).eq(1)
             .Or(ee.Image(self.ndvi).lt(0))
             .Or(ee.Image(self.ndwi).lt(0))
+            .And(self.gsw_max_mask)
             .Not()
             .rename(['tcorr_not_water'])
             .set(self._properties)
@@ -581,6 +583,66 @@ class Image:
             raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
 
     @lazy_property
+    def anomalous_landcover_mask(self):
+        """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
+        anom_remap = {
+            'nalcms': {
+                7: 'Tropical or sub-tropical shrubland',
+                8: 'Temperate or sub-polar shrubland',
+                16: 'Barren land',
+                17: 'Urban and built-up',
+            },
+            'nlcd': {
+                23: 'Developed, Medium Intensity',
+                24: 'Developed, High Intensity',
+                31: 'Barren Land',
+                52: 'Shrub/Scrub',
+            }
+        }
+
+        if utils.is_number(self._lc_source):
+            return ee.Image.constant(float(self._lc_source)).rename('anom_landcover')
+        elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
+            return (
+                ee.Image(self._lc_source)
+                .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
+                .rename('ag_landcover')
+            )
+        elif self._lc_source in [
+            'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
+            'USGS/NLCD_RELEASES/2021_REL/NLCD',
+            'USGS/NLCD_RELEASES/2019_REL/NLCD',
+        ]:
+            # Assume the source is the Image Collection ID
+            # Assume first band is the landcover band
+            # Select the closest image in time to the target scene
+            lc_coll = ee.ImageCollection(self._lc_source)
+            lc_year = (
+                ee.Number(self._year)
+                .max(ee.Date(lc_coll.aggregate_min('system:time_start')).get('year'))
+                .min(ee.Date(lc_coll.aggregate_max('system:time_start')).get('year'))
+            )
+            lc_date = ee.Date.fromYMD(lc_year, 1, 1)
+            return (
+                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first().select([0])
+                .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
+                .set({'NLCD_YEAR': lc_year})
+                .rename('ag_landcover')
+            )
+        elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
+              self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
+              self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
+            # Assume the source is an NLCD like image ID
+            # Assume first band is the landcover band
+            return (
+                ee.Image(self._lc_source).select([0])
+                .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
+                .rename('anom_landcover')
+            )
+        else:
+            raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
+
+    @lazy_property
     def mixed_landscape_tcorr_smooth(self):
 
         smooth_mixed_landscape_pre = (
@@ -608,6 +670,11 @@ class Image:
     def tc_ag(self):
         # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
         return self.vegetated_tcorr.unmask(self.smooth_mixed_landscape_tcorr_ag)
+
+    @lazy_property
+    def gsw_max_mask(self):
+
+        return ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)
 
     @lazy_property
     def tc_layered(self):
@@ -960,7 +1027,8 @@ class Image:
 
         """
         gridsize_fine = 240
-        gridsize_coarse = 4800
+        gridsize_coarse = 4800 #((2**4)*gridsize_fine)
+        # gridsize_coarse = ((2 ** 8) * 30)  # (2**8 x 30) = 7680
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
         self.coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
@@ -968,12 +1036,18 @@ class Image:
 
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
+        m_pixels_fine = 48 # 8**2
+        m_pixels_coarse = (20**2)
+        # m_pixels_coarse = (32 ** 2)
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         ndwi = ee.Image(self.ndwi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
+
+        # We need this
+
 
         # Setting NDVI to negative values where Landsat QA Pixel detects water.
         # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
@@ -989,10 +1063,10 @@ class Image:
         # ============== SMOOTH NDVI to match 30m LST from 120m downscaling...================
         # before smoothing separate NDVI from water.
         # GELP to reduce EECUs we are taking the smoothing out of NDVI....
-        ndvi_masked = ndvi.reproject(self.crs, self.transform).updateMask(not_water_mask)
+        ndvi_masked = ndvi.updateMask(not_water_mask)
 
         # Note LST is not smoothed.
-        lst_masked = lst.reproject(self.crs, self.transform).updateMask(not_water_mask)
+        lst_masked = lst.updateMask(not_water_mask)
 
         # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
@@ -1008,7 +1082,7 @@ class Image:
             ndvi_masked
             # CGM - Is this reproject needed?
             #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
@@ -1016,29 +1090,26 @@ class Image:
             lst_masked
             # CGM - Is this reproject needed?
             #.reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), True, m_pixels)
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
-        # Create the masked ndvi for NDVI > 0.50
+        # Create the masked ndvi for NDVI > 0.35
         coarse_masked_ndvi = (
             ndvi_fine_wmasked
-            .updateMask(ndvi_masked.And(ag_lc).gte(0.35))
-            # CGM - Is this reproject needed?
-            # .reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
 
         # same process for LST
         lst_coarse_wmasked_high_ndvi = (
-            lst_fine_wmasked.updateMask(ndvi_masked.And(ag_lc).gte(0.35))
-            # CGM - Is this reproject needed?
-            # .reproject(self.crs, self.transform)
-            .reduceResolution(ee.Reducer.mean(), False, m_pixels)
+            lst_fine_wmasked
+            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
 
@@ -1078,7 +1149,7 @@ class Image:
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
 
-        vegetated_mask = ndvi_fine_wmasked.gte(0.35).And(ag_lc)
+        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
         # ~~DEADBEEF~~
         # vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
         # ~~END DEADBEEF~~
@@ -1132,7 +1203,7 @@ class Image:
                 .rename('lst')
         )
 
-        # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse NDVI and LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # lst_fine_unmasked = (
         #     lst
         #     # CGM - Is this reproject needed?
@@ -1142,11 +1213,14 @@ class Image:
         #     .updateMask(1)
         # )
 
+
+
         # TCold with edge-cases handled.
         Tc_cold = (
             lst
             .where(ndvi.gte(0), smooth_Tc_Layered)
             .where(not_water_mask.Not(), lst)
+            .where(self.anomalous_landcover_mask.And(ndvi.lt(0)).And(self.gsw_max_mask.Not()), 250)
             .reproject(self.crs, self.transform).updateMask(1)
         )
 
