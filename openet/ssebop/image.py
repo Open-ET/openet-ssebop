@@ -1036,9 +1036,8 @@ class Image:
 
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
-        m_pixels_fine = 48 # 8**2
-        m_pixels_coarse = (20**2)
-        # m_pixels_coarse = (32 ** 2)
+        m_pixels_fine = 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
+        m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
