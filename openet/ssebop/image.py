@@ -645,25 +645,34 @@ class Image:
     @lazy_property
     def mixed_landscape_tcorr_smooth(self):
 
+
         smooth_mixed_landscape_pre = (
-                            self.mixed_landscape_tcorr
+                            self.Tc_coarse_high_ndvi
                                     # CGM - Is this reproject needed?
-                                    .focalMean(1, 'circle', 'pixels')
+                                    .focalMean(1, 'square', 'pixels')
                                     .reproject(self.crs, self.coarse_transform)
                                     .rename('lst')
+                                    .updateMask(1)
         )
 
-        # # double smooth to increase area...
-        # smooth_mixed_landscape_tcorr = (
-        #     smooth_mixed_landscape_pre
-        #     # CGM - Is this reproject needed?
-        #     # .reproject(self.crs, self.coarse_transform)
-        #     .focalMean(1, 'circle', 'pixels')
-        #     .reproject(self.crs, self.coarse_transform)
-        #     .rename('lst')
-        # )
+        smooth_filled_pre = (smooth_mixed_landscape_pre
+                             .unmask(self.Tc_scene)
+                             .reproject(self.crs, self.coarse_transform)
+                             .updateMask(1)
+                             )
 
-        return smooth_mixed_landscape_pre
+        # double smooth to increase area...
+        smooth_filled = (
+            smooth_filled_pre
+            # CGM - Is this reproject needed?
+            # .reproject(self.crs, self.coarse_transform)
+            .focalMean(1, 'square', 'pixels')
+            .reproject(self.crs, self.coarse_transform)
+            .rename('lst')
+            .updateMask(1)
+        )
+
+        return smooth_filled
 
 
     @lazy_property
@@ -683,6 +692,7 @@ class Image:
             self.mixed_landscape_tcorr_ag_plus_veg
             .updateMask(self.ag_landcover)
             .unmask(self.hot_dry_tcorr)
+            .updateMask(1)
         )
 
     @lazy_property
@@ -1027,8 +1037,7 @@ class Image:
 
         """
         gridsize_fine = 240
-        gridsize_coarse = 4800 #((2**4)*gridsize_fine)
-        # gridsize_coarse = ((2 ** 8) * 30)  # (2**8 x 30) = 7680
+        gridsize_coarse = 4800
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
         self.coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
@@ -1038,6 +1047,7 @@ class Image:
         m_pixels = 65535
         m_pixels_fine = 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
+        m_pixels_supercoarse = m_pixels # not too small a number.
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
@@ -1071,8 +1081,6 @@ class Image:
 
         # Ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
-        # self.ag_lc = ag_lc
-
 
 
         # -------- Fine NDVI and LST (watermasked always)-------------
@@ -1144,14 +1152,19 @@ class Image:
                 'ndvi': coarse_masked_ndvi, 'dt': dt_coarse,
                 'lst': lst_coarse_wmasked_high_ndvi,
             }
-        )
+        ).updateMask(1)
+
+        Tc_supercoarse_high_ndvi_scalar = Tc_fine.reduceRegion(ee.Reducer.mean(),
+                                                             Tc_fine.geometry(),
+                                                             scale=240,
+                                                             bestEffort=True).get('lst')
+
+        # take the scalar and place it into a well-functioning ee.Image()
+        self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
-
+        # Vegetated and High NDVI areas.
         vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
-        # ~~DEADBEEF~~
-        # vegetated_mask_backup = ndvi_fine_wmasked.gte(0.35)
-        # ~~END DEADBEEF~~
 
         # for 120m Ag areas with enough NDVI to run FANO
         # # CGM - Commented out
@@ -1168,59 +1181,40 @@ class Image:
             #.reproject(self.crs, fine_transform)
         )
 
-        # wet, low NDVI fields (shoulder seasons).
-        self.mixed_landscape_tcorr = (
-            self.Tc_coarse_high_ndvi
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, coarse_transform)
-            .updateMask(1)
-        )
-
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
 
         self.smooth_mixed_landscape_tcorr_ag = self.mixed_landscape_tcorr_smooth
 
         self.mixed_landscape_tcorr_ag_plus_veg = self.tc_ag
 
-        # # ============== SMOOTH TCOLD 120m ag ================
-        # smooth_mixed_landscape_tcorr_ag_plus_veg = (
-        #     mixed_landscape_tcorr_ag_plus_veg
-        #     # # CGM - Is this reproject needed?
-        #     #.reproject(self.crs, fine_transform)
-        #     .focalMean(1, 'circle', 'pixels')
-        #     .reproject(self.crs, fine_transform)
-        #     .rename('lst')
-        # )
-
         # The main Tc where we make use of landcovers
         Tc_Layered = self.tc_layered
 
-        smooth_Tc_Layered = (
+        self.smooth_Tc_Layered = (
                 Tc_Layered
-                .focalMean(1, 'circle', 'pixels')
+                .focalMean(1, 'square', 'pixels')
                 .reproject(self.crs, fine_transform)
                 .rename('lst')
         )
 
-        # ~~~~~~~~~~~~~~~~~~~~~~Un-Adulterated fine-coarse LST for edge cases~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # lst_fine_unmasked = (
-        #     lst
-        #     # CGM - Is this reproject needed?
-        #     #.reproject(self.crs, self.transform)
-        #     .reduceResolution(ee.Reducer.mean(), True, m_pixels)
-        #     .reproject(self.crs, fine_transform)
-        #     .updateMask(1)
-        # )
-
+        # # in the viewer the double smooth doesn't look right.
+        self.double_smooth_Tc_Layered = (
+            self.smooth_Tc_Layered
+            .reproject(self.crs, fine_transform)
+            .focalMean(1, 'square', 'pixels')
+            .reproject(self.crs, fine_transform)
+            .rename('lst')
+        )
 
 
         # TCold with edge-cases handled.
         Tc_cold = (
             lst
-            .where(ndvi.gte(0), smooth_Tc_Layered)
+            .where(ndvi.gte(0), self.double_smooth_Tc_Layered)
             .where(not_water_mask.Not(), lst)
             .where(self.anomalous_landcover_mask.And(ndvi.lt(0)).And(self.gsw_max_mask.Not()), 250)
-            .reproject(self.crs, self.transform).updateMask(1)
+            .reproject(self.crs, self.transform)
+            .updateMask(1)
         )
 
         # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
