@@ -1045,7 +1045,7 @@ class Image:
 
         # max pixels argument for .reduceResolution()
         m_pixels = 65535
-        m_pixels_fine = 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
+        m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
         m_pixels_supercoarse = m_pixels # not too small a number.
 
@@ -1067,12 +1067,17 @@ class Image:
         # # Set NDVI to NEGATIVE if it is labeled as water...
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
+
         not_water_mask = self.tcorr_not_water_mask
 
         # ============== SMOOTH NDVI to match 30m LST from 120m downscaling...================
         # before smoothing separate NDVI from water.
-        # GELP to reduce EECUs we are taking the smoothing out of NDVI....
-        ndvi_masked = ndvi.updateMask(not_water_mask)
+        # GELP put smoothing back in NDVI.... 4-4-2025 Then i killed it back off. too many eecus to smooth at this scale
+
+        ndvi_masked = (
+            ndvi
+            .updateMask(not_water_mask)
+        )
 
         # Note LST is not smoothed.
         lst_masked = lst.updateMask(not_water_mask)
@@ -1104,7 +1109,7 @@ class Image:
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
-        # Create the masked ndvi for NDVI > 0.35
+        # Create the masked ndvi for NDVI > 0.4
         coarse_masked_ndvi = (
             ndvi_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
@@ -1197,20 +1202,10 @@ class Image:
                 .rename('lst')
         )
 
-        # # in the viewer the double smooth doesn't look right.
-        self.double_smooth_Tc_Layered = (
-            self.smooth_Tc_Layered
-            .reproject(self.crs, fine_transform)
-            .focalMean(1, 'square', 'pixels')
-            .reproject(self.crs, fine_transform)
-            .rename('lst')
-        )
-
-
         # TCold with edge-cases handled.
         Tc_cold = (
             lst
-            .where(ndvi.gte(0), self.double_smooth_Tc_Layered)
+            .where(ndvi.gte(0), self.smooth_Tc_Layered)
             .where(not_water_mask.Not(), lst)
             .where(self.anomalous_landcover_mask.And(ndvi.lt(0)).And(self.gsw_max_mask.Not()), 250)
             .reproject(self.crs, self.transform)
