@@ -520,7 +520,7 @@ class Image:
 
     @lazy_property
     def ag_landcover(self):
-        """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
+        """Mask of pixels that are agriculture, grassland, or wetland for Tcorr FANO calculation """
         ag_remap = {
             'nalcms': {
                 9: 'Tropical or sub-tropical grassland',
@@ -580,11 +580,11 @@ class Image:
                 .rename('ag_landcover')
             )
         else:
-            raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
+            raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
 
     @lazy_property
     def anomalous_landcover_mask(self):
-        """Mask of pixels that are agriculture, grassland, and wetland for Tcorr FANO calculation """
+        """Mask of pixels that are barren, shrubland, or developed for Tcorr FANO calculation"""
         anom_remap = {
             'nalcms': {
                 7: 'Tropical or sub-tropical shrubland',
@@ -606,7 +606,7 @@ class Image:
             return (
                 ee.Image(self._lc_source)
                 .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
-                .rename('ag_landcover')
+                .rename('anom_landcover')
             )
         elif self._lc_source in [
             'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
@@ -627,7 +627,7 @@ class Image:
                 lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first().select([0])
                 .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
                 .set({'NLCD_YEAR': lc_year})
-                .rename('ag_landcover')
+                .rename('anom_landcover')
             )
         elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
@@ -640,26 +640,27 @@ class Image:
                 .rename('anom_landcover')
             )
         else:
-            raise ValueError(f'Unsupported lc_source: {self._elev_source}\n')
+            raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
 
     @lazy_property
     def mixed_landscape_tcorr_smooth(self):
-
+        """TODO: Write a description for this function"""
 
         smooth_mixed_landscape_pre = (
-                            self.Tc_coarse_high_ndvi
-                                    # CGM - Is this reproject needed?
-                                    .focalMean(1, 'square', 'pixels')
-                                    .reproject(self.crs, self.coarse_transform)
-                                    .rename('lst')
-                                    .updateMask(1)
+            self.Tc_coarse_high_ndvi
+            # CGM - Is this reproject needed?
+            .focalMean(1, 'square', 'pixels')
+            .reproject(self.crs, self.coarse_transform)
+            .rename('lst')
+            .updateMask(1)
         )
 
-        smooth_filled_pre = (smooth_mixed_landscape_pre
-                             .unmask(self.Tc_scene)
-                             .reproject(self.crs, self.coarse_transform)
-                             .updateMask(1)
-                             )
+        smooth_filled_pre = (
+            smooth_mixed_landscape_pre
+            .unmask(self.Tc_scene)
+            .reproject(self.crs, self.coarse_transform)
+            .updateMask(1)
+        )
 
         # double smooth to increase area...
         smooth_filled = (
@@ -674,20 +675,19 @@ class Image:
 
         return smooth_filled
 
-
     @lazy_property
     def tc_ag(self):
-        # Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'
+        """Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'"""
         return self.vegetated_tcorr.unmask(self.smooth_mixed_landscape_tcorr_ag)
 
     @lazy_property
     def gsw_max_mask(self):
-
+        """Get the JRC Global Surface Water maximum extent mask"""
         return ee.Image('JRC/GSW1_4/GlobalSurfaceWater').select(['max_extent']).gte(1)
 
     @lazy_property
     def tc_layered(self):
-
+        """TODO: Write description for this function"""
         return (
             self.mixed_landscape_tcorr_ag_plus_veg
             .updateMask(self.ag_landcover)
@@ -706,7 +706,7 @@ class Image:
 
     @lazy_property
     def dt(self):
-        """
+        """Load the dT image from the source
 
         Returns
         -------
@@ -750,7 +750,7 @@ class Image:
 
     @lazy_property
     def elev(self):
-        """Elevation [m]
+        """Load the elevation image from the source
 
         Returns
         -------
@@ -1087,7 +1087,6 @@ class Image:
         # Ag lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
 
-
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
         ndvi_fine_wmasked = (
@@ -1159,10 +1158,11 @@ class Image:
             }
         ).updateMask(1)
 
-        Tc_supercoarse_high_ndvi_scalar = Tc_fine.reduceRegion(ee.Reducer.mean(),
-                                                             Tc_fine.geometry(),
-                                                             scale=240,
-                                                             bestEffort=True).get('lst')
+        Tc_supercoarse_high_ndvi_scalar = (
+            Tc_fine
+            .reduceRegion(ee.Reducer.mean(), Tc_fine.geometry(), scale=240, bestEffort=True)
+            .get('lst')
+        )
 
         # take the scalar and place it into a well-functioning ee.Image()
         self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
@@ -1196,10 +1196,10 @@ class Image:
         Tc_Layered = self.tc_layered
 
         self.smooth_Tc_Layered = (
-                Tc_Layered
-                .focalMean(1, 'square', 'pixels')
-                .reproject(self.crs, fine_transform)
-                .rename('lst')
+            Tc_Layered
+            .focalMean(1, 'square', 'pixels')
+            .reproject(self.crs, fine_transform)
+            .rename('lst')
         )
 
         # TCold with edge-cases handled.
