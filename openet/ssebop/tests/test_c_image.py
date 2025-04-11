@@ -281,27 +281,36 @@ def test_Image_qa_water_mask_values(qa_water, expected):
 
 
 @pytest.mark.parametrize(
-    'ndvi, ndwi, qa_water, expected',
+    'xy, ndvi, ndwi, qa_water, expected',
     [
-        # Both NDVI must be greater than or equal to 0 and QA must not be water
-        #   for the pixel to be flagged as not-water
-        # Intentionally treat NDVI of 0 as not-water #  - GELP i think this is no longer the case
-        [0.85, 0.0, 0, 1],
-        [0.5, 0.0, 0, 1],
-        [0.0, 0.0, 0, 1],
-        [-0.5, 0.0, 0, 1],  # from here on down changed to 1. @charles Didn't positive NDWI mean water now?
-        [-0.5, 0.0, 1, 1],
-        [-0.5, 0.0, 1, 1],
-        [0.0, 0.0, 1, 1],
-        [0.5, 0.0, 1, 1],
+        # Both NDVI and NDWI must be greater than or equal to 0
+        #   and QA must not be water for the pixel to be flagged as not-water
+        # Intentionally treat NDVI of 0 as not-water
+        # The scene point location is not flagged as water in the GSW max extent
+        #   and should always be flagged as not water in this mask
+        [SCENE_POINT, 0.85, 0.0, 0, 1],
+        [SCENE_POINT, 0.0, 0.0, 0, 1],
+        [SCENE_POINT, -1.0, 0.0, 0, 1],
+        [SCENE_POINT, 0.0, -1.0, 0, 1],
+        [SCENE_POINT, 0.0, 0.0, 1, 1],
+        [SCENE_POINT, -1.0, -1.0, 1, 1],
+        # This test location is flagged as water in the GSW max extent layer
+        [[-118.98, 36.405], 0.85, 0.0, 0, 1],
+        [[-118.98, 36.405], 0.5, 0.0, 0, 1],
+        [[-118.98, 36.405], 0.0, 0.0, 0, 1],
+        [[-118.98, 36.405], -0.5, 0.0, 0, 0],
+        [[-118.98, 36.405], -0.5, 0.0, 1, 0],
+        [[-118.98, 36.405], -0.5, 0.0, 1, 0],
+        [[-118.98, 36.405], 0.0, 0.0, 1, 0],
+        [[-118.98, 36.405], 0.5, 0.0, 1, 0],
 
     ]
 )
-def test_Image_tcorr_not_water_mask_values(ndvi, ndwi, qa_water, expected):
+def test_Image_tcorr_not_water_mask_values(xy, ndvi, ndwi, qa_water, expected):
     """Test water mask values"""
     output_img = default_image_obj(ndvi=ndvi, ndwi=ndwi, qa_water=qa_water)
     mask_img = output_img.tcorr_not_water_mask
-    output = utils.point_image_value(mask_img, SCENE_POINT)
+    output = utils.point_image_value(mask_img, xy)
     assert output['tcorr_not_water'] == expected
 
 
