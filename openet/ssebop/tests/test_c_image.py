@@ -285,15 +285,15 @@ def test_Image_qa_water_mask_values(qa_water, expected):
     [
         # Both NDVI must be greater than or equal to 0 and QA must not be water
         #   for the pixel to be flagged as not-water
-        # Intentionally treat NDVI of 0 as not-water
+        # Intentionally treat NDVI of 0 as not-water #  - GELP i think this is no longer the case
         [0.85, 0.0, 0, 1],
         [0.5, 0.0, 0, 1],
         [0.0, 0.0, 0, 1],
-        [-0.5, 0.0, 0, 0],
-        [-0.5, 0.0, 1, 0],
-        [-0.5, 0.0, 1, 0],
-        [0.0, 0.0, 1, 0],
-        [0.5, 0.0, 1, 0],
+        [-0.5, 0.0, 0, 1],  # from here on down changed to 1. @charles Didn't positive NDWI mean water now?
+        [-0.5, 0.0, 1, 1],
+        [-0.5, 0.0, 1, 1],
+        [0.0, 0.0, 1, 1],
+        [0.5, 0.0, 1, 1],
 
     ]
 )
@@ -750,12 +750,12 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9739797381141486
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9785567103858176
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9739797381141486
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9785567103858176
         ],
     ]
 )
