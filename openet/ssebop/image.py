@@ -644,11 +644,10 @@ class Image:
 
     @lazy_property
     def mixed_landscape_tcorr_smooth(self):
-        """TODO: Write a description for this function"""
+        """Here we take 4800m coarse tcorr in ag areas and smooth it. Fill it with a scene-wide tcorr."""
 
         smooth_mixed_landscape_pre = (
             self.Tc_coarse_high_ndvi
-            # CGM - Is this reproject needed?
             .focalMean(1, 'square', 'pixels')
             .reproject(self.crs, self.coarse_transform)
             .rename('lst')
@@ -657,7 +656,7 @@ class Image:
 
         smooth_filled_pre = (
             smooth_mixed_landscape_pre
-            .unmask(self.Tc_scene)
+            .unmask(self.Tc_scene)  # here we add the scene-wide constant.
             .reproject(self.crs, self.coarse_transform)
             .updateMask(1)
         )
@@ -665,8 +664,6 @@ class Image:
         # double smooth to increase area...
         smooth_filled = (
             smooth_filled_pre
-            # CGM - Is this reproject needed?
-            # .reproject(self.crs, self.coarse_transform)
             .focalMean(1, 'square', 'pixels')
             .reproject(self.crs, self.coarse_transform)
             .rename('lst')
@@ -1069,28 +1066,24 @@ class Image:
             .updateMask(not_water_mask)
         )
 
-        # Note LST is not smoothed.
+        # Mask LST in the same way
         lst_masked = lst.updateMask(not_water_mask)
 
         # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
-        # Ag lands and grasslands and wetlands are 1, all others are 0
+        # Agricultural lands and grasslands and wetlands are 1, all others are 0
         ag_lc = self.ag_landcover
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
         ndvi_fine_wmasked = (
             ndvi_masked
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
         lst_fine_wmasked = (
             lst_masked
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, self.transform)
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
@@ -1114,17 +1107,6 @@ class Image:
             .reproject(self.crs, self.coarse_transform)
         )
 
-        # TODO: Test out commenting out reproject here?
-        # Here we don't need the reproject.reduce.reproject sandwich bc these are coarse data-sets
-        dt_fine = (
-            dt
-        )
-        dt_coarse = (
-            dt
-        )
-        tmax_avg = (
-            tmax
-        )
 
         ## =======================================================================================
         ## FANO TCORR
@@ -1135,7 +1117,7 @@ class Image:
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_fine_wmasked, 'dt': dt_fine, 'lst': lst_fine_wmasked,
+                'ndvi': ndvi_fine_wmasked, 'dt': dt, 'lst': lst_fine_wmasked,
             }
         )
 
@@ -1143,7 +1125,7 @@ class Image:
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': coarse_masked_ndvi, 'dt': dt_coarse,
+                'ndvi': coarse_masked_ndvi, 'dt': dt,
                 'lst': lst_coarse_wmasked_high_ndvi,
             }
         ).updateMask(1)
@@ -1162,18 +1144,13 @@ class Image:
         vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
 
         # for 120m Ag areas with enough NDVI to run FANO
-        # # CGM - Commented out
         self.vegetated_tcorr = (
             Tc_fine.updateMask(vegetated_mask)
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
         )
 
         # for all non-ag areas we run hot dry tcorr at 120m
         self.hot_dry_tcorr = (
             Tc_fine
-            # CGM - Is this reproject needed?
-            #.reproject(self.crs, fine_transform)
         )
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
@@ -1185,6 +1162,7 @@ class Image:
         # The main Tc where we make use of landcovers
         Tc_Layered = self.tc_layered
 
+        # 1 pixel of smoothing.
         self.smooth_Tc_Layered = (
             Tc_Layered
             .focalMean(1, 'square', 'pixels')
@@ -1203,7 +1181,7 @@ class Image:
         )
 
         # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
-        c_factor = Tc_cold.divide(tmax_avg)
+        c_factor = Tc_cold.divide(tmax)
 
         return (
             c_factor.rename(['tcorr'])
