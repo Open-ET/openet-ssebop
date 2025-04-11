@@ -887,6 +887,8 @@ class Image:
             Keyword arguments to pass through to Image init function.
             c2_lst_correct : boolean, optional
                 Apply the Landsat Collection 2 LST emissivity correction.
+            lst_source : str, optional
+                If lst_source is set, force c2_lst_correct to be False
 
         Returns
         -------
@@ -944,7 +946,10 @@ class Image:
 
         cloud_mask = openet.core.common.landsat_c2_sr_cloud_mask(sr_image, **cloudmask_args)
 
-        if 'c2_lst_correct' in kwargs.keys():
+        if ('lst_source' in kwargs.keys()) and kwargs['lst_source']:
+            # Force the LST correction flag to False if the LST source parameter is set
+            c2_lst_correct = False
+        elif 'c2_lst_correct' in kwargs.keys():
             assert isinstance(kwargs['c2_lst_correct'], bool), "selection type must be a boolean"
             # Remove from kwargs since it is not a valid argument for Image init
             c2_lst_correct = kwargs.pop('c2_lst_correct')
