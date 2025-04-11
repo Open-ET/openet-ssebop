@@ -1044,22 +1044,16 @@ class Image:
         high_ndvi_threshold = 0.9
 
         # max pixels argument for .reduceResolution()
-        m_pixels = 65535
         m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
-        m_pixels_supercoarse = m_pixels # not too small a number.
+
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
-        ndwi = ee.Image(self.ndwi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
-        # We need this
-
-
         # Setting NDVI to negative values where Landsat QA Pixel detects water.
-        # TODO: We may want to switch "qa_watermask" to "not_water_mask.eq(0)"
         qa_watermask = ee.Image(self.qa_water_mask)
 
         # # CGM - The problem with this is that the QA water mask can be true for shadows
@@ -1067,13 +1061,9 @@ class Image:
         # # Set NDVI to NEGATIVE if it is labeled as water...
         ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
 
-
         not_water_mask = self.tcorr_not_water_mask
 
-        # ============== SMOOTH NDVI to match 30m LST from 120m downscaling...================
-        # before smoothing separate NDVI from water.
-        # GELP put smoothing back in NDVI.... 4-4-2025 Then i killed it back off. too many eecus to smooth at this scale
-
+        # mask ndvi for water.
         ndvi_masked = (
             ndvi
             .updateMask(not_water_mask)
