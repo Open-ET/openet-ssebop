@@ -1044,7 +1044,6 @@ class Image:
         m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
 
-
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
@@ -1061,10 +1060,7 @@ class Image:
         not_water_mask = self.tcorr_not_water_mask
 
         # mask ndvi for water.
-        ndvi_masked = (
-            ndvi
-            .updateMask(not_water_mask)
-        )
+        ndvi_masked = ndvi.updateMask(not_water_mask)
 
         # Mask LST in the same way
         lst_masked = lst.updateMask(not_water_mask)
@@ -1099,14 +1095,13 @@ class Image:
             .reproject(self.crs, self.coarse_transform)
         )
 
-        # same process for LST
+        # Same process for LST
         lst_coarse_wmasked_high_ndvi = (
             lst_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
-
 
         ## =======================================================================================
         ## FANO TCORR
@@ -1116,16 +1111,21 @@ class Image:
         Tc_fine = lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
-                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_fine_wmasked, 'dt': dt, 'lst': lst_fine_wmasked,
+                'dt_coeff': dt_coeff,
+                'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': ndvi_fine_wmasked,
+                'dt': dt,
+                'lst': lst_fine_wmasked,
             }
         )
 
         self.Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
-                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': coarse_masked_ndvi, 'dt': dt,
+                'dt_coeff': dt_coeff,
+                'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': coarse_masked_ndvi,
+                'dt': dt,
                 'lst': lst_coarse_wmasked_high_ndvi,
             }
         ).updateMask(1)
@@ -1136,22 +1136,18 @@ class Image:
             .get('lst')
         )
 
-        # take the scalar and place it into a well-functioning ee.Image()
-        self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
+        # Take the scalar and place it into a well-functioning ee.Image()
+        self.Tc_scene = ndvi.multiply(0).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
         # Vegetated and High NDVI areas.
         vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
 
-        # for 120m Ag areas with enough NDVI to run FANO
-        self.vegetated_tcorr = (
-            Tc_fine.updateMask(vegetated_mask)
-        )
+        # For 120m Ag areas with enough NDVI to run FANO
+        self.vegetated_tcorr = Tc_fine.updateMask(vegetated_mask)
 
-        # for all non-ag areas we run hot dry tcorr at 120m
-        self.hot_dry_tcorr = (
-            Tc_fine
-        )
+        # For all non-ag areas we run hot dry tcorr at 120m
+        self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
 
@@ -1160,11 +1156,9 @@ class Image:
         self.mixed_landscape_tcorr_ag_plus_veg = self.tc_ag
 
         # The main Tc where we make use of landcovers
-        Tc_Layered = self.tc_layered
-
         # 1 pixel of smoothing.
         self.smooth_Tc_Layered = (
-            Tc_Layered
+            self.tc_layered
             .focalMean(1, 'square', 'pixels')
             .reproject(self.crs, fine_transform)
             .rename('lst')
