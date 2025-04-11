@@ -1044,27 +1044,23 @@ class Image:
         m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
 
-
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
         tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
-        # Setting NDVI to negative values where Landsat QA Pixel detects water.
-        qa_watermask = ee.Image(self.qa_water_mask)
-
-        # # CGM - The problem with this is that the QA water mask can be true for shadows
-        # #   and on its own is probably not a good enough indicator of water to overwrite NDVI
-        # # Set NDVI to NEGATIVE if it is labeled as water...
-        ndvi = ndvi.where(qa_watermask.eq(1).And(ndvi.gt(0)), ndvi.multiply(-1))
+        # Force the NDVI to be negative for any pixels that have a positive NDVI
+        #   but is flagged as water in the Landsat QA Pixel band and the global
+        #   surface water max extent
+        ndvi = ndvi.where(
+            ee.Image(self.qa_water_mask).eq(1).And(ndvi.gt(0)).And(self.gsw_max_mask),
+            ndvi.multiply(-1)
+        )
 
         not_water_mask = self.tcorr_not_water_mask
 
-        # mask ndvi for water.
-        ndvi_masked = (
-            ndvi
-            .updateMask(not_water_mask)
-        )
+        # Mask ndvi for water
+        ndvi_masked = ndvi.updateMask(not_water_mask)
 
         # Mask LST in the same way
         lst_masked = lst.updateMask(not_water_mask)
@@ -1099,14 +1095,13 @@ class Image:
             .reproject(self.crs, self.coarse_transform)
         )
 
-        # same process for LST
+        # Same process for LST
         lst_coarse_wmasked_high_ndvi = (
             lst_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
-
 
         ## =======================================================================================
         ## FANO TCORR
@@ -1116,16 +1111,21 @@ class Image:
         Tc_fine = lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
-                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_fine_wmasked, 'dt': dt, 'lst': lst_fine_wmasked,
+                'dt_coeff': dt_coeff,
+                'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': ndvi_fine_wmasked,
+                'dt': dt,
+                'lst': lst_fine_wmasked,
             }
         )
 
         self.Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
-                'dt_coeff': dt_coeff, 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': coarse_masked_ndvi, 'dt': dt,
+                'dt_coeff': dt_coeff,
+                'ndvi_threshold': high_ndvi_threshold,
+                'ndvi': coarse_masked_ndvi,
+                'dt': dt,
                 'lst': lst_coarse_wmasked_high_ndvi,
             }
         ).updateMask(1)
@@ -1143,15 +1143,11 @@ class Image:
         # Vegetated and High NDVI areas.
         vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
 
-        # for 120m Ag areas with enough NDVI to run FANO
-        self.vegetated_tcorr = (
-            Tc_fine.updateMask(vegetated_mask)
-        )
+        # For 120m Ag areas with enough NDVI to run FANO
+        self.vegetated_tcorr = Tc_fine.updateMask(vegetated_mask)
 
-        # for all non-ag areas we run hot dry tcorr at 120m
-        self.hot_dry_tcorr = (
-            Tc_fine
-        )
+        # For all non-ag areas we run hot dry tcorr at 120m
+        self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
 
@@ -1159,12 +1155,9 @@ class Image:
 
         self.mixed_landscape_tcorr_ag_plus_veg = self.tc_ag
 
-        # The main Tc where we make use of landcovers
-        Tc_Layered = self.tc_layered
-
-        # 1 pixel of smoothing.
+        # 1 pixel of smoothing to the main Tc where we make use of landcovers
         self.smooth_Tc_Layered = (
-            Tc_Layered
+            self.tc_layered
             .focalMean(1, 'square', 'pixels')
             .reproject(self.crs, fine_transform)
             .rename('lst')
