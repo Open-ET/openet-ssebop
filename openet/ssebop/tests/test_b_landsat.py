@@ -107,13 +107,13 @@ def test_ndwi_band_name():
 @pytest.mark.parametrize(
     'green, swir1, expected',
     [
-        [0.01, 0.07, -0.75],
-        [0.01, 0.03, -0.5],
-        [0.9 / 55, 0.02, -0.1],
+        [0.01, 0.07, 0.75],
+        [0.01, 0.03, 0.5],
+        [0.9 / 55, 0.02, 0.1],
         [0.2, 0.2, 0.0],
-        [0.11 / 9, 0.01, 0.1],
-        [0.07, 0.03, 0.4],
-        [0.09, 0.01, 0.8],
+        [0.11 / 9, 0.01, -0.1],
+        [0.07, 0.03, -0.4],
+        [0.09, 0.01, -0.8],
     ]
 )
 def test_ndwi_calculation(green, swir1, expected, tol=0.000001):
@@ -130,8 +130,8 @@ def test_ndwi_calculation(green, swir1, expected, tol=0.000001):
         [0.009, -0.01, 0.0],
         [-0.01, 0.009, 0.0],
         # Check that calculation works correctly if one value is above threshold
-        [-0.01, 0.1, -1.0],
-        [0.1, -0.01, 1.0],
+        [-0.01, 0.1, 1.0],
+        [0.1, -0.01, -1.0],
     ]
 )
 def test_ndwi_negative_reflectance(green, swir1, expected, tol=0.000001):

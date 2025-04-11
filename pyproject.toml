@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.5.1"
+version = "0.6.0"
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
@@ -11,7 +11,7 @@ maintainers = [
 ]
 description = "Earth Engine implementation of the SSEBop model"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["SSEBop", "OpenET", "Earth Engine", "Evapotranspiration", "Landsat"]
 license = { file = "LICENSE.txt" }
 # license = {text = "Apache-2.0"}
@@ -21,8 +21,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "earthengine-api >= 0.1.364",
-    "openet-core >= 0.4.0",
+    "earthengine-api >= 1.5.2",
+    "openet-core >= 0.7.0",
     "openet-refet-gee >= 0.6.2",
     "python-dateutil",
 ]
@@ -30,6 +30,7 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/Open-ET/openet-ssebop"
 # "Repository" = "https://github.com/Open-ET/openet-ssebop.git"
+
 # "Documentation" = "https://github.com/Open-ET/openet-ssebop"
 # "Bug Tracker" = "https://github.com/Open-ET/openet-ssebop"
 # "Changelog" = "https://github.com/Open-ET/openet-ssebop"
@@ -43,4 +44,5 @@ test = ["pytest"]
 
 [tool.setuptools.packages.find]
 # include = ["openet*"]
-exclude = ["docs*", "examples*", "assets*"]
+exclude = ["docs*", "examples*", "assets*", "build*", "dist*", "*.egg-info*"]
+

@@ -47,7 +47,7 @@ TEST_POINT = (-119.44252382373145, 36.04047742246546)
 #     #     })
 
 
-def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
+def default_image(lst=305, ndvi=0.8, ndwi=0.5, qa_water=0):
     # First construct a fake 'prepped' input image
     mask_img = ee.Image(f'{COLL_ID}/{SCENE_ID}').select(['SR_B3']).multiply(0)
     return (
@@ -59,12 +59,6 @@ def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
             'system:id': f'{COLL_ID}/{SCENE_ID}',
         })
     )
-    # return ee.Image.constant([lst, ndvi]).rename(['lst', 'ndvi']) \
-    #     .set({
-    #         'system:index': SCENE_ID,
-    #         'system:time_start': ee.Date(SCENE_DATE).millis(),
-    #         'system:id': f'{COLL_ID}/{SCENE_ID}',
-    #     })
 
 
 # Setting et_reference_source and et_reference_band on the default image to
@@ -72,15 +66,15 @@ def default_image(lst=305, ndvi=0.8, ndwi=-0.5, qa_water=0):
 def default_image_args(
         lst=305,
         ndvi=0.85,
-        ndwi=-0.5,
+        ndwi=0.5,
         qa_water=0,
-        # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
         et_reference_band='etr',
         et_reference_factor=1,
         et_reference_resample='nearest',
         et_reference_date_type=None,
         dt_source=18,
+        lc_source=1,
         tcorr_source=0.9744,
         tmax_source=310.15,
         elev_source=67,
@@ -90,7 +84,7 @@ def default_image_args(
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
-        ):
+):
     return {
         'image': default_image(lst=lst, ndvi=ndvi, ndwi=ndwi, qa_water=qa_water),
         'et_reference_source': et_reference_source,
@@ -99,6 +93,7 @@ def default_image_args(
         'et_reference_resample': et_reference_resample,
         'et_reference_date_type': et_reference_date_type,
         'dt_source': dt_source,
+        'lc_source': lc_source,
         'tcorr_source': tcorr_source,
         'tmax_source': tmax_source,
         'elev_source': elev_source,
@@ -114,15 +109,15 @@ def default_image_args(
 def default_image_obj(
         lst=305,
         ndvi=0.85,
-        ndwi=-0.5,
+        ndwi=0.5,
         qa_water=0,
-        # et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_source=9.5730,
         et_reference_band='etr',
         et_reference_factor=1,
         et_reference_resample='nearest',
         et_reference_date_type=None,
         dt_source=18,
+        lc_source=1,
         tcorr_source=0.9744,
         tmax_source=310.15,
         elev_source=67,
@@ -132,7 +127,7 @@ def default_image_obj(
         dt_resample='nearest',
         tmax_resample='nearest',
         tcorr_resample='nearest',
-        ):
+):
     return ssebop.Image(**default_image_args(
         lst=lst,
         ndvi=ndvi,
@@ -144,6 +139,7 @@ def default_image_obj(
         et_reference_resample=et_reference_resample,
         et_reference_date_type=et_reference_date_type,
         dt_source=dt_source,
+        lc_source=lc_source,
         tcorr_source=tcorr_source,
         tmax_source=tmax_source,
         elev_source=elev_source,
@@ -163,7 +159,8 @@ def test_Image_init_default_parameters():
     assert m.et_reference_factor is None
     assert m.et_reference_resample is None
     assert m.et_reference_date_type is None
-    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6'
+    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7'
+    assert m._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS'
     assert m._tcorr_source == 'FANO'
     assert m._tmax_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'
     assert m.et_fraction_type == 'alfalfa'
@@ -192,8 +189,7 @@ def test_Image_init_date_properties():
     assert utils.getinfo(m._year) == int(SCENE_DATE.split('-')[0])
     assert utils.getinfo(m._month) == int(SCENE_DATE.split('-')[1])
     assert utils.getinfo(m._start_date)['value'] == utils.millis(SCENE_DT)
-    assert utils.getinfo(m._end_date)['value'] == (
-        utils.millis(SCENE_DT) + 24 * 3600 * 1000)
+    assert utils.getinfo(m._end_date)['value'] == (utils.millis(SCENE_DT) + 24 * 3600 * 1000)
     # assert utils.getinfo(m._end_date)['value'] == utils.millis(
     #     SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
@@ -285,38 +281,36 @@ def test_Image_qa_water_mask_values(qa_water, expected):
 
 
 @pytest.mark.parametrize(
-    'ndvi, ndwi, qa_water, expected',
+    'xy, ndvi, ndwi, qa_water, expected',
     [
-        # Not water (Land) Tests
-        # Start with all not water conditions
-        [0.85, -0.5, 0, 1],
-        # NDVI is not currently checked in the Tcorr water/not-water mask function
-        #   so setting NDVI negative will not change mask here
-        #   but NDVI in Tcorr calculation may/will be adjusted
-        [-0.5, -0.5, 0, 1],
+        # Both NDVI and NDWI must be greater than or equal to 0
+        #   and QA must not be water for the pixel to be flagged as not-water
+        # Intentionally treat NDVI of 0 as not-water
+        # The scene point location is not flagged as water in the GSW max extent
+        #   and should always be flagged as not water in this mask
+        [SCENE_POINT, 0.85, 0.0, 0, 1],
+        [SCENE_POINT, 0.0, 0.0, 0, 1],
+        [SCENE_POINT, -1.0, 0.0, 0, 1],
+        [SCENE_POINT, 0.0, -1.0, 0, 1],
+        [SCENE_POINT, 0.0, 0.0, 1, 1],
+        [SCENE_POINT, -1.0, -1.0, 1, 1],
+        # This test location is flagged as water in the GSW max extent layer
+        [[-118.98, 36.405], 0.85, 0.0, 0, 1],
+        [[-118.98, 36.405], 0.5, 0.0, 0, 1],
+        [[-118.98, 36.405], 0.0, 0.0, 0, 1],
+        [[-118.98, 36.405], -0.5, 0.0, 0, 0],
+        [[-118.98, 36.405], -0.5, 0.0, 1, 0],
+        [[-118.98, 36.405], -0.5, 0.0, 1, 0],
+        [[-118.98, 36.405], 0.0, 0.0, 1, 0],
+        [[-118.98, 36.405], 0.5, 0.0, 1, 0],
 
-        # Water Tests
-        # Any indication of water will set mask to 0
-        # So either qa_water being True or NDWI being > threshold
-        [-0.5, 0.5, 1, 0],
-        [-0.5, -0.5, 1, 0],
-        [-0.5, 0.5, 0, 0],
-        # NDVI is not considered so changing NDVI to positive here will not change mask value
-        [0.5, 0.5, 1, 0],
-        [0.5, -0.5, 1, 0],
-        [0.5, 0.5, 0, 0],
-
-        # Check right around NDWI threshold
-        [0.85, -0.149, 0, 0],
-        [0.85, -0.150, 0, 0],
-        [0.85, -0.151, 0, 1],
     ]
 )
-def test_Image_tcorr_not_water_mask_values(ndvi, ndwi, qa_water, expected):
+def test_Image_tcorr_not_water_mask_values(xy, ndvi, ndwi, qa_water, expected):
     """Test water mask values"""
     output_img = default_image_obj(ndvi=ndvi, ndwi=ndwi, qa_water=qa_water)
     mask_img = output_img.tcorr_not_water_mask
-    output = utils.point_image_value(mask_img, SCENE_POINT)
+    output = utils.point_image_value(mask_img, xy)
     assert output['tcorr_not_water'] == expected
 
 
@@ -363,6 +357,7 @@ def test_Image_elev_source(elev_source, xy, expected, tol=0.001):
 @pytest.mark.parametrize(
     'dt_source, doy, xy, expected',
     [
+        ['projects/usgs-ssebop/dt/daymet_median_v7', SCENE_DOY, TEST_POINT, 20.1],
         ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
         ['projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
          SCENE_DOY, TEST_POINT, 20.77],
@@ -393,20 +388,6 @@ def test_Image_dt_source_constant(dt_source, xy, expected, tol=0.001):
 def test_Image_dt_source_exception():
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(dt_source='').dt)
-
-
-@pytest.mark.parametrize(
-    'dt_source, doy, xy, expected',
-    [
-        ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
-    ]
-)
-def test_Image_dt_scale_factor(dt_source, doy, xy, expected, tol=0.001):
-    """Test that dT scale factor property is being applied for daymet_median_v6"""
-    m = default_image_obj(dt_source=dt_source)
-    m._doy = doy
-    output = utils.point_image_value(ee.Image(m.dt), xy)
-    assert abs(output['dt'] - expected) <= tol
 
 
 @pytest.mark.parametrize(
@@ -478,6 +459,41 @@ def test_Image_tmax_properties(tmax_source, expected):
         assert output['properties']['tmax_source'] == expected['tmax_source']
     else:
         assert output['properties']['tmax_source'] == tmax_source
+
+
+@pytest.mark.parametrize(
+    'lc_source, xy, expected',
+    [
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 0],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
+        # CGM - Not sure why the 2019 collection doesn't work
+        #['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 1],
+        ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
+    ]
+)
+def test_Image_tcorr_ag_landcover_source_values(lc_source, xy, expected):
+    """Test Tcorr ag landcover mask values"""
+    m = default_image_obj(lc_source=lc_source)
+    output = utils.point_image_value(ee.Image(m.ag_landcover), xy)
+    assert output['ag_landcover'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source',
+    [
+        # Supprot for ESA WorldCover will be added at some point
+        'ESA/WorldCover/v200',
+        'deadbeef',
+        '',
+    ]
+)
+def test_Image_tcorr_ag_landcover_source_exception(lc_source):
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(lc_source=lc_source).ag_landcover)
 
 
 # CGM - Test the from_landsat and from_image methods before testing the
@@ -665,8 +681,8 @@ def test_Image_from_method_kwargs():
 
 
 # CGM - Test tcorr_image since it is called by tcorr_stats
-def test_Image_tcorr_image_values(lst=300, ndvi=0.85, tmax=306, expected=0.9804, tol=0.0001):
-    output_img = default_image_obj(lst=lst, ndvi=ndvi, tmax_source=tmax).tcorr_image
+def test_Image_tcorr_image_values(lst=300, ndvi=0.85, ndwi=0.5, tmax=306, expected=0.9804, tol=0.0001):
+    output_img = default_image_obj(lst=lst, ndvi=ndvi, ndwi=ndwi, tmax_source=tmax).tcorr_image
     output = utils.point_image_value(output_img, TEST_POINT)
     assert abs(output['tcorr'] - expected) <= tol
 
@@ -713,7 +729,6 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
 @pytest.mark.parametrize(
     'image_id, tmax_source, expected',
     [
-        # projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010
         [
             'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
@@ -729,22 +744,6 @@ def test_Image_tcorr_stats_constant(tcorr=0.993548387, count=40564857, tol=0.000
             'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
             {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365748}
         ],
-        # # Old test values before normalized difference updates
-        # [
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     {'tcorr_value': 0.974979476478202, 'tcorr_count': 221975}
-        # ],
-        # [
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
-        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}
-        # ],
-        # [
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716',
-        #     'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010_elr',
-        #     {'tcorr_value': 0.9851211164517142, 'tcorr_count': 1365750}
-        # ],
     ]
 )
 def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001):
@@ -753,9 +752,6 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
         c2_lst_correct=False).tcorr_stats)
     assert abs(output['tcorr_value'] - expected['tcorr_value']) <= tol
     assert abs(output['tcorr_count'] - expected['tcorr_count']) <= 10
-    # assert output['tcorr_count'] == expected['tcorr_count']
-    # assert (abs(output['tcorr_count'] == expected['tcorr_count']) /
-    #         expected['tcorr_count']) <= 0.0000001
 
 
 @pytest.mark.parametrize(
@@ -763,33 +759,13 @@ def test_Image_tcorr_stats_landsat(image_id, tmax_source, expected, tol=0.000001
     [
         [
             'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9785567103858176
         ],
         [
             'FANO',
             'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.982067629634117
+            'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9785567103858176
         ],
-        # # Old test values before normalized difference updates
-        # [
-        #     'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456
-        # ],
-        # [
-        #     'FANO',
-        #     'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9820676302928456
-        # ],
-        # # Old test values for pre 0.5.0 implementation with 5 Km FANO cells and 10%
-        # [
-        #     'FANO', 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566
-        # ],
-        # [
-        #     'FANO',
-        #     'projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-        #     'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 0.9803095962281566
-        # ],
     ]
 )
 def test_Image_tcorr_fano_source(tcorr_src, tmax_src, image_id, xy, expected, tol=0.000001):
@@ -1030,7 +1006,7 @@ def test_Image_qa_water_mask_image_values(image_id, xy, expected):
     ]
 )
 def test_Image_tcorr_not_water_mask_image_values(image_id, xy, expected):
-    """Test water mask values"""
+    """Test Tcorr not water mask values"""
     output_img = ssebop.Image.from_image_id(image_id)
     mask_img = output_img.tcorr_not_water_mask
     output = utils.point_image_value(mask_img, xy)
