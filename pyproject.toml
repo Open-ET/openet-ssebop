@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.6.0"
+version = "0.6.1"
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
@@ -29,11 +29,6 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://github.com/Open-ET/openet-ssebop"
-# "Repository" = "https://github.com/Open-ET/openet-ssebop.git"
-
-# "Documentation" = "https://github.com/Open-ET/openet-ssebop"
-# "Bug Tracker" = "https://github.com/Open-ET/openet-ssebop"
-# "Changelog" = "https://github.com/Open-ET/openet-ssebop"
 
 [build-system]
 requires = ["setuptools>=61.0"]
