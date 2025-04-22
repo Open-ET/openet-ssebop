@@ -456,7 +456,7 @@ class Image:
         )
 
     @lazy_property
-    def ag_landcover(self):
+    def ag_landcover_mask(self):
         """Mask of pixels that are agriculture, grassland, or wetland for Tcorr FANO calculation """
         ag_remap = {
             'nalcms': {
@@ -477,14 +477,18 @@ class Image:
             }
         }
 
+        # Use the North America Land Cover Monitoring System as the fallback image
+        #   with the year specific NLCD images on top
+        # Long term this could be combined or replaced with a global land cover dataset
+        nalcms_img = (
+            ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
+            .remap(list(ag_remap['nalcms'].keys()), [1] * len(ag_remap['nalcms'].keys()), 0)
+        )
+
         if utils.is_number(self._lc_source):
-            return ee.Image.constant(float(self._lc_source)).rename('ag_landcover')
+            ag_landcover_img = ee.Image.constant(float(self._lc_source))
         elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            return (
-                ee.Image(self._lc_source)
-                .remap(list(ag_remap['nalcms'].keys()), [1] * len(ag_remap['nalcms'].keys()), 0)
-                .rename('ag_landcover')
-            )
+            ag_landcover_img = nalcms_img
         elif self._lc_source in [
                 'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
                 'USGS/NLCD_RELEASES/2021_REL/NLCD',
@@ -500,24 +504,27 @@ class Image:
                 .min(ee.Date(lc_coll.aggregate_max('system:time_start')).get('year'))
             )
             lc_date = ee.Date.fromYMD(lc_year, 1, 1)
-            return (
-                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first().select([0])
+            lc_img = (
+                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year'))
+                .first().select([0])
                 .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
                 .set({'NLCD_YEAR': lc_year})
-                .rename('ag_landcover')
             )
+            ag_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
         elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
             # Assume the source is an NLCD like image ID
             # Assume first band is the landcover band
-            return (
+            lc_img = (
                 ee.Image(self._lc_source).select([0])
                 .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
-                .rename('ag_landcover')
             )
+            ag_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
         else:
             raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
+
+        return ag_landcover_img.rename('ag_landcover_mask')
 
     @lazy_property
     def anomalous_landcover_mask(self):
@@ -537,18 +544,25 @@ class Image:
             }
         }
 
+        # Use the North America Land Cover Monitoring System as the fallback image
+        #   with the year specific NLCD images on top
+        # Long term this could be combined or replaced with a global land cover dataset
+        nalcms_img = (
+            ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
+            .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
+        )
+
         if utils.is_number(self._lc_source):
-            return ee.Image.constant(float(self._lc_source)).rename('anom_landcover')
+            anom_landcover_img = ee.Image.constant(float(self._lc_source))
         elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            return (
+            anom_landcover_img = (
                 ee.Image(self._lc_source)
                 .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
-                .rename('anom_landcover')
             )
         elif self._lc_source in [
-            'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
-            'USGS/NLCD_RELEASES/2021_REL/NLCD',
-            'USGS/NLCD_RELEASES/2019_REL/NLCD',
+                'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
+                'USGS/NLCD_RELEASES/2021_REL/NLCD',
+                'USGS/NLCD_RELEASES/2019_REL/NLCD',
         ]:
             # Assume the source is the Image Collection ID
             # Assume first band is the landcover band
@@ -560,24 +574,27 @@ class Image:
                 .min(ee.Date(lc_coll.aggregate_max('system:time_start')).get('year'))
             )
             lc_date = ee.Date.fromYMD(lc_year, 1, 1)
-            return (
-                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first().select([0])
+            lc_img = (
+                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year'))
+                .first().select([0])
                 .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
                 .set({'NLCD_YEAR': lc_year})
-                .rename('anom_landcover')
             )
+            anom_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
         elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
             # Assume the source is an NLCD like image ID
             # Assume first band is the landcover band
-            return (
+            lc_img = (
                 ee.Image(self._lc_source).select([0])
                 .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
-                .rename('anom_landcover')
             )
+            anom_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
         else:
             raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
+
+        return anom_landcover_img.rename('anomalous_landcover_mask')
 
     @lazy_property
     def mixed_landscape_tcold_smooth(self):
@@ -901,7 +918,7 @@ class Image:
         # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
         # Agricultural lands and grasslands and wetlands are 1, all others are 0
-        ag_lc = self.ag_landcover
+        ag_lc = self.ag_landcover_mask
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)

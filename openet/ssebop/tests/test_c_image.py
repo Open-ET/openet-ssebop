@@ -317,16 +317,16 @@ def test_Image_dt_source_exception():
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
-        # CGM - Not sure why the 2019 collection doesn't work
-        #['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
+        # CGM - Not sure why the 2019 collection doesn't work
+        # ['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 1],
     ]
 )
-def test_Image_tcold_ag_landcover_source_values(lc_source, xy, expected):
-    """Test Tcorr ag landcover mask values"""
+def test_Image_ag_landcover_source_values(lc_source, xy, expected):
+    """Test ag landcover mask values"""
     m = default_image_obj(lc_source=lc_source)
-    output = utils.point_image_value(ee.Image(m.ag_landcover), xy)
-    assert output['ag_landcover'] == expected
+    output = utils.point_image_value(ee.Image(m.ag_landcover_mask), xy)
+    assert output['ag_landcover_mask'] == expected
 
 
 @pytest.mark.parametrize(
@@ -338,9 +338,45 @@ def test_Image_tcold_ag_landcover_source_values(lc_source, xy, expected):
         '',
     ]
 )
-def test_Image_tcold_ag_landcover_source_exception(lc_source):
+def test_Image_ag_landcover_source_exception(lc_source):
     with pytest.raises(ValueError):
         utils.getinfo(default_image_obj(lc_source=lc_source).ag_landcover)
+
+
+@pytest.mark.parametrize(
+    'lc_source, xy, expected',
+    [
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 0],
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', [-118.5, 36.0], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', [-118.5, 36.0], 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD', [-118.5, 36.0], 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-118.5, 36.0], 1],
+        ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-118.5, 36.0], 1],
+    ]
+) 
+def test_Image_anomalous_landcover_mask_source_values(lc_source, xy, expected):
+    """Test anomalous landcover mask values"""
+    m = default_image_obj(lc_source=lc_source)
+    output = utils.point_image_value(ee.Image(m.anomalous_landcover_mask), xy)
+    assert output['anomalous_landcover_mask'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source, xy, expected',
+    [
+        # Test point is an agricultural area in Canada
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-110.95, 49.53], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', [-110.95, 49.53], 1],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-110.95, 49.53], 1],
+        ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-110.95, 49.53], 1],
+    ]
+)
+def test_Image_ag_landcover_mask_nalcms_fallback(lc_source, xy, expected):
+    """Test that the NALCMS image is used as a fallback for NLCD sources"""
+    m = default_image_obj(lc_source=lc_source)
+    output = utils.point_image_value(ee.Image(m.ag_landcover_mask), xy)
+    assert output['ag_landcover_mask'] == expected
 
 
 # CGM - Test the from_landsat and from_image methods before testing the
