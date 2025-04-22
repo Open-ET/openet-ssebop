@@ -629,7 +629,7 @@ class Image:
     @lazy_property
     def tc_ag(self):
         """Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'"""
-        return self.vegetated_tcorr.unmask(self.smooth_mixed_landscape_tcold_ag)
+        return self.vegetated_tcorr.unmask(self.mixed_landscape_tcold_smooth)
 
     @lazy_property
     def gsw_max_mask(self):
@@ -640,7 +640,7 @@ class Image:
     def tc_layered(self):
         """TODO: Write description for this function"""
         return (
-            self.mixed_landscape_tcold_ag_plus_veg
+            self.tc_ag
             .updateMask(self.ag_landcover_mask)
             .unmask(self.hot_dry_tcorr)
             .updateMask(1)
@@ -892,7 +892,7 @@ class Image:
         high_ndvi_threshold = 0.9
 
         # max pixels argument for .reduceResolution()
-        m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
+        m_pixels_fine = 48  # We use 48 because for 240m-> (8**2) 64 pixels is not necessary and EECU is saved.
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
 
         lst = ee.Image(self.lst)
@@ -915,10 +915,7 @@ class Image:
         # Mask LST in the same way
         lst_masked = lst.updateMask(not_water_mask)
 
-        # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
-        # Agricultural lands and grasslands and wetlands are 1, all others are 0
-        ag_lc = self.ag_landcover_mask
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
@@ -937,10 +934,14 @@ class Image:
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
+        # ================= LANDCOVER LAZY Property creates ag_lc ==================
+
+        # Agricultural lands and grasslands and wetlands are 1, all others are 0
+
         # Create the masked ndvi for NDVI > 0.4
         coarse_masked_ndvi = (
             ndvi_fine_wmasked
-            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
@@ -948,7 +949,7 @@ class Image:
         # Same process for LST
         lst_coarse_wmasked_high_ndvi = (
             lst_fine_wmasked
-            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
@@ -986,24 +987,22 @@ class Image:
             .get('lst')
         )
 
-        # take the scalar and place it into a well-functioning ee.Image()
+        # take the scalar and place it into a well-functioning ee.Image(). This gives a scene-wide Tcold fallback.
         self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
         # Vegetated and High NDVI areas.
-        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
+        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(self.ag_landcover_mask)
 
-        # For 120m Ag areas with enough NDVI to run FANO
+        # For 120m Ag areas with enough NDVI, we run FANO at high res.
         self.vegetated_tcorr = Tc_fine.updateMask(vegetated_mask)
 
         # For all non-ag areas we run hot dry tcorr at 120m
+        # this renaming doesn't DO anything, but is explanatory:
+        # For hot dry envs, we use FANO at high resolution as-is.
         self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
-
-        self.smooth_mixed_landscape_tcold_ag = self.mixed_landscape_tcold_smooth
-
-        self.mixed_landscape_tcold_ag_plus_veg = self.tc_ag
 
         # 1 pixel of smoothing to the main Tc where we make use of landcovers
         self.smooth_Tc_Layered = (
