@@ -46,9 +46,7 @@ class Image:
             et_reference_resample=None,
             et_reference_date_type=None,
             dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7',
-            tcorr_source='FANO',
-            tmax_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010',
-            elr_flag=False,
+            tcold_source='FANO',
             et_fraction_type='alfalfa',
             et_fraction_grass_source=None,
             lst_source=None,
@@ -78,16 +76,9 @@ class Image:
         dt_source : str or float, optional
             dT source image collection ID.
             The default is 'projects/usgs-ssebop/dt/daymet_median_v7'.
-        tcorr_source : 'FANO' or float, optional
-            Tcorr source keyword.  The default is 'FANO' which will compute Tcorr
+        tcold_source : 'FANO' or float, optional
+            Tcold source keyword.  The default is 'FANO' which will compute Tcold
             using the 'Forcing And Normalizing Operation' process.
-        tmax_source : collection ID or float, optional
-            Maximum air temperature source image collection ID.
-            The default is 'projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010'.
-        elr_flag : bool, str, optional
-            If True, apply Elevation Lapse Rate (ELR) adjustment (the default is False).
-            The 'elev_source' keyword argument will need to be set to a valid
-            elevation asset image ID.
         et_fraction_type : {'alfalfa', 'grass'}, optional
             ET fraction reference type.  The default is 'alfalfa'.
             If set to "grass", the et_fraction_grass_source parameter must also be set.
@@ -109,9 +100,6 @@ class Image:
             Landcover source image ID or image collection ID.
         kwargs : dict, optional
             dt_resample : {'nearest', 'bilinear'}
-            tcorr_resample : {'nearest', 'bilinear'}
-            tmax_resample : {'nearest', 'bilinear'}
-            elev_source : str or float
 
         Notes
         -----
@@ -120,10 +108,6 @@ class Image:
 
         """
         self.image = ee.Image(image)
-
-        # Set as "lazy_property" below in order to return custom properties
-        # self.lst = self.image.select('lst')
-        # self.ndvi = self.image.select('ndvi')
 
         # Copy system properties
         self._id = self.image.get('system:id')
@@ -178,24 +162,9 @@ class Image:
 
         # Model input parameters
         self._dt_source = dt_source
-        self._tcorr_source = tcorr_source
-        self._tmax_source = tmax_source
+        self._tcold_source = tcold_source
         self._lst_source = lst_source
         self._lc_source = lc_source
-
-        # TODO: Move into keyword args section below
-        self._elr_flag = elr_flag
-
-        # TODO: Move into keyword args section below
-        # Convert elr_flag from string to bool IF necessary
-        if type(self._elr_flag) is str:
-            if self._elr_flag.upper() in ['TRUE']:
-                self._elr_flag = True
-            elif self._elr_flag.upper() in ['FALSE']:
-                self._elr_flag = False
-            else:
-                raise ValueError(f'elr_flag "{self._elr_flag}" could not be interpreted as bool')
-        # assert isinstance(self._elr_flag, bool), "selection type must be a boolean"
 
         # ET fraction type
         if et_fraction_type.lower() not in ['alfalfa', 'grass']:
@@ -233,27 +202,12 @@ class Image:
         # CGM - What is the right way to process kwargs with default values?
         self.kwargs = kwargs
 
-        if 'elev_source' in kwargs.keys():
-            self._elev_source = kwargs['elev_source']
-        else:
-            self._elev_source = None
-
         # CGM - Should these be checked in the methods they are used in instead?
         # Set the resample method as properties so they can be modified
         if 'dt_resample' in kwargs.keys():
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
-
-        if 'tmax_resample' in kwargs.keys():
-            self._tmax_resample = kwargs['tmax_resample'].lower()
-        else:
-            self._tmax_resample = 'bilinear'
-
-        if 'tcorr_resample' in kwargs.keys():
-            self._tcorr_resample = kwargs['tcorr_resample'].lower()
-        else:
-            self._tcorr_resample = 'bilinear'
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -281,8 +235,6 @@ class Image:
                 output_images.append(self.mask)
             elif v.lower() == 'ndvi':
                 output_images.append(self.ndvi.float())
-            # elif v.lower() == 'qa':
-            #     output_images.append(self.qa)
             elif v.lower() == 'quality':
                 output_images.append(self.quality)
             elif v.lower() == 'time':
@@ -296,25 +248,13 @@ class Image:
     def et_fraction(self):
         """Fraction of reference ET"""
 
-        # Adjust air temperature based on elevation (Elevation Lapse Rate)
-        # TODO: Eventually point this at the model.elr_adjust() function instead
-        # =========================================================
-        if self._elr_flag:
-            tmax = ee.Image(model.lapse_adjust(self.tmax, ee.Image(self.elev)))
-        else:
-            tmax = self.tmax
-
-        if type(self._tcorr_source) is str and self._tcorr_source.upper() == 'FANO':
-            # bilinearly resample tmax at 1km (smoothed).
-            tmax = tmax.resample('bilinear')
-
         if (self._dt_resample and type(self._dt_resample) is str and
                 self._dt_resample.lower() in ['bilinear', 'bicubic']):
             dt = self.dt.resample(self._dt_resample)
         else:
             dt = self.dt
 
-        et_fraction = model.et_fraction(lst=self.lst, tmax=tmax, tcorr=self.tcorr, dt=dt)
+        et_fraction = model.et_fraction(lst=self.lst, tcold=self.tcold, dt=dt)
 
         # Convert the ET fraction to a grass reference fraction
         if self.et_fraction_type.lower() == 'grass' and self.et_fraction_grass_source:
@@ -328,10 +268,7 @@ class Image:
                 )
 
         return et_fraction.set(self._properties)\
-            .set({
-                'tcorr_index': self.tcorr.get('tcorr_index'),
-                'et_fraction_type': self.et_fraction_type.lower()
-            })
+            .set({'et_fraction_type': self.et_fraction_type.lower()})
 
     @lazy_property
     def et_reference(self):
@@ -487,11 +424,11 @@ class Image:
         return self.mask.rename(['quality']).set(self._properties)
 
     @lazy_property
-    def tcorr_not_water_mask(self):
+    def tcold_not_water_mask(self):
         """Mask of pixels that have a high confidence of not being water
 
         The purpose for this mask is to ensure that water pixels are not used in
-            the Tcorr FANO calculation.
+            the Tcold FANO calculation.
 
         Output image will be 1 for pixels that are not-water and 0 otherwise
         """
@@ -513,7 +450,7 @@ class Image:
             .Or(ee.Image(self.ndwi).lt(0))
             .And(self.gsw_max_mask)
             .Not()
-            .rename(['tcorr_not_water'])
+            .rename(['tcold_not_water'])
             .set(self._properties)
             .uint8()
         )
@@ -660,8 +597,8 @@ class Image:
         return anom_landcover_img.rename('anomalous_landcover_mask')
 
     @lazy_property
-    def mixed_landscape_tcorr_smooth(self):
-        """Here we take 4800m coarse tcorr in ag areas and smooth it. Fill it with a scene-wide tcorr."""
+    def mixed_landscape_tcold_smooth(self):
+        """Here we take 4800m coarse tcold in ag areas and smooth it. Fill it with a scene-wide tcold."""
 
         smooth_mixed_landscape_pre = (
             self.Tc_coarse_high_ndvi
@@ -692,7 +629,7 @@ class Image:
     @lazy_property
     def tc_ag(self):
         """Mosaic the 'veg mosaic' and the 'smooth 5km mosaic'"""
-        return self.vegetated_tcorr.unmask(self.smooth_mixed_landscape_tcorr_ag)
+        return self.vegetated_tcorr.unmask(self.mixed_landscape_tcold_smooth)
 
     @lazy_property
     def gsw_max_mask(self):
@@ -703,7 +640,7 @@ class Image:
     def tc_layered(self):
         """TODO: Write description for this function"""
         return (
-            self.mixed_landscape_tcorr_ag_plus_veg
+            self.tc_ag
             .updateMask(self.ag_landcover_mask)
             .unmask(self.hot_dry_tcorr)
             .updateMask(1)
@@ -763,8 +700,8 @@ class Image:
         return dt_img.rename('dt')
 
     @lazy_property
-    def elev(self):
-        """Load the elevation image from the source
+    def tcold(self):
+        """Compute Tcold
 
         Returns
         -------
@@ -773,86 +710,22 @@ class Image:
         Raises
         ------
         ValueError
-            If `self._elev_source` is not supported.
+            If `self._tcold_source` is not supported.
 
         """
-        if self._elev_source is None:
-            raise ValueError('elev_source was not set')
-        elif utils.is_number(self._elev_source):
-            elev_image = ee.Image.constant(float(self._elev_source))
-        elif type(self._elev_source) is str:
-            elev_image = ee.Image(self._elev_source)
-        # elif (self._elev_source.lower().startswith('projects/') or
-        #       self._elev_source.lower().startswith('users/')):
-        #     elev_image = ee.Image(self._elev_source)
-        else:
-            raise ValueError(f'Unsupported elev_source: {self._elev_source}\n')
-
-        return elev_image.select([0], ['elev'])
-
-    @lazy_property
-    def tcorr(self):
-        """Compute Tcorr
-
-        Returns
-        -------
-        ee.Image
-
-        Raises
-        ------
-        ValueError
-            If `self._tcorr_source` is not supported.
-
-        """
-        if utils.is_number(self._tcorr_source):
+        if utils.is_number(self._tcold_source):
             return (
-                ee.Image.constant(float(self._tcorr_source)).rename(['tcorr'])
-                .set({'tcorr_source': f'custom_{self._tcorr_source}'})
+                ee.Image.constant(float(self._tcold_source)).rename(['tcold'])
+                .set({'tcold_source': f'custom_{self._tcold_source}'})
             )
-        elif 'FANO' == self._tcorr_source.upper():
+        elif 'FANO' == self._tcold_source.upper():
             return (
-                ee.Image(self.tcorr_FANO).select(['tcorr'])
+                ee.Image(self.tcold_FANO).select(['tcold'])
                 .updateMask(1)
-                .set({'tcorr_source': 'FANO'})
+                .set({'tcold_source': 'FANO'})
             )
         else:
-            raise ValueError(f'Unsupported tcorr_source: {self._tcorr_source}\n')
-
-    @lazy_property
-    def tmax(self):
-        """Get Tmax image from precomputed climatology collections or dynamically
-
-        Returns
-        -------
-        ee.Image
-
-        Raises
-        ------
-        ValueError
-            If `self._tmax_source` is not supported.
-
-        """
-        if utils.is_number(self._tmax_source):
-            # Allow Tmax source to be set as a number for testing
-            tmax_image = (
-                ee.Image.constant(float(self._tmax_source)).rename(['tmax'])
-                .set({'tmax_source': 'custom_{}'.format(self._tmax_source)})
-            )
-        elif re.match(r'^projects/.+/tmax/.+_(mean|median)_\d{4}_\d{4}(_\w+)?', self._tmax_source):
-            # Process Tmax source as a collection ID
-            # The Tmax collections do not have a time_start so filter use the "doy" property instead
-            tmax_coll = (
-                ee.ImageCollection(self._tmax_source)
-                .filterMetadata('doy', 'equals', self._doy)
-            )
-            tmax_image = ee.Image(tmax_coll.first()).set({'tmax_source': self._tmax_source})
-        else:
-            raise ValueError(f'Unsupported tmax_source: {self._tmax_source}\n')
-
-        if self._tmax_resample and (self._tmax_resample.lower() in ['bilinear', 'bicubic']):
-            tmax_image = tmax_image.resample(self._tmax_resample)
-
-        return tmax_image
+            raise ValueError(f'Unsupported tcold_source: {self._tcold_source}\n')
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):
@@ -1000,59 +873,15 @@ class Image:
         return cls(input_image, **kwargs)
 
     @lazy_property
-    def tcorr_image(self):
-        """Compute the scene wide Tcorr for the current image
-
-        Returns
-        -------
-        ee.Image of Tcorr values
-
-        """
-        lst = ee.Image(self.lst)
-        ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
-
-        # Compute Tcorr
-        tcorr = lst.divide(tmax)
-
-        # Adjust NDVI
-        ndvi_threshold = 0.85
-        # Changed for tcorr at 1000m resolution also includes making NDVI more 'strict'
-        # ndvi_threshold = 0.75
-
-        # Select high NDVI pixels that are also surrounded by high NDVI
-        ndvi_smooth_mask = (
-            ndvi.focal_mean(radius=90, units='meters')
-            .reproject(crs=self.crs, crsTransform=self.transform)
-            .gte(ndvi_threshold)
-        )
-        ndvi_buffer_mask = (
-            ndvi.gte(ndvi_threshold)
-            .reduceNeighborhood(reducer=ee.Reducer.min(),
-                                kernel=ee.Kernel.square(radius=60, units='meters'))
-        )
-
-        # Remove low LST and low NDVI
-        tcorr_mask = lst.gt(270).And(ndvi_smooth_mask).And(ndvi_buffer_mask)
-
-        return (
-            tcorr.updateMask(tcorr_mask).rename(['tcorr'])
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
-        )
-
-    @lazy_property
-    def tcorr_FANO(self):
-        """Compute the scene wide Tcorr for the current image adjusting tcorr
+    def tcold_FANO(self):
+        """Compute the scene wide Tcold for the current image adjusting Tcold
             temps based on NDVI thresholds to simulate true cold cfactor
 
         FANO: Forcing And Normalizing Operation
 
         Returns
         -------
-        ee.Image of Tcorr values
+        ee.Image of Tcold values
 
         """
         gridsize_fine = 240
@@ -1063,12 +892,11 @@ class Image:
         high_ndvi_threshold = 0.9
 
         # max pixels argument for .reduceResolution()
-        m_pixels_fine = 48 # This is the new one for 120  # OLD 240 48  # This would be too aggressive for 240 -> (8**2)/2 # 8**2
+        m_pixels_fine = 48  # We use 48 because for 240m-> (8**2) 64 pixels is not necessary and EECU is saved.
         m_pixels_coarse = (20**2)/2  # Doing every pixel would be (20**2) but half is probably fine.
 
         lst = ee.Image(self.lst)
         ndvi = ee.Image(self.ndvi)
-        tmax = ee.Image(self.tmax)
         dt = ee.Image(self.dt)
 
         # Force the NDVI to be negative for any pixels that have a positive NDVI
@@ -1079,7 +907,7 @@ class Image:
             ndvi.multiply(-1)
         )
 
-        not_water_mask = self.tcorr_not_water_mask
+        not_water_mask = self.tcold_not_water_mask
 
         # Mask ndvi for water
         ndvi_masked = ndvi.updateMask(not_water_mask)
@@ -1087,10 +915,7 @@ class Image:
         # Mask LST in the same way
         lst_masked = lst.updateMask(not_water_mask)
 
-        # ================= LANDCOVER LAZY Property creates ag_lc ==================
 
-        # Agricultural lands and grasslands and wetlands are 1, all others are 0
-        ag_lc = self.ag_landcover_mask
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
@@ -1109,10 +934,14 @@ class Image:
 
         # ***** subsection creating NDVI at coarse resolution from only high NDVI pixels. *************
 
+        # ================= LANDCOVER LAZY Property creates ag_lc ==================
+
+        # Agricultural lands and grasslands and wetlands are 1, all others are 0
+
         # Create the masked ndvi for NDVI > 0.4
         coarse_masked_ndvi = (
             ndvi_fine_wmasked
-            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
@@ -1120,7 +949,7 @@ class Image:
         # Same process for LST
         lst_coarse_wmasked_high_ndvi = (
             lst_fine_wmasked
-            .updateMask(ndvi_masked.gte(0.4).And(ag_lc))
+            .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
         )
@@ -1158,24 +987,22 @@ class Image:
             .get('lst')
         )
 
-        # take the scalar and place it into a well-functioning ee.Image()
+        # take the scalar and place it into a well-functioning ee.Image(). This gives a scene-wide Tcold fallback.
         self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
         # Vegetated and High NDVI areas.
-        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(ag_lc)
+        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(self.ag_landcover_mask)
 
-        # For 120m Ag areas with enough NDVI to run FANO
+        # For 120m Ag areas with enough NDVI, we run FANO at high res.
         self.vegetated_tcorr = Tc_fine.updateMask(vegetated_mask)
 
         # For all non-ag areas we run hot dry tcorr at 120m
+        # this renaming doesn't DO anything, but is explanatory:
+        # For hot dry envs, we use FANO at high resolution as-is.
         self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
-
-        self.smooth_mixed_landscape_tcorr_ag = self.mixed_landscape_tcorr_smooth
-
-        self.mixed_landscape_tcorr_ag_plus_veg = self.tc_ag
 
         # 1 pixel of smoothing to the main Tc where we make use of landcovers
         self.smooth_Tc_Layered = (
@@ -1185,43 +1012,14 @@ class Image:
             .rename('lst')
         )
 
-        # TCold with edge-cases handled.
-        Tc_cold = (
+        # Tcold with edge-cases handled.
+        return (
             lst
             .where(ndvi.gte(0), self.smooth_Tc_Layered)
             .where(not_water_mask.Not(), lst)
             .where(self.anomalous_landcover_mask.And(ndvi.lt(0)).And(self.gsw_max_mask.Not()), 250)
             .reproject(self.crs, self.transform)
             .updateMask(1)
-        )
-
-        # obviated, now that we are at 120m resolution, but carry on to avoid a major code refactor while testing.
-        c_factor = Tc_cold.divide(tmax)
-
-        return (
-            c_factor.rename(['tcorr'])
-            .set({'system:index': self._index,
-                  'system:time_start': self._time_start,
-                  'tmax_source': tmax.get('tmax_source'),
-                  'tmax_version': tmax.get('tmax_version')})
-        )
-
-    @lazy_property
-    def tcorr_stats(self):
-        """Compute the Tcorr 2.5 percentile and count statistics
-
-        Returns
-        -------
-        dictionary
-
-        """
-        return ee.Image(self.tcorr_image).reduceRegion(
-            reducer=ee.Reducer.percentile([2.5], outputNames=['value'])
-                .combine(ee.Reducer.count(), '', True),
-            crs=self.crs,
-            crsTransform=self.transform,
-            geometry=self.image.geometry().buffer(1000),
-            bestEffort=False,
-            maxPixels=2*10000*10000,
-            tileScale=1,
+            .rename(['tcold'])
+            .set({'system:index': self._index, 'system:time_start': self._time_start})
         )
