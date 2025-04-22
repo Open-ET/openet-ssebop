@@ -340,7 +340,7 @@ def test_Image_ag_landcover_source_values(lc_source, xy, expected):
 )
 def test_Image_ag_landcover_source_exception(lc_source):
     with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(lc_source=lc_source).ag_landcover)
+        utils.getinfo(default_image_obj(lc_source=lc_source).ag_landcover_mask)
 
 
 @pytest.mark.parametrize(
