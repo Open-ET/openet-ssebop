@@ -70,24 +70,6 @@ Example
     et_reference = ee.Image('IDAHO_EPSCOR/GRIDMET/20170716').select('etr')
     et_actual = et_fraction.multiply(et_reference)
 
-Custom Input Image
-------------------
-
-SSEBop images can also be built manually by instantiating the class with an ee.Image with the following bands: 'lst' (land surface temperature [K]) and 'ndvi' (normalized difference vegetation index).  The input image must have 'system:index' and 'system:time_start' properties (described above).
-
-.. code-block:: python
-
-    import openet.ssebop as ssebop
-
-    input_img = (
-        ee.Image([ee.Image(lst), ee.Image(ndvi)])
-        .rename(['lst', 'ndvi'])
-        .set({
-            'system:index': 'LC08_044033_20170716',
-            'system:time_start': ee.Date.fromYMD(2017, 7, 16).millis()})
-    )
-    et_fraction = ssebop.Image(input_img).et_fraction
-
 Example Notebooks
 =================
 
@@ -100,13 +82,6 @@ Detailed Jupyter Notebooks of the various approaches for calling the OpenET SSEB
 Ancillary Datasets
 ==================
 
-Maximum Daily Air Temperature (Tmax)
-------------------------------------
-The daily maximum air temperature (Tmax) is essential for establishing the maximum ET limit (cold boundary) as explained in Senay2017_.
-Support for source options includes CIMIS, GRIDMET, DAYMET, and other custom Image Collections. See the model Image class docstrings for more information.
-
-Default Asset ID: *projects/usgs-ssebop/tmax/daymet_v4_mean_1981_2010* (Daily median from 1981-2010)
-
 Land Surface Temperature (LST)
 ------------------------------
 Land Surface Temperature is currently calculated in the SSEBop approach two ways:
@@ -118,7 +93,7 @@ Temperature Difference (dT)
 The SSEBop ET model uses dT as a predefined temperature difference between Thot and Tcold for each pixel.
 In SSEBop formulation, hot and cold limits are defined on the same pixel; therefore, dT actually represents the vertical temperature difference between the surface temperature of a theoretical bare/dry condition of a given pixel and the air temperature at the canopy level of the same pixel as explained in Senay2018_. The input dT is calculated under "gray-sky" conditions and assumed not to change from year to year, but is unique for each day and location.
 
-Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v6*
+Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v7*
 
 Temperature Correction (*c factor*)
 -----------------------------------
@@ -129,14 +104,11 @@ This temperature correction component is uniquely developed for SSEBop using a F
 
 More information on parameter design and model improvements using the FANO method can be found in Senay2023_. Additional SSEBop model algorithm theoretical basis documentation can be found `here <https://www.usgs.gov/media/files/landsat-4-9-collection-2-level-3-provisional-actual-evapotranspiration-algorithm>`__.
 
-The 'FANO' parameter (default) can be implemented dynamically for each Landsat scene within the SSEBop Image object using the following Tcorr source:
-
 .. code-block:: python
 
     model_obj = model.Image.from_landsat_c2_sr(
         ee.Image('LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'),
-        tcorr_source='FANO',
-        )
+    )
 
 The FANO parameterization allows the establishment of the cold boundary condition regardless of vegetation cover density, improving the performance and operational implementation of the SSEBop ET model in sparsely vegetated landscapes, dynamic growing seasons, and varying locations around the world.
 
@@ -153,7 +125,7 @@ Dependencies
 ============
 
  * `earthengine-api <https://github.com/google/earthengine-api>`__
- * `openet-core <https://github.com/Open-ET/openet-core-beta>`__
+ * `openet-core <https://github.com/Open-ET/openet-core>`__
 
 OpenET Namespace Package
 ========================

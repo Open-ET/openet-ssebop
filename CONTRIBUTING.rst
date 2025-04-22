@@ -7,7 +7,7 @@ Thank you for your interest in supporting the OpenET SSEBop project.
 Versioning
 ==========
 
-The OpenET SSEBop project is currently in Beta and the version numbers will be "0.0.X" until a non-Beta release is made.
+The OpenET SSEBop project is working toward a version 1.0 release that will natively support being run globally.  Until that time the model will be making 0.X releases for a changes that are expected to change output values, and 0.X.Y release for any minor patch updates that are not expected to change output values.
 
 Coding Conventions
 ==================
@@ -30,7 +30,7 @@ Create the conda environment:
 
 .. code-block:: console
 
-    conda create --name openet python=3.9
+    conda create --name openet python=3.11
 
 Activate the environment:
 
