@@ -641,7 +641,7 @@ class Image:
         """TODO: Write description for this function"""
         return (
             self.mixed_landscape_tcold_ag_plus_veg
-            .updateMask(self.ag_landcover)
+            .updateMask(self.ag_landcover_mask)
             .unmask(self.hot_dry_tcorr)
             .updateMask(1)
         )
