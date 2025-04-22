@@ -95,12 +95,11 @@ In SSEBop formulation, hot and cold limits are defined on the same pixel; theref
 
 Default Asset ID: *projects/usgs-ssebop/dt/daymet_median_v7*
 
-Temperature Correction (*c factor*)
+Cold Boundary Temperature (Tcold)
 -----------------------------------
-In order to correspond the maximum air temperature with cold/wet limiting environmental conditions, the SSEBop model uses a temperature correction coefficient (*c factor*, sometimes labeled interchangeably as Tcorr) uniquely calculated for each Landsat scene.
-This temperature correction component is uniquely developed for SSEBop using a Forcing and Normalizing Operation (FANO) method featuring a linear relation between a normalized land surface temperature difference and NDVI difference using the dT parameter and a proportionality constant.
-
- **Note:** *Tcorr* refers to the pixel-based ratio of LST_cold and Tmax while *c factor* is a statistical value that represents a region such as a 5-km grid size (or larger) value.
+In order to determine the theoretical LST corresponding to cold/wet limiting environmental conditions (Tcold), the
+SSEBop model uses a Forcing and Normalizing Operation (FANO) method, featuring a linear relation between a normalized
+land surface temperature difference and NDVI difference using the dT parameter and a proportionality constant.
 
 More information on parameter design and model improvements using the FANO method can be found in Senay2023_. Additional SSEBop model algorithm theoretical basis documentation can be found `here <https://www.usgs.gov/media/files/landsat-4-9-collection-2-level-3-provisional-actual-evapotranspiration-algorithm>`__.
 
