@@ -135,7 +135,7 @@ class Image:
         self._date = ee.Date(self._time_start)
         self._year = ee.Number(self._date.get('year'))
         self._month = ee.Number(self._date.get('month'))
-        self._start_date = ee.Date(utils.date_0utc(self._date))
+        self._start_date = ee.Date(utils.date_0utc(self._date).millis())
         self._end_date = self._start_date.advance(1, 'day')
         self._doy = ee.Number(self._date.getRelative('day', 'year')).add(1).int()
 
@@ -651,7 +651,7 @@ class Image:
         """Return an image of the 0 UTC time (in milliseconds)"""
         return (
             self.mask
-            .double().multiply(0).add(utils.date_0utc(self._date))
+            .double().multiply(0).add(utils.date_0utc(self._date).millis())
             .rename(['time']).set(self._properties)
         )
 

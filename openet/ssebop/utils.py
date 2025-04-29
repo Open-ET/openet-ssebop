@@ -103,7 +103,7 @@ def date_0utc(date):
     ee.Number
 
     """
-    return ee.Date.fromYMD(date.get('year'), date.get('month'), date.get('day')).millis()
+    return ee.Date.fromYMD(date.get('year'), date.get('month'), date.get('day'))
 
 
 def is_number(x):

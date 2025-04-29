@@ -74,7 +74,7 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
     ]
 )
 def test_date_0utc(input, expected):
-    assert utils.getinfo(utils.date_0utc(ee.Date(input))) == expected
+    assert utils.getinfo(utils.date_0utc(ee.Date(input)).millis()) == expected
 
 
 @pytest.mark.parametrize(
