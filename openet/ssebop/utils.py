@@ -91,7 +91,7 @@ def c_to_k(image):
     return image.add(273.15)
 
 
-def date_to_time_0utc(date):
+def date_0utc(date):
     """Get the 0 UTC time_start for a date
 
     Parameters
@@ -104,9 +104,6 @@ def date_to_time_0utc(date):
 
     """
     return ee.Date.fromYMD(date.get('year'), date.get('month'), date.get('day')).millis()
-    # Extra operations are needed since update() does not set milliseconds to 0.
-    # return date.update(hour=0, minute=0, second=0).millis()\
-    #     .divide(1000).floor().multiply(1000)
 
 
 def is_number(x):

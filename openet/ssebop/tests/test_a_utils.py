@@ -73,8 +73,8 @@ def test_c_to_k(c=20, k=293.15, tol=0.000001):
         ['2015-07-13T00:00:00', 1436745600000],
     ]
 )
-def test_date_to_time_0utc(input, expected):
-    assert utils.getinfo(utils.date_to_time_0utc(ee.Date(input))) == expected
+def test_date_0utc(input, expected):
+    assert utils.getinfo(utils.date_0utc(ee.Date(input))) == expected
 
 
 @pytest.mark.parametrize(
