@@ -243,6 +243,8 @@ def from_scene_et_fraction(
                 .select(['eto'])
                 .map(doy_image)
             )
+        else:
+            raise ValueError(f'unsupported et_reference_date_type: {et_reference_date_type}')
     # elif isinstance(et_reference_source, computedobject.ComputedObject):
     #     # Interpret computed objects as image collections
     #     daily_et_ref_coll = (
@@ -421,7 +423,7 @@ def from_scene_et_fraction(
         # Count the number of interpolated/aggregated values
         # Mask pixels that do not have a full aggregation count for the start/end
         # Use "et" band so that count is a function of ET and reference ET
-        if ('et' in variables) or ('et_fraction' in variables):
+        if ('et' in variables) or ('et_fraction' in variables) or ('et_reference' in variables):
             aggregation_band = 'et'
         elif 'ndvi' in variables:
             aggregation_band = 'ndvi'
