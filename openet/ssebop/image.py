@@ -939,7 +939,7 @@ class Image:
         # Agricultural lands and grasslands and wetlands are 1, all others are 0
 
         # Create the masked ndvi for NDVI > 0.4
-        coarse_masked_ndvi = (
+        self.coarse_masked_ndvi = (
             ndvi_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
@@ -947,7 +947,7 @@ class Image:
         )
 
         # Same process for LST
-        lst_coarse_wmasked_high_ndvi = (
+        self.lst_coarse_wmasked_high_ndvi = (
             lst_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
@@ -959,7 +959,7 @@ class Image:
         ## =======================================================================================
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        Tc_fine = lst_fine_wmasked.expression(
+        self.Tc_fine = lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff,
@@ -970,37 +970,38 @@ class Image:
             }
         )
 
-        self.Tc_coarse_high_ndvi = lst_coarse_wmasked_high_ndvi.expression(
+        self.Tc_coarse_high_ndvi = self.lst_coarse_wmasked_high_ndvi.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff,
                 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': coarse_masked_ndvi,
+                'ndvi': self.coarse_masked_ndvi,
                 'dt': dt,
-                'lst': lst_coarse_wmasked_high_ndvi,
+                'lst': self.lst_coarse_wmasked_high_ndvi,
             }
         ).updateMask(1)
 
-        Tc_supercoarse_high_ndvi_scalar = (
-            Tc_fine
-            .reduceRegion(ee.Reducer.mean(), Tc_fine.geometry(), scale=240, bestEffort=True)
+        self.Tc_supercoarse_high_ndvi_scalar = (
+            self.Tc_fine
+            .reduceRegion(ee.Reducer.mean(), self.Tc_fine.geometry(), scale=240, bestEffort=True)
             .get('lst')
         )
 
         # take the scalar and place it into a well-functioning ee.Image(). This gives a scene-wide Tcold fallback.
-        self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(Tc_supercoarse_high_ndvi_scalar))
+        self.Tc_scene = ndvi.multiply(ee.Number(0)).add(ee.Number(self.Tc_supercoarse_high_ndvi_scalar))
+
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
         # Vegetated and High NDVI areas.
         vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(self.ag_landcover_mask)
 
         # For 120m Ag areas with enough NDVI, we run FANO at high res.
-        self.vegetated_tcorr = Tc_fine.updateMask(vegetated_mask)
+        self.vegetated_tcorr = self.Tc_fine.updateMask(vegetated_mask)
 
         # For all non-ag areas we run hot dry tcorr at 120m
         # this renaming doesn't DO anything, but is explanatory:
         # For hot dry envs, we use FANO at high resolution as-is.
-        self.hot_dry_tcorr = Tc_fine
+        self.hot_dry_tcorr = self.Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
 
@@ -1013,6 +1014,16 @@ class Image:
         )
 
         # Tcold with edge-cases handled.
+        self.final_tc = (
+            lst
+            .where(ndvi.gte(0), self.smooth_Tc_Layered)
+            .where(not_water_mask.Not(), lst)
+            .where(self.anomalous_landcover_mask.And(ndvi.lt(0)).And(self.gsw_max_mask.Not()), 250)
+            .reproject(self.crs, self.transform)
+            .updateMask(1)
+            .rename(['tcold'])
+            .set({'system:index': self._index, 'system:time_start': self._time_start})
+        )
         return (
             lst
             .where(ndvi.gte(0), self.smooth_Tc_Layered)
