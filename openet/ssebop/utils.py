@@ -92,7 +92,7 @@ def c_to_k(image):
 
 
 def date_0utc(date):
-    """Get the 0 UTC time_start for a date
+    """Get the 0 UTC date for a date
 
     Parameters
     ----------
@@ -100,7 +100,7 @@ def date_0utc(date):
 
     Returns
     -------
-    ee.Number
+    ee.Date
 
     """
     return ee.Date.fromYMD(date.get('year'), date.get('month'), date.get('day'))

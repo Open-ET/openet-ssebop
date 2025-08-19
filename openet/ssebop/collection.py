@@ -68,7 +68,6 @@ class Collection:
             Output variables can also be specified in the method calls.
         cloud_cover_max : float, str
             Maximum cloud cover percentage (the default is 70%).
-                - Landsat TOA: CLOUD_COVER_LAND
                 - Landsat SR: CLOUD_COVER_LAND
         et_reference_source : str, float, optional
             Reference ET source (the default is None).  Source must
@@ -328,6 +327,9 @@ class Collection:
 
                 variable_coll = variable_coll.merge(input_coll)
 
+            else:
+                raise ValueError(f'unsupported collection: {coll_id}')
+
         return variable_coll
 
     def overpass(self, variables=None):
@@ -366,7 +368,7 @@ class Collection:
             interp_days=32,
             use_joins=False,
             **kwargs
-            ):
+    ):
         """
 
         Parameters
@@ -509,9 +511,11 @@ class Collection:
                 )
         # elif isinstance(self.model_args['et_reference_source'], computedobject.ComputedObject):
         #     # Interpret computed objects as image collections
-        #     daily_et_ref_coll = self.model_args['et_reference_source']\
-        #         .filterDate(self.start_date, self.end_date)\
+        #     daily_et_ref_coll = (
+        #         self.model_args['et_reference_source']
+        #         .filterDate(self.start_date, self.end_date)
         #         .select([self.model_args['et_reference_band']])
+        #     )
         else:
             raise ValueError(
                 f'unsupported et_reference_source: {self.model_args["et_reference_source"]}'
@@ -670,9 +674,7 @@ class Collection:
                 image_list.append(et_reference_img.float())
             if 'et_fraction' in variables:
                 # Compute average et fraction over the aggregation period
-                image_list.append(
-                    et_img.divide(et_reference_img).rename(['et_fraction']).float()
-                )
+                image_list.append(et_img.divide(et_reference_img).rename(['et_fraction']).float())
             if 'ndvi' in variables:
                 # Compute average ndvi over the aggregation period
                 ndvi_img = (

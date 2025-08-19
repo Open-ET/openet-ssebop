@@ -334,7 +334,7 @@ class Image:
 
     @lazy_property
     def et(self):
-        """Actual ET as fraction of reference times"""
+        """Actual ET as fraction of reference times reference ET"""
         return self.et_fraction.multiply(self.et_reference)\
             .rename(['et']).set(self._properties)
 
