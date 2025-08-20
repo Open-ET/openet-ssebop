@@ -314,7 +314,7 @@ def test_Image_dt_source_exception():
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 0],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', TEST_POINT, 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
@@ -349,7 +349,7 @@ def test_Image_ag_landcover_source_exception(lc_source):
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 0],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 1],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', [-118.5, 36.0], 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', [-118.5, 36.0], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-118.5, 36.0], 1],
@@ -367,7 +367,7 @@ def test_Image_anomalous_landcover_mask_source_values(lc_source, xy, expected):
     [
         # Test point is an agricultural area in Canada
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-110.95, 49.53], 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V0', [-110.95, 49.53], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', [-110.95, 49.53], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-110.95, 49.53], 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-110.95, 49.53], 1],
     ]
