@@ -1,14 +1,17 @@
 [project]
 name = "openet-ssebop"
 version = "0.7.1"
+
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
     { name = "Gabriel Senay", email = "senay@usgs.gov" },
 ]
+
 maintainers = [
     { name = "Charles Morton", email = "charles.morton@dri.edu" }
 ]
+
 description = "Earth Engine implementation of the SSEBop model"
 readme = "README.rst"
 requires-python = ">=3.9"
@@ -20,6 +23,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
+
 dependencies = [
     "earthengine-api >= 1.5.2",
     "openet-core >= 0.7.0",
@@ -40,4 +44,3 @@ test = ["pytest"]
 [tool.setuptools.packages.find]
 # include = ["openet*"]
 exclude = ["docs*", "examples*", "assets*", "build*", "dist*", "*.egg-info*"]
-

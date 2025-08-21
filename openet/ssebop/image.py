@@ -919,13 +919,13 @@ class Image:
 
         # -------- Fine NDVI and LST (watermasked always)-------------
         # Fine resolution Tcorr for areas that are natively high NDVI and hot-dry landcovers (not ag)
-        ndvi_fine_wmasked = (
+        self.ndvi_fine_wmasked = (
             ndvi_masked
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
             .updateMask(1)
         )
-        lst_fine_wmasked = (
+        self.lst_fine_wmasked = (
             lst_masked
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_fine)
             .reproject(self.crs, fine_transform)
@@ -940,7 +940,7 @@ class Image:
 
         # Create the masked ndvi for NDVI > 0.4
         self.coarse_masked_ndvi = (
-            ndvi_fine_wmasked
+            self.ndvi_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
@@ -948,7 +948,7 @@ class Image:
 
         # Same process for LST
         self.lst_coarse_wmasked_high_ndvi = (
-            lst_fine_wmasked
+            self.lst_fine_wmasked
             .updateMask(ndvi_masked.gte(0.4).And(self.ag_landcover_mask))
             .reduceResolution(ee.Reducer.mean(), True, m_pixels_coarse)
             .reproject(self.crs, self.coarse_transform)
@@ -959,14 +959,14 @@ class Image:
         ## =======================================================================================
 
         # FANO expression as a function of dT, calculated at the coarse resolution(s)
-        self.Tc_fine = lst_fine_wmasked.expression(
+        self.Tc_fine = self.lst_fine_wmasked.expression(
             '(lst - (dt_coeff * dt * (ndvi_threshold - ndvi) * 10))',
             {
                 'dt_coeff': dt_coeff,
                 'ndvi_threshold': high_ndvi_threshold,
-                'ndvi': ndvi_fine_wmasked,
+                'ndvi': self.ndvi_fine_wmasked,
                 'dt': dt,
-                'lst': lst_fine_wmasked,
+                'lst': self.lst_fine_wmasked,
             }
         )
 
@@ -993,7 +993,7 @@ class Image:
 
         # /////////////////////////// LANDCOVER MASKS /////////////////////////////////
         # Vegetated and High NDVI areas.
-        vegetated_mask = ndvi_fine_wmasked.gte(0.4).And(self.ag_landcover_mask)
+        vegetated_mask = self.ndvi_fine_wmasked.gte(0.4).And(self.ag_landcover_mask)
 
         # For 120m Ag areas with enough NDVI, we run FANO at high res.
         self.vegetated_tcorr = self.Tc_fine.updateMask(vegetated_mask)
