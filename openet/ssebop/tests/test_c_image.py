@@ -566,9 +566,11 @@ def test_Image_from_method_kwargs():
 @pytest.mark.parametrize(
     'tcold_src, image_id, xy, expected',
     [
-        # Old FANO Tcorr: 0.9785567103858176
-        ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 303.4515201604769],
-        ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 303.4515201604769],
+        ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 302.9531086729748],
+        ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 302.9531086729748],
+        # Old approach without smoothing
+        # ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 303.4515201604769],
+        # ['FANO', 'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713', SCENE_POINT, 303.4515201604769],
     ]
 )
 def test_Image_tcold_fano_source(tcold_src, image_id, xy, expected, tol=0.000001):
