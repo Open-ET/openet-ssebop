@@ -1005,7 +1005,6 @@ class Image:
         self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
-
         # downscaling to 90 and smoothing with a 5x5 Tc where we make use of landcovers
         self.smooth_Tc_Layered = (
             self.tc_layered
@@ -1013,6 +1012,7 @@ class Image:
             .focalMean(5, 'square', 'pixels')
             .rename('lst')
         )
+
 
         # Tcold with edge-cases handled.
         return (
