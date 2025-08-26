@@ -884,8 +884,10 @@ class Image:
         ee.Image of Tcold values
 
         """
+        gridsize_smooth = 90
         gridsize_fine = 240
         gridsize_coarse = 4800
+        smooth_transform = [gridsize_smooth, 0, 15, 0, -gridsize_smooth, 15]
         fine_transform = [gridsize_fine, 0, 15, 0, -gridsize_fine, 15]
         self.coarse_transform = [gridsize_coarse, 0, 15, 0, -gridsize_coarse, 15]
         dt_coeff = 0.125
@@ -1003,14 +1005,14 @@ class Image:
         self.hot_dry_tcorr = Tc_fine
 
         ## ---------- Smoothing the FANO for Ag together starting with mixed landscape -------
-
-        # 1 pixel of smoothing to the main Tc where we make use of landcovers
+        # downscaling to 90 and smoothing with a 5x5 Tc where we make use of landcovers
         self.smooth_Tc_Layered = (
             self.tc_layered
-            .focalMean(1, 'square', 'pixels')
-            .reproject(self.crs, fine_transform)
+            .reproject(self.crs, smooth_transform)
+            .focalMean(5, 'square', 'pixels')
             .rename('lst')
         )
+
 
         # Tcold with edge-cases handled.
         return (
