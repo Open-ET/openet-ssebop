@@ -524,12 +524,14 @@ class Image:
         else:
             raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
 
+        # TODO - if ___: statement to catch if there is a custom override ag/landcover mask provided by a power-user
         # update the mask with the global static agmask...Already binary (1-ag-range-wet/masked-other)
         global_agwet_mask = ee.Image('projects/usgs-gee-eros-water/assets/ssebop/ancillary/agwet_mask_v2_30perc_usnm')
-
-        # TODO: if statement to catch if there is a custom override ag/landcover mask provided by a power-user
-        return ag_landcover_img.updateMask(global_agwet_mask).rename('ag_landcover_mask')
-        # # TODO: else:
+        # merge global agwet with agwet_mask band to make the image cover the globe
+        global_agwet_img = ag_landcover_img.addBands([global_agwet_mask]).reduce(ee.Reducer.firstNonNull())
+        # return the full image masked and rename
+        return global_agwet_img.rename('ag_landcover_mask')
+        # # TODO - else:
             # return ag_landcover_img.rename('ag_landcover_mask')
 
     @lazy_property
