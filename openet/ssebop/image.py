@@ -524,6 +524,11 @@ class Image:
         else:
             raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
 
+        # update the mask with the global static agmask...
+        global_agwet_mask = ee.Image('projects/usgs-gee-eros-water/assets/ssebop/ancillary/agwet_mask_v2_30perc_usnm')
+        # TODO: if statement to catch if there is a custom override image
+            #return ag_landcover_img.updateMask(global_agwet_mask).rename('ag_landcover_mask')
+        # TODO: else:
         return ag_landcover_img.rename('ag_landcover_mask')
 
     @lazy_property
