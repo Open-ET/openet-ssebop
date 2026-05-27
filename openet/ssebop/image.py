@@ -42,15 +42,13 @@ class Image:
             image,
             et_reference_source=None,
             et_reference_band=None,
-            et_reference_factor=None,
             et_reference_resample=None,
             et_reference_date_type=None,
-            dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7',
             tcold_source='FANO',
-            et_fraction_type='alfalfa',
-            et_fraction_grass_source=None,
-            lst_source=None,
+            dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7',
             lc_source='USGS/NLCD_RELEASES/2020_REL/NALCMS',
+            et_fraction_type='alfalfa',
+            lst_source=None,
             **kwargs,
     ):
         """Construct a generic SSEBop Image
@@ -67,9 +65,6 @@ class Image:
         et_reference_band : str, optional
             Reference ET band name (the default is None).
             Parameter is required if computing 'et' or 'et_reference'.
-        et_reference_factor : float, None, optional
-            Reference ET scaling factor.  The default is None which is
-            equivalent to 1.0 (or no scaling).
         et_reference_resample : {'nearest', 'bilinear', 'bicubic', None}, optional
             Reference ET resampling.  The default is None which is equivalent
             to nearest neighbor resampling.
@@ -79,27 +74,48 @@ class Image:
         tcold_source : 'FANO' or float, optional
             Tcold source keyword.  The default is 'FANO' which will compute Tcold
             using the 'Forcing And Normalizing Operation' process.
-        et_fraction_type : {'alfalfa', 'grass'}, optional
-            ET fraction reference type.  The default is 'alfalfa'.
-            If set to "grass", the et_fraction_grass_source parameter must also be set.
-        et_fraction_grass_source : {'NASA/NLDAS/FORA0125_H002',
-                                    'ECMWF/ERA5_LAND/HOURLY'}, float, optional
-            Reference ET source for alfalfa to grass reference adjustment.
-            Parameter must be set if et_fraction_type is 'grass'.
-            The default is currently the NLDAS hourly collection,
-            but having a default will likely be removed in a future version.
-        lst_source : str, optional
-            Land surface temperature source image collection ID.
-            CGM - Add text detailing any properties, image names, band names, etc
-              that are required for the source image collection
         lc_source : {'USGS/NLCD_RELEASES/2020_REL/NALCMS',
                      'USGS/NLCD_RELEASES/2021_REL/NLCD',
                      'USGS/NLCD_RELEASES/2021_REL/NLCD/2021',
                      'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER'},
                      optional
             Landcover source image ID or image collection ID.
+            Custom landcover sources can be used by setting the additional "lc_"
+            keyword arguments listed below.
+        et_fraction_type : {'alfalfa', 'grass'}, optional
+            ET fraction reference type.  The default is 'alfalfa'.
+            If set to a "grass" type, some or all of the "et_fraction_type_adjust_"
+            keyword arguments listed below must also be set.
+        lst_source : str, optional
+            Land surface temperature source image collection ID.
+            CGM - Add text detailing any properties, image names, band names, etc
+              that are required for the source image collection
         kwargs : dict, optional
-            dt_resample : {'nearest', 'bilinear'}
+            dt_resample : {'bilinear', 'nearest'}, optional
+                Resampling method to apply to dT source.  The default is 'bilinear'.
+            et_reference_factor : float, None, optional
+                Reference ET scaling factor.  The default is None which is
+                equivalent to 1.0 (or no scaling).
+            lc_source_band : str
+                Band in the custom landcover source containing landcover class values.
+            lc_ag_classes : list of ints
+                Agricultural landcover classes.
+            lc_anom_classes : list of ints
+                Anomalous (barren, shrubland, urban, etc.) landcover classes.
+            et_fraction_type_adjust_source : str or float
+                Hourly meteorology collection that will be used to convert the
+                output ET fraction values from an alfalfa to grass reference ET type.
+                Parameter must be set if et_fraction_type is set to 'grass'.
+                If source is not "NASA/NLDAS/FORA0125_H002" or "ECMWF/ERA5_LAND/HOURLY",
+                the alfalfa and grass reference ET bands will need to be set explicitly.
+            et_fraction_type_adjust_eto_band : str
+                Band in the et_fraction_type_adjust_source collection containing
+                the "grass" reference ET that will be used to convert the output
+                ET fraction values from an alfalfa to grass reference ET type.
+            et_fraction_type_adjust_etr_band : str
+                Band in the et_fraction_type_adjust_source collection containing
+                the "alfalfa" reference ET that will be used to convert the output
+                ET fraction values from an alfalfa to grass reference ET type.
 
         Notes
         -----
@@ -142,23 +158,33 @@ class Image:
         # Reference ET parameters
         self.et_reference_source = et_reference_source
         self.et_reference_band = et_reference_band
-        self.et_reference_factor = et_reference_factor
         self.et_reference_resample = et_reference_resample
         self.et_reference_date_type = et_reference_date_type
+        if 'et_reference_factor' in kwargs.keys():
+            self.et_reference_factor = kwargs['et_reference_factor']
+        else:
+            self.et_reference_factor = None
 
         # Check reference ET parameters
-        if et_reference_factor and not utils.is_number(et_reference_factor):
+        if self.et_reference_factor and not utils.is_number(self.et_reference_factor):
             raise ValueError('et_reference_factor must be a number')
-        if et_reference_factor and (self.et_reference_factor < 0):
+        if self.et_reference_factor and (self.et_reference_factor < 0):
             raise ValueError('et_reference_factor must be greater than zero')
+
         et_reference_resample_methods = ['nearest', 'bilinear', 'bicubic']
-        if (et_reference_resample and
-                (et_reference_resample.lower() not in et_reference_resample_methods)):
+        if (self.et_reference_resample and
+                (self.et_reference_resample.lower() not in et_reference_resample_methods)):
             raise ValueError('unsupported et_reference_resample method')
+
         et_reference_date_type_methods = ['doy', 'daily']
-        if (et_reference_date_type and
-                (et_reference_date_type.lower() not in et_reference_date_type_methods)):
+        if (self.et_reference_date_type and
+                (self.et_reference_date_type.lower() not in et_reference_date_type_methods)):
             raise ValueError('unsupported et_reference_date_type method')
+
+        # ET fraction type
+        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
+            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
+        self.et_fraction_type = et_fraction_type.lower()
 
         # Model input parameters
         self._dt_source = dt_source
@@ -166,35 +192,9 @@ class Image:
         self._lst_source = lst_source
         self._lc_source = lc_source
 
-        # ET fraction type
-        if et_fraction_type.lower() not in ['alfalfa', 'grass']:
-            raise ValueError('et_fraction_type must "alfalfa" or "grass"')
-        self.et_fraction_type = et_fraction_type.lower()
-
-        # ET fraction alfalfa to grass reference adjustment
-        # The NLDAS hourly collection will be used if a source value is not set
-        if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
-            warnings.warn(
-                'NLDAS is being set as the default ET fraction grass adjustment source.  '
-                'In a future version the parameter will need to be set explicitly as: '
-                'et_fraction_grass_source="NASA/NLDAS/FORA0125_H002".',
-                FutureWarning
-            )
-            et_fraction_grass_source = 'NASA/NLDAS/FORA0125_H002'
-        self.et_fraction_grass_source = et_fraction_grass_source
-        # if self.et_fraction_type.lower() == 'grass' and not et_fraction_grass_source:
-        #     raise ValueError(
-        #         'et_fraction_grass_source parameter must be set if et_fraction_type==\'grass\''
-        #     )
-        # # Should the supported source values be checked here instead of in model.py?
-        # if et_fraction_grass_source not in et_fraction_grass_sources:
-        #     raise ValueError('unsupported et_fraction_grass_source')
-
         # Image projection and geotransform
         self.crs = image.projection().crs()
-        self.transform = ee.List(
-            ee.Dictionary(ee.Algorithms.Describe(image.projection())).get('transform')
-        )
+        self.transform = ee.List(ee.Dictionary(ee.Algorithms.Describe(image.projection())).get('transform'))
         # self.crs = image.select([0]).projection().getInfo()['crs']
         # self.transform = image.select([0]).projection().getInfo()['transform']
 
@@ -208,6 +208,27 @@ class Image:
             self._dt_resample = kwargs['dt_resample'].lower()
         else:
             self._dt_resample = 'bilinear'
+
+        # ET fraction alfalfa to grass reference adjustment parameters
+        if 'et_fraction_type_adjust_source' in kwargs.keys():
+            self.etf_type_adjust_source = kwargs['et_fraction_type_adjust_source']
+        else:
+            self.etf_type_adjust_source = None
+
+        if (self.et_fraction_type.lower() == 'grass') and not self.etf_type_adjust_source:
+            raise ValueError(
+                'et_fraction_type_adjust_source parameter must be set if et_fraction_type==\'grass\''
+            )
+
+        if 'et_fraction_type_adjust_eto_band' in kwargs.keys():
+            self.etf_type_adjust_eto_band = kwargs['et_fraction_type_adjust_eto_band']
+        else:
+            self.etf_type_adjust_eto_band = None
+
+        if 'et_fraction_type_adjust_etr_band' in kwargs.keys():
+            self.etf_type_adjust_etr_band = kwargs['et_fraction_type_adjust_etr_band']
+        else:
+            self.etf_type_adjust_etr_band = None
 
     def calculate(self, variables=['et', 'et_reference', 'et_fraction']):
         """Return a multiband image of calculated variables
@@ -257,18 +278,22 @@ class Image:
         et_fraction = model.et_fraction(lst=self.lst, tcold=self.tcold, dt=dt)
 
         # Convert the ET fraction to a grass reference fraction
-        if self.et_fraction_type.lower() == 'grass' and self.et_fraction_grass_source:
-            if utils.is_number(self.et_fraction_grass_source):
-                et_fraction = et_fraction.multiply(self.et_fraction_grass_source)
+        if (self.et_fraction_type.lower() == 'grass') and self.etf_type_adjust_source:
+            if utils.is_number(self.etf_type_adjust_source):
+                et_fraction = et_fraction.multiply(self.etf_type_adjust_source)
             else:
                 et_fraction = model.etf_grass_type_adjust(
                     etf=et_fraction,
-                    src_coll_id=self.et_fraction_grass_source,
                     time_start=self._time_start,
+                    coll_id=self.etf_type_adjust_source,
+                    eto_band=self.etf_type_adjust_eto_band,
+                    etr_band=self.etf_type_adjust_etr_band,
                 )
 
-        return et_fraction.set(self._properties)\
+        return (
+            et_fraction.set(self._properties)
             .set({'et_fraction_type': self.et_fraction_type.lower()})
+        )
 
     @lazy_property
     def et_reference(self):
@@ -296,9 +321,7 @@ class Image:
                     .select([self.et_reference_band])
                 )
             else:
-                raise ValueError(
-                    f'unsupported et_reference_date_type: {self.et_reference_date_type}'
-                )
+                raise ValueError(f'unsupported et_reference_date_type: {self.et_reference_date_type}')
 
             et_reference_img = ee.Image(et_reference_coll.first())
             if self.et_reference_resample in ['bilinear', 'bicubic']:
@@ -335,8 +358,7 @@ class Image:
     @lazy_property
     def et(self):
         """Actual ET as fraction of reference times reference ET"""
-        return self.et_fraction.multiply(self.et_reference)\
-            .rename(['et']).set(self._properties)
+        return self.et_fraction.multiply(self.et_reference).rename(['et']).set(self._properties)
 
     @lazy_property
     def lst(self):
@@ -391,7 +413,7 @@ class Image:
         # TODO: Consider adding support for setting lst_source with a computed object
         #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
         # elif isinstance(self._lst_source, ee.computedobject.ComputedObject):
-        #     lst_img = self.lst_source
+        #     lst_img = self._lst_source
 
         return lst_img.set(self._properties)
 
@@ -456,43 +478,56 @@ class Image:
         )
 
     @lazy_property
-    def ag_landcover_mask(self):
-        """Mask of pixels that are agriculture, grassland, or wetland for Tcorr FANO calculation """
-        ag_remap = {
-            'nalcms': {
-                9: 'Tropical or sub-tropical grassland',
-                10: 'Temperate or sub-polar grassland',
-                12: 'Sub-polar or polar grassland-lichen-moss',
-                14: 'Wetland',
-                15: 'Cropland',
-            },
-            'nlcd': {
-                21: 'Developed, Open Space',
-                22: 'Developed, Low Intensity',
-                71: 'Grassland/Herbaceous',
-                81: 'Pasture/Hay',
-                82: 'Cultivated Crops',
-                90: 'Woody Wetlands',
-                95: 'Emergent Herbaceous Wetlands',
-            }
-        }
+    def landcover(self):
+        """Generic Landcover used for Tcorr FANO calculation"""
 
         # Use the North America Land Cover Monitoring System as the fallback image
-        #   with the year specific NLCD images on top
+        #   if the landcover source is set to anything NLCD like
         # Long term this could be combined or replaced with a global land cover dataset
-        nalcms_img = (
-            ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
-            .remap(list(ag_remap['nalcms'].keys()), [1] * len(ag_remap['nalcms'].keys()), 0)
-        )
+        # The NALCMS values are being remapped to NLCD values to simplify merging
+        # Some of the "polar" classes should probably be switched to 73 or 74
+        #   but shouldn't matter for SSEBop applications
+        nalcms_img = ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
+        nalcms_nlcd_remap = [
+            [1, 42],   # Temperate or sub-polar needleleaf forest
+            [2, 42],   # Sub-polar taiga needleleaf forest
+            [3, 42],   # Tropical or sub-tropical broadleaf evergreen forest
+            [4, 41],   # Tropical or sub-tropical broadleaf deciduous forest
+            [5, 41],   # Temperate or sub-polar broadleaf deciduous forest
+            [6, 43],   # Mixed forest
+            [7, 52],   # Tropical or sub-tropical shrubland
+            [8, 52],   # Temperate or sub-polar shrubland
+            [9, 71],   # Tropical or sub-tropical grassland
+            [10, 71],  # Temperate or sub-polar grassland
+            [11, 51],  # Sub-polar or polar shrubland-lichen-moss
+            [12, 71],  # Sub-polar or polar grassland-lichen-moss
+            [13, 31],  # Sub-polar or polar barren-lichen-moss
+            [14, 95],  # Wetland
+            [15, 82],  # Cropland
+            [16, 31],  # Barren lands
+            [17, 23],  # Urban and built-up
+            [18, 11],  # Water
+            [19, 12],  # Snow and ice
+        ]
+        nalcms_nlcd_remap = list(zip(*nalcms_nlcd_remap))
+        nalcms_nlcd_img = nalcms_img.remap(nalcms_nlcd_remap[0], nalcms_nlcd_remap[1])
+
+        # Defining these here for now, but it might make more sense to set in the
+        #   separate ag and anom methods based on a type string
+        nlcd_ag_classes = [21, 22, 71, 81, 82, 90, 95]
+        nlcd_anom_classes = [23, 24, 31, 52]
 
         if utils.is_number(self._lc_source):
-            ag_landcover_img = ee.Image.constant(float(self._lc_source))
+            landcover_img = ee.Image.constant(float(self._lc_source))
+            self.lc_classes = 'constant'
         elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            ag_landcover_img = nalcms_img
+            landcover_img = nalcms_nlcd_img
+            self.lc_ag_classes = nlcd_ag_classes
+            self.lc_anom_classes = nlcd_anom_classes
         elif self._lc_source in [
-                'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
-                'USGS/NLCD_RELEASES/2021_REL/NLCD',
-                'USGS/NLCD_RELEASES/2019_REL/NLCD',
+            'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
+            'USGS/NLCD_RELEASES/2021_REL/NLCD',
+            'USGS/NLCD_RELEASES/2019_REL/NLCD',
         ]:
             # Assume the source is the Image Collection ID
             # Assume first band is the landcover band
@@ -505,96 +540,73 @@ class Image:
             )
             lc_date = ee.Date.fromYMD(lc_year, 1, 1)
             lc_img = (
-                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year'))
-                .first().select([0])
-                .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
+                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year')).first()
+                .select([0])
                 .set({'NLCD_YEAR': lc_year})
             )
-            ag_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
+            landcover_img = lc_img.addBands([nalcms_nlcd_img]).reduce(ee.Reducer.firstNonNull())
+            self.lc_ag_classes = nlcd_ag_classes
+            self.lc_anom_classes = nlcd_anom_classes
         elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
               self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
-            # Assume the source is an NLCD like image ID
-            # Assume first band is the landcover band
-            lc_img = (
+            # Assume the source is an NLCD like image ID and the first band is the landcover band
+            landcover_img = (
                 ee.Image(self._lc_source).select([0])
-                .remap(list(ag_remap['nlcd'].keys()), [1] * len(ag_remap['nlcd'].keys()), 0)
+                .addBands([nalcms_nlcd_img])
+                .reduce(ee.Reducer.firstNonNull())
             )
-            ag_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
+            self.lc_ag_classes = nlcd_ag_classes
+            self.lc_anom_classes = nlcd_anom_classes
+        elif self._lc_source:
+            # Assume the source is a custom land cover image and all necessary
+            #   parameters are available in the kwargs (and are valid)
+            # Default to the first band in the image if the source band is not set
+            if 'lc_source_band' in self.kwargs.keys() and self.kwargs['lc_source_band']:
+                lc_source_band = self.kwargs['lc_source_band']
+            else:
+                lc_source_band = 0
+            landcover_img = ee.Image(self._lc_source).select([lc_source_band])
+            # TODO: Add checks for the remap lists
+            self.lc_ag_classes = self.kwargs['lc_ag_classes']
+            self.lc_anom_classes = self.kwargs['lc_anom_classes']
         else:
-            raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
+            raise ValueError(f'lc_source not set or unsupported\n')
 
-        return ag_landcover_img.rename('ag_landcover_mask')
+        return landcover_img.rename('landcover')
+
+    @lazy_property
+    def ag_landcover_mask(self):
+        """Mask of pixels that are agriculture, grassland, or wetland for Tcorr FANO calculation """
+        # 'nlcd': {
+        #     21: 'Developed, Open Space',
+        #     22: 'Developed, Low Intensity',
+        #     71: 'Grassland/Herbaceous',
+        #     81: 'Pasture/Hay',
+        #     82: 'Cultivated Crops',
+        #     90: 'Woody Wetlands',
+        #     95: 'Emergent Herbaceous Wetlands',
+        # }
+        return (
+            self.landcover
+            .remap(self.lc_ag_classes, [1] * len(self.lc_ag_classes), 0)
+            .rename('ag_landcover_mask')
+        )
 
     @lazy_property
     def anomalous_landcover_mask(self):
         """Mask of pixels that are barren, shrubland, or developed for Tcorr FANO calculation"""
-        anom_remap = {
-            'nalcms': {
-                7: 'Tropical or sub-tropical shrubland',
-                8: 'Temperate or sub-polar shrubland',
-                16: 'Barren land',
-                17: 'Urban and built-up',
-            },
-            'nlcd': {
-                23: 'Developed, Medium Intensity',
-                24: 'Developed, High Intensity',
-                31: 'Barren Land',
-                52: 'Shrub/Scrub',
-            }
-        }
-
-        # Use the North America Land Cover Monitoring System as the fallback image
-        #   with the year specific NLCD images on top
-        # Long term this could be combined or replaced with a global land cover dataset
-        nalcms_img = (
-            ee.Image('USGS/NLCD_RELEASES/2020_REL/NALCMS')
-            .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
+        # 'nlcd': {
+        #     23: 'Developed, Medium Intensity',
+        #     24: 'Developed, High Intensity',
+        #     31: 'Barren Land',
+        #     52: 'Shrub/Scrub',
+        # }
+        return (
+            self.landcover
+            .remap(self.lc_anom_classes, [1] * len(self.lc_anom_classes), 0)
+            .rename('anom_landcover_mask')
         )
-
-        if utils.is_number(self._lc_source):
-            anom_landcover_img = ee.Image.constant(float(self._lc_source))
-        elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
-            anom_landcover_img = (
-                ee.Image(self._lc_source)
-                .remap(list(anom_remap['nalcms'].keys()), [1] * len(anom_remap['nalcms'].keys()), 0)
-            )
-        elif self._lc_source in [
-                'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
-                'USGS/NLCD_RELEASES/2021_REL/NLCD',
-                'USGS/NLCD_RELEASES/2019_REL/NLCD',
-        ]:
-            # Assume the source is the Image Collection ID
-            # Assume first band is the landcover band
-            # Select the closest image in time to the target scene
-            lc_coll = ee.ImageCollection(self._lc_source)
-            lc_year = (
-                ee.Number(self._year)
-                .max(ee.Date(lc_coll.aggregate_min('system:time_start')).get('year'))
-                .min(ee.Date(lc_coll.aggregate_max('system:time_start')).get('year'))
-            )
-            lc_date = ee.Date.fromYMD(lc_year, 1, 1)
-            lc_img = (
-                lc_coll.filterDate(lc_date, lc_date.advance(1, 'year'))
-                .first().select([0])
-                .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
-                .set({'NLCD_YEAR': lc_year})
-            )
-            anom_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
-        elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
-              self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
-              self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
-            # Assume the source is an NLCD like image ID
-            # Assume first band is the landcover band
-            lc_img = (
-                ee.Image(self._lc_source).select([0])
-                .remap(list(anom_remap['nlcd'].keys()), [1] * len(anom_remap['nlcd'].keys()), 0)
-            )
-            anom_landcover_img = lc_img.addBands([nalcms_img]).reduce(ee.Reducer.firstNonNull())
-        else:
-            raise ValueError(f'Unsupported lc_source: {self._lc_source}\n')
-
-        return anom_landcover_img.rename('anomalous_landcover_mask')
 
     @lazy_property
     def mixed_landscape_tcold_smooth(self):
@@ -829,6 +841,10 @@ class Image:
             cloudmask_args['cloud_score_flag'] = False
         if 'cloud_score_pct' not in cloudmask_args.keys():
             cloudmask_args['cloud_score_pct'] = 100
+        if 'buffer_flag' not in cloudmask_args.keys():
+            cloudmask_args['buffer_flag'] = False
+        if 'buffer_pixels' not in cloudmask_args.keys():
+            cloudmask_args['buffer_pixels'] = 10
         if 'filter_flag' not in cloudmask_args.keys():
             cloudmask_args['filter_flag'] = False
         if 'saturated_flag' not in cloudmask_args.keys():

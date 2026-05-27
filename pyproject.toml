@@ -1,6 +1,6 @@
 [project]
 name = "openet-ssebop"
-version = "0.7.1"
+version = "0.8.0"
 authors = [
     { name = "Gabe Parrish", email = "gparrish@contractor.usgs.gov" },
     { name = "Mac Friedrichs", email = "mfriedrichs@contractor.usgs.gov" },
@@ -22,7 +22,7 @@ classifiers = [
 dependencies = [
     "earthengine-api >= 1.5.2",
     "openet-core >= 0.7.0",
-    "openet-refet-gee >= 0.6.2",
+    "openet-refet-gee >= 0.7.1",
     "python-dateutil",
 ]
 
@@ -39,4 +39,3 @@ test = ["pytest"]
 [tool.setuptools.packages.find]
 # include = ["openet*"]
 exclude = ["docs*", "examples*", "assets*", "build*", "dist*", "*.egg-info*"]
-

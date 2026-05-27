@@ -161,19 +161,43 @@ def test_Model_etf_grass_type_adjust_parameters():
         .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
     )
     output = model.etf_grass_type_adjust(
-        etf=etf_img, src_coll_id='NASA/NLDAS/FORA0125_H002',
-        time_start=SCENE_TIME, resample_method='bilinear',
+        etf=etf_img,
+        time_start=SCENE_TIME,
+        coll_id='NASA/NLDAS/FORA0125_H002',
+        resample_method='bilinear',
     )
     assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
 
     output = model.etf_grass_type_adjust(
-        etf_img, 'NASA/NLDAS/FORA0125_H002', SCENE_TIME, 'bilinear'
+        etf_img, SCENE_TIME, 'NASA/NLDAS/FORA0125_H002', 'bilinear'
     )
     assert utils.point_image_value(output, SCENE_POINT, scale=100)['et_fraction'] > 1
 
 
 @pytest.mark.parametrize(
-    'src_coll_id, resample_method, expected',
+    'coll_id, expected',
+    [
+        ['NASA/NLDAS/FORA0125_H002', 1.232],
+        ['NLDAS2', 1.232],
+        ['NLDAS-2', 1.232],
+        ['ECMWF/ERA5_LAND/HOURLY', 1.156],
+        ['ERA5LAND', 1.156],
+        ['ERA5_LAND', 1.156],
+    ]
+)
+def test_Model_etf_grass_type_adjust(coll_id, expected, tol=0.001):
+    """Check alfalfa to grass reference adjustment factor"""
+    etf_img = (
+        ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
+        .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
+    )
+    output = model.etf_grass_type_adjust( etf=etf_img, time_start=SCENE_TIME, coll_id=coll_id)
+    output = utils.point_image_value(output, SCENE_POINT, scale=100)
+    assert abs(output['et_fraction'] - expected) <= tol
+
+
+@pytest.mark.parametrize(
+    'coll_id, resample_method, expected',
     [
         ['NASA/NLDAS/FORA0125_H002', 'nearest', 1.228],
         ['NASA/NLDAS/FORA0125_H002', 'bilinear', 1.232],
@@ -181,25 +205,61 @@ def test_Model_etf_grass_type_adjust_parameters():
         ['ECMWF/ERA5_LAND/HOURLY', 'bilinear', 1.156],
     ]
 )
-def test_Model_etf_grass_type_adjust(src_coll_id, resample_method, expected, tol=0.001):
-    """Check alfalfa to grass reference adjustment factor"""
+def test_Model_etf_grass_type_adjust_resample(coll_id, resample_method, expected, tol=0.001):
+    """Check if resampling changes values of grass adjustment factors"""
     etf_img = (
         ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
         .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
     )
     output = model.etf_grass_type_adjust(
-        etf=etf_img, src_coll_id=src_coll_id, time_start=SCENE_TIME,
-        resample_method=resample_method
+        etf=etf_img, time_start=SCENE_TIME, coll_id=coll_id, resample_method=resample_method
     )
     output = utils.point_image_value(output, SCENE_POINT, scale=100)
     assert abs(output['et_fraction'] - expected) <= tol
 
 
-def test_Model_etf_grass_type_adjust_src_coll_id_exception():
-    """Function should raise an exception for unsupported src_coll_id values"""
+@pytest.mark.parametrize(
+    'coll_id, eto_band, etr_band, expected',
+    [
+        ['projects/openet/assets/meteorology/urma/hawaii/hourly', 'ETO_TCDC', 'ETR_TCDC', 11],
+    ]
+)
+def test_Model_etf_grass_type_adjust_custom(coll_id, eto_band, etr_band, expected, tol=0.001):
+    """Check if custom source collections work for grass adjustment"""
+    scene_time = ee.Date('2024-06-13').millis().getInfo()
+    print(scene_time)
+    etf_img = (
+        ee.Image(f'LANDSAT/LC08/C02/T1_L2/LC08_064045_20240613').select([0]).multiply(0).add(1.0)
+        .rename(['et_fraction']).set('system:time_start', scene_time)
+    )
+    etf = utils.point_image_value(etf_img, (-156.9, 20.9), scale=100)
+    print(etf)
+    output = model.etf_grass_type_adjust(
+        etf=etf_img, time_start=scene_time, coll_id=coll_id, eto_band=eto_band, etr_band=etr_band
+    )
+    output = utils.point_image_value(output, (-156.9, 20.9), scale=100)
+    print(output)
+    assert False
+    # assert abs(output['et_fraction'] - expected) <= tol
+
+
+def test_Model_etf_grass_type_adjust_custom():
+    """Check that band names must be set for custom source collections"""
+    with pytest.raises(ValueError):
+        etf_img = (
+            ee.Image(f'{COLL_ID}/{SCENE_ID}').select([0]).multiply(0).add(1.0)
+            .rename(['et_fraction']).set('system:time_start', SCENE_TIME)
+        )
+        output = model.etf_grass_type_adjust(
+            etf=etf_img, time_start=SCENE_TIME,
+            coll_id='projects/openet/assets/meteorology/urma/hawaii/hourly'
+        )
+        utils.point_image_value(output, SCENE_POINT, scale=100)
+
+
+def test_Model_etf_grass_type_convert_coll_id_exception():
+    """Function should raise an exception for unsupported coll_id values"""
     with pytest.raises(ValueError):
         utils.getinfo(model.etf_grass_type_adjust(
-            etf=ee.Image.constant(1), src_coll_id='DEADBEEF', time_start=SCENE_TIME
+            etf=ee.Image.constant(1), time_start=SCENE_TIME, coll_id='DEADBEEF'
         ))
-
-

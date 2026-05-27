@@ -67,28 +67,29 @@ def default_image_args(
         et_reference_band='etr',
         et_reference_factor=1,
         et_reference_resample='nearest',
-        et_reference_date_type=None,
         dt_source=18,
-        lc_source=1,
+        lc_source=82,
         tcold_source=0.9744 * 310.15,
         et_fraction_type='alfalfa',
-        et_fraction_grass_source=None,
+        et_fraction_type_adjust_source=None,
         dt_resample='nearest',
+        **kwargs,
 ):
-    return {
+    args = {
         'image': default_image(lst=lst, ndvi=ndvi, ndwi=ndwi, qa_water=qa_water),
         'et_reference_source': et_reference_source,
         'et_reference_band': et_reference_band,
         'et_reference_factor': et_reference_factor,
         'et_reference_resample': et_reference_resample,
-        'et_reference_date_type': et_reference_date_type,
         'dt_source': dt_source,
         'lc_source': lc_source,
         'tcold_source': tcold_source,
         'et_fraction_type': et_fraction_type,
-        'et_fraction_grass_source': et_fraction_grass_source,
+        'et_fraction_type_adjust_source': et_fraction_type_adjust_source,
         'dt_resample': dt_resample,
     }
+    return {**args, **kwargs}
+
 
 
 def default_image_obj(
@@ -100,13 +101,13 @@ def default_image_obj(
         et_reference_band='etr',
         et_reference_factor=1,
         et_reference_resample='nearest',
-        et_reference_date_type=None,
         dt_source=18,
-        lc_source=1,
+        lc_source=82,
         tcold_source=0.9744 * 310.15,
         et_fraction_type='alfalfa',
-        et_fraction_grass_source=None,
+        et_fraction_type_adjust_source=None,
         dt_resample='nearest',
+        **kwargs,
 ):
     return ssebop.Image(**default_image_args(
         lst=lst,
@@ -117,13 +118,13 @@ def default_image_obj(
         et_reference_band=et_reference_band,
         et_reference_factor=et_reference_factor,
         et_reference_resample=et_reference_resample,
-        et_reference_date_type=et_reference_date_type,
         dt_source=dt_source,
         lc_source=lc_source,
         tcold_source=tcold_source,
         et_fraction_type=et_fraction_type,
-        et_fraction_grass_source=et_fraction_grass_source,
+        et_fraction_type_adjust_source=et_fraction_type_adjust_source,
         dt_resample=dt_resample,
+        **kwargs
     ))
 
 
@@ -138,7 +139,6 @@ def test_Image_init_default_parameters():
     assert m._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS'
     assert m._tcold_source == 'FANO'
     assert m.et_fraction_type == 'alfalfa'
-    assert m.et_fraction_grass_source is None
     assert m._lst_source is None
     assert m._dt_resample == 'bilinear'
     assert m._C2_LST_CORRECT is True
@@ -160,8 +160,7 @@ def test_Image_init_date_properties():
     assert utils.getinfo(m._month) == int(SCENE_DATE.split('-')[1])
     assert utils.getinfo(m._start_date)['value'] == utils.millis(SCENE_DT)
     assert utils.getinfo(m._end_date)['value'] == (utils.millis(SCENE_DT) + 24 * 3600 * 1000)
-    # assert utils.getinfo(m._end_date)['value'] == utils.millis(
-    #     SCENE_DT + datetime.timedelta(days=1))
+    # assert utils.getinfo(m._end_date)['value'] == utils.millis(SCENE_DT + datetime.timedelta(days=1))
     assert utils.getinfo(m._doy) == SCENE_DOY
 
 
@@ -311,6 +310,61 @@ def test_Image_dt_source_exception():
 @pytest.mark.parametrize(
     'lc_source, xy, expected',
     [
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 82],
+        ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 52],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 82],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', TEST_POINT, 82],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 82],
+        ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 82],
+        ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 82],
+        # CGM - Not sure why the 2019 collection doesn't work
+        # ['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 82],
+    ]
+)
+def test_Image_landcover_source_default_values(lc_source, xy, expected):
+    """Test built-in/default landcover source values"""
+    m = default_image_obj(lc_source=lc_source)
+    output = utils.point_image_value(ee.Image(m.landcover), xy)
+    assert output['landcover'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source, lc_band, ag_classes, anom_classes, xy, expected',
+    [
+        # Check that the band can be set as a string or index
+        ['ESA/WorldCover/v200/2021', 0, [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 30],
+        ['ESA/WorldCover/v200/2021', 'Map', [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 30],
+    ]
+)
+def test_Image_landcover_source_custom_values(lc_source, lc_band, ag_classes, anom_classes, xy, expected):
+    """Test custom landcover source values"""
+    m = default_image_obj(
+        lc_source=lc_source,
+        lc_source_band=lc_band,
+        lc_ag_classes=ag_classes,
+        lc_anom_classes=anom_classes,
+    )
+    output = utils.point_image_value(ee.Image(m.landcover), xy)
+    assert output['landcover'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source',
+    [
+        '',
+        # TODO: Add some sort of check to the landcover method for image ID like strings
+        #   It could even be something simple like it must have "text/text"
+        # 'deadbeef',
+    ]
+)
+def test_Image_landcover_source_exception(lc_source):
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(lc_source=lc_source).landcover)
+
+
+@pytest.mark.parametrize(
+    'lc_source, xy, expected',
+    [
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 0],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 1],
@@ -318,29 +372,13 @@ def test_Image_dt_source_exception():
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
-        # CGM - Not sure why the 2019 collection doesn't work
-        # ['USGS/NLCD_RELEASES/2019_REL/NLCD', TEST_POINT, 1],
     ]
 )
-def test_Image_ag_landcover_source_values(lc_source, xy, expected):
-    """Test ag landcover mask values"""
+def test_Image_ag_landcover_source_default_values(lc_source, xy, expected):
+    """Test ag landcover mask values for the default landcover sources"""
     m = default_image_obj(lc_source=lc_source)
     output = utils.point_image_value(ee.Image(m.ag_landcover_mask), xy)
     assert output['ag_landcover_mask'] == expected
-
-
-@pytest.mark.parametrize(
-    'lc_source',
-    [
-        # Supprot for ESA WorldCover will be added at some point
-        'ESA/WorldCover/v200',
-        'deadbeef',
-        '',
-    ]
-)
-def test_Image_ag_landcover_source_exception(lc_source):
-    with pytest.raises(ValueError):
-        utils.getinfo(default_image_obj(lc_source=lc_source).ag_landcover_mask)
 
 
 @pytest.mark.parametrize(
@@ -354,12 +392,12 @@ def test_Image_ag_landcover_source_exception(lc_source):
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-118.5, 36.0], 1],
     ]
-) 
+)
 def test_Image_anomalous_landcover_mask_source_values(lc_source, xy, expected):
     """Test anomalous landcover mask values"""
     m = default_image_obj(lc_source=lc_source)
     output = utils.point_image_value(ee.Image(m.anomalous_landcover_mask), xy)
-    assert output['anomalous_landcover_mask'] == expected
+    assert output['anom_landcover_mask'] == expected
 
 
 @pytest.mark.parametrize(
@@ -377,6 +415,44 @@ def test_Image_ag_landcover_mask_nalcms_fallback(lc_source, xy, expected):
     m = default_image_obj(lc_source=lc_source)
     output = utils.point_image_value(ee.Image(m.ag_landcover_mask), xy)
     assert output['ag_landcover_mask'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source, lc_band, ag_classes, anom_classes, xy, expected',
+    [
+        ['ESA/WorldCover/v200/2021', 0, [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 1],
+        ['ESA/WorldCover/v200/2021', 'Map', [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 1],
+    ]
+)
+def test_Image_ag_landcover_custom_source_values(lc_source, lc_band, ag_classes, anom_classes, xy, expected):
+    """Test ag landcover mask values for a custom landcover source"""
+    m = default_image_obj(
+        lc_source=lc_source,
+        lc_source_band=lc_band,
+        lc_ag_classes=ag_classes,
+        lc_anom_classes=anom_classes,
+    )
+    output = utils.point_image_value(ee.Image(m.ag_landcover_mask), xy)
+    assert output['ag_landcover_mask'] == expected
+
+
+@pytest.mark.parametrize(
+    'lc_source, lc_band, ag_classes, anom_classes, xy, expected',
+    [
+        ['ESA/WorldCover/v200/2021', 0, [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 0],
+        ['ESA/WorldCover/v200/2021', 'Map', [30, 40, 90], [20, 50, 60, 70], TEST_POINT, 0],
+    ]
+)
+def test_Image_anomalous_landcover_custom_source_values(lc_source, lc_band, ag_classes, anom_classes, xy, expected):
+    """Test anomalous landcover mask values for a custom landcover source"""
+    m = default_image_obj(
+        lc_source=lc_source,
+        lc_source_band=lc_band,
+        lc_ag_classes=ag_classes,
+        lc_anom_classes=anom_classes,
+    )
+    output = utils.point_image_value(ee.Image(m.anomalous_landcover_mask), xy)
+    assert output['anom_landcover_mask'] == expected
 
 
 # CGM - Test the from_landsat and from_image methods before testing the
@@ -620,34 +696,30 @@ def test_Image_from_landsat_c2_sr_et_fraction():
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
-# # Testing for the source not being set will be needed in a future version
-# #   when NLDAS is not set as the default source
-# def test_Image_et_fraction_type_grass_source_not_set():
-#     """Raise an exception if fraction type is grass but source is not set"""
-#     with pytest.raises(ValueError):
-#         utils.getinfo(default_image_obj(et_fraction_type='grass').et_fraction)
-#
-#
-# # Testing for the source not being set will be needed in a future version
-# #   when NLDAS is not set as the default source
-# def test_Image_et_fraction_type_grass_source_empty():
-#     """Raise an exception if fraction type is grass but source is not set"""
-#     with pytest.raises(ValueError):
-#         utils.getinfo(default_image_obj(
-#             et_fraction_type='grass', et_fraction_grass_source='').et_fraction)
+def test_Image_et_fraction_type_adjust_source_not_set():
+    """Raise an exception if fraction type is grass but source is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(et_fraction_type='grass').et_fraction)
 
 
-# # Checking if the source is "supported" is currently handled in the model.py function
-# #   and is probably redundant here, but leaving commented out code for now
-# def test_Image_et_fraction_type_grass_source_exception():
-#     """Raise an exception if fraction type is grass but source is not supported"""
-#     with pytest.raises(ValueError):
-#         utils.getinfo(default_image_obj(
-#             et_fraction_type='grass', et_fraction_grass_source='deadbeef').et_fraction)
+def test_Image_et_fraction_type_adjust_source_empty():
+    """Raise an exception if fraction type is grass but source is not set"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(
+            et_fraction_type='grass', et_fraction_type_adjust_source='').et_fraction)
+
+
+# Checking if the source is "supported" is currently handled in the model.py function
+#   and is probably redundant here, but leaving commented out code for now
+def test_Image_et_fraction_type_grass_source_exception():
+    """Raise an exception if fraction type is grass but source is not supported"""
+    with pytest.raises(ValueError):
+        utils.getinfo(default_image_obj(
+            et_fraction_type='grass', et_fraction_type_adjust_source='deadbeef').et_fraction)
 
 
 @pytest.mark.parametrize(
-    'et_fraction_type, etf_grass_source, expected',
+    'et_fraction_type, et_fraction_type_adjust_source, expected',
     [
         ['alfalfa', None, 0.88],
         ['grass', 'NASA/NLDAS/FORA0125_H002', 0.88 * 1.24],
@@ -659,11 +731,10 @@ def test_Image_from_landsat_c2_sr_et_fraction():
         # ['grass', 'ECMWF/ERA5_LAND/HOURLY', 0.88 * 1.15],
     ]
 )
-def test_Image_et_fraction_type(et_fraction_type, etf_grass_source, expected, tol=0.01):
+def test_Image_et_fraction_type(et_fraction_type, et_fraction_type_adjust_source, expected, tol=0.01):
     output_img = default_image_obj(
-        dt_source=10, tcold_source=0.98 * 310,
-        et_fraction_type=et_fraction_type,
-        et_fraction_grass_source=etf_grass_source).et_fraction
+        dt_source=10, tcold_source=0.98 * 310, et_fraction_type=et_fraction_type,
+        et_fraction_type_adjust_source=et_fraction_type_adjust_source).et_fraction
     output = utils.point_image_value(ee.Image(output_img), TEST_POINT)
     assert abs(output['et_fraction'] - expected) <= tol
 

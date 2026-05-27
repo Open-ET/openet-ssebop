@@ -147,17 +147,30 @@ def dt(tmax, tmin, elev, doy, lat=None, rs=None, ea=None):
 # TODO: Decide if using the interpolated instantaneous is the right/best approach
 #   We could use the closest hour in time, an average of a few hours
 #   or just switch to using the raw daily or bias corrected assets
-def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinear'):
+def etf_grass_type_adjust(
+        etf,
+        time_start,
+        coll_id,
+        eto_band=None,
+        etr_band=None,
+        resample_method='bilinear',
+):
     """"Convert ET fraction from an alfalfa reference to grass reference
 
     Parameters
     ----------
     etf : ee.Image
         ET fraction (alfalfa reference).
-    src_coll_id : str
-        Hourly meteorology collection ID for computing reference ET.
     time_start : int, ee.Number
         Image system time start [millis].
+    coll_id : str
+        Hourly meteorology collection ID for computing reference ET.
+    eto_band : str
+        Band containing grass reference ET values.
+        Must be set if the source collection is not NLDAS-2 or ERA5-LAND.
+    etr_band : str
+        Band containing alfalfa reference ET values.
+        Must be set if the source collection is not NLDAS-2 or ERA5-LAND.
     resample_method : {'nearest', 'bilinear', 'bicubic'}
         Resample method for hourly meteorology collection.
 
@@ -166,32 +179,29 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinea
     ee.Image
 
     """
-    hourly_et_reference_sources = [
-        'NASA/NLDAS/FORA0125_H002',
-        'ECMWF/ERA5_LAND/HOURLY',
-    ]
-    if src_coll_id not in hourly_et_reference_sources:
-        raise ValueError(f'unsupported hourly ET reference source: {src_coll_id}')
-    elif not src_coll_id:
-        raise ValueError('hourly ET reference source not')
+    if not coll_id:
+        raise ValueError('hourly ET reference source must be set for ETf grass conversion')
+    elif coll_id.upper() in ['NASA/NLDAS/FORA0125_H002', 'NLDAS', 'NLDAS2', 'NLDAS-2']:
+        coll = ee.ImageCollection('NASA/NLDAS/FORA0125_H002')
+    elif coll_id.upper() in ['ECMWF/ERA5_LAND/HOURLY', 'ERA5LAND', 'ERA5-LAND', 'ERA5_LAND']:
+        coll = ee.ImageCollection('ECMWF/ERA5_LAND/HOURLY')
     else:
-        src_coll = ee.ImageCollection(src_coll_id)
+        if (eto_band is None) or (etr_band is None):
+            raise ValueError('ETo and ETr band must be set for non-default source collections')
+        coll = ee.ImageCollection(coll_id)
 
-    # Interpolating hourly NLDAS to the Landsat scene time
-    # CGM - The 2 hour window is useful in case an image is missing
-    #   I think EEMETRIC is using a 4 hour window
-    # CGM - Need to check if the NLDAS images are instantaneous
-    #   or some sort of average of the previous or next hour
+    # Interpolating hourly meteorology to the Landsat scene time
+    # The 2-hour window is useful in case a single image is missing
+    # For now assume that the values correspond exactly to the image time
+    #   and are not an average of the previous or current hour
     time_start = ee.Number(time_start)
     prev_img = ee.Image(
-        src_coll
+        coll
         .filterDate(time_start.subtract(2 * 60 * 60 * 1000), time_start)
         .limit(1, 'system:time_start', False)
         .first()
     )
-    next_img = ee.Image(
-        src_coll.filterDate(time_start, time_start.add(2 * 60 * 60 * 1000)).first()
-    )
+    next_img = ee.Image(coll.filterDate(time_start, time_start.add(2 * 60 * 60 * 1000)).first())
     prev_time = ee.Number(prev_img.get('system:time_start'))
     next_time = ee.Number(next_img.get('system:time_start'))
     time_ratio = time_start.subtract(prev_time).divide(next_time.subtract(prev_time))
@@ -200,21 +210,21 @@ def etf_grass_type_adjust(etf, src_coll_id, time_start, resample_method='bilinea
         .set({'system:time_start': time_start})
     )
 
-    if src_coll_id.upper() == 'NASA/NLDAS/FORA0125_H002':
+    if coll_id.upper() in ['NASA/NLDAS/FORA0125_H002', 'NLDAS', 'NLDAS2', 'NLDAS-2']:
         ratio = (
             openet.refetgee.Hourly.nldas(interp_img).etr
             .divide(openet.refetgee.Hourly.nldas(interp_img).eto)
         )
-        if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
-            ratio = ratio.resample(resample_method)
-        etf_grass = etf.multiply(ratio)
-    elif src_coll_id.upper() == 'ECMWF/ERA5_LAND/HOURLY':
+    elif coll_id.upper() in ['ECMWF/ERA5_LAND/HOURLY', 'ERA5LAND', 'ERA5-LAND', 'ERA5_LAND']:
         ratio = (
-            openet.refetgee.Hourly.era5_land(interp_img).etr
-            .divide(openet.refetgee.Hourly.era5_land(interp_img).eto)
+            openet.refetgee.Hourly.era5_land(interp_img, fill_edge_cells=2).etr
+            .divide(openet.refetgee.Hourly.era5_land(interp_img, fill_edge_cells=2).eto)
         )
-        if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
-            ratio = ratio.resample(resample_method)
-        etf_grass = etf.multiply(ratio)
+    else:
+        # Assume the source collection has the input ETo and ETr bands
+        ratio = interp_img.select([etr_band]).divide(interp_img.select([eto_band]))
 
-    return etf_grass
+    if resample_method and (resample_method.lower() in ['bilinear', 'bicubic']):
+        ratio = ratio.resample(resample_method)
+
+    return etf.multiply(ratio)
