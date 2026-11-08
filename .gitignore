@@ -22,6 +22,9 @@ dist/
 # PyCharm project settings
 .idea
 
+# VSCode project settings
+.vscode
+
 # MacOS
 .DS_Store
 
