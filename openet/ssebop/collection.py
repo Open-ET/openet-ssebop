@@ -267,7 +267,7 @@ class Collection:
                     .filterBounds(self.geometry)
                     .filterMetadata('CLOUD_COVER_LAND', 'less_than', self.cloud_cover_max)
                     .filterMetadata('CLOUD_COVER_LAND', 'greater_than', -0.5)
-                    .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
+                    # .filterMetadata('PROCESSING_LEVEL', 'equals', 'L2SP')
                 )
 
                 # TODO: Move this to a separate function (maybe in utils.py?)

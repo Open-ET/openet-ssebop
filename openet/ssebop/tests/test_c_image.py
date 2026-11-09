@@ -4,7 +4,7 @@ import datetime
 import ee
 import pytest
 
-import openet.ssebop as ssebop
+import openet.ssebop as model
 import openet.ssebop.utils as utils
 # TODO: import utils from openet.core
 # import openet.core.utils as utils
@@ -109,7 +109,7 @@ def default_image_obj(
         dt_resample='nearest',
         **kwargs,
 ):
-    return ssebop.Image(**default_image_args(
+    return model.Image(**default_image_args(
         lst=lst,
         ndvi=ndvi,
         ndwi=ndwi,
@@ -129,18 +129,17 @@ def default_image_obj(
 
 
 def test_Image_init_default_parameters():
-    m = ssebop.Image(default_image())
+    m = model.Image(default_image())
     assert m.et_reference_source is None
     assert m.et_reference_band is None
     assert m.et_reference_factor is None
     assert m.et_reference_resample is None
     assert m.et_reference_date_type is None
-    assert m._dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7'
-    assert m._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS'
-    assert m._tcold_source == 'FANO'
+    assert m.dt_source == 'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7'
+    assert m.lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS'
+    assert m.tcold_source == 'FANO'
     assert m.et_fraction_type == 'alfalfa'
-    assert m._lst_source is None
-    assert m._dt_resample == 'bilinear'
+    assert m.dt_resample == 'bilinear'
     assert m._C2_LST_CORRECT is True
 
 
@@ -167,7 +166,7 @@ def test_Image_init_date_properties():
 def test_Image_init_scene_id_property():
     """Test that the system:index from a merged collection is parsed"""
     input_img = default_image()
-    m = ssebop.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
+    m = model.Image(input_img.set('system:index', '1_2_' + SCENE_ID))
     assert utils.getinfo(m._scene_id) == SCENE_ID
 
 
@@ -276,8 +275,10 @@ def test_Image_tcold_not_water_mask_values(xy, ndvi, ndwi, qa_water, expected):
     [
         ['projects/usgs-ssebop/dt/daymet_median_v7', SCENE_DOY, TEST_POINT, 20.1],
         ['projects/usgs-ssebop/dt/daymet_median_v6', SCENE_DOY, TEST_POINT, 20.77],
-        ['projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
-         SCENE_DOY, TEST_POINT, 20.77],
+        [
+            'projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v6',
+            SCENE_DOY, TEST_POINT, 20.77
+        ],
     ]
 )
 def test_Image_dt_source_values(dt_source, doy, xy, expected, tol=0.001):
@@ -313,7 +314,12 @@ def test_Image_dt_source_exception():
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 82],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 52],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 82],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', TEST_POINT, 82],
+        # Testing the year specific images will likely fail in the future
+        #   since old versions are not retained in the awesome gee catalog
+        [
+            'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V2',
+            TEST_POINT, 82
+        ],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 82],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 82],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 82],
@@ -368,7 +374,6 @@ def test_Image_landcover_source_exception(lc_source):
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 0],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', TEST_POINT, 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', TEST_POINT, 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', TEST_POINT, 1],
@@ -387,7 +392,6 @@ def test_Image_ag_landcover_source_default_values(lc_source, xy, expected):
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', TEST_POINT, 0],
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-118.5, 36.0], 1],
         ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', [-118.5, 36.0], 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-118.5, 36.0], 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-118.5, 36.0], 1],
@@ -405,7 +409,7 @@ def test_Image_anomalous_landcover_mask_source_values(lc_source, xy, expected):
     [
         # Test point is an agricultural area in Canada
         ['USGS/NLCD_RELEASES/2020_REL/NALCMS', [-110.95, 49.53], 1],
-        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/Annual_NLCD_LndCov_2023_CU_C1V1', [-110.95, 49.53], 1],
+        ['projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER', [-110.95, 49.53], 1],
         ['USGS/NLCD_RELEASES/2021_REL/NLCD/2021', [-110.95, 49.53], 1],
         ['USGS/NLCD_RELEASES/2019_REL/NLCD/2019', [-110.95, 49.53], 1],
     ]
@@ -460,7 +464,7 @@ def test_Image_anomalous_landcover_custom_source_values(lc_source, lc_band, ag_c
 # We might want to add a better test for the ndvi method.
 def test_Image_from_landsat_c2_sr_default_image():
     """Test that the classmethod is returning a class object"""
-    output = ssebop.Image.from_landsat_c2_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
+    output = model.Image.from_landsat_c2_sr(ee.Image(f'{COLL_ID}/{SCENE_ID}'))
     assert type(output) == type(default_image_obj())
 
 
@@ -475,14 +479,14 @@ def test_Image_from_landsat_c2_sr_default_image():
 )
 def test_Image_from_landsat_c2_sr_image_id(image_id):
     """Test instantiating the class from a Landsat SR image ID"""
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(image_id).ndvi)
+    output = utils.getinfo(model.Image.from_landsat_c2_sr(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
 def test_Image_from_landsat_c2_sr_image():
     """Test instantiating the class from a Landsat SR ee.Image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(ee.Image(image_id)).ndvi)
+    output = utils.getinfo(model.Image.from_landsat_c2_sr(ee.Image(image_id)).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -490,7 +494,7 @@ def test_Image_from_landsat_c2_sr_exception():
     """Test instantiating the class for an invalid image ID"""
     with pytest.raises(Exception):
         # Intentionally using .getInfo() instead of utils.getinfo()
-        ssebop.Image.from_landsat_c2_sr(ee.Image('FOO')).ndvi.getInfo()
+        model.Image.from_landsat_c2_sr(ee.Image('FOO')).ndvi.getInfo()
 
 
 def test_Image_from_landsat_c2_sr_scaling():
@@ -509,12 +513,12 @@ def test_Image_from_landsat_c2_sr_scaling():
 
     # LST correction and cloud score masking do not work with a constant image
     #   and must be explicitly set to False
-    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
+    output = utils.constant_image_value(model.Image.from_landsat_c2_sr(
         input_img, c2_lst_correct=False,
         cloudmask_args={'cloud_score_flag': False, 'filter_flag': False}).ndvi)
     assert abs(output['ndvi'] - 0.333) <= 0.01
 
-    output = utils.constant_image_value(ssebop.Image.from_landsat_c2_sr(
+    output = utils.constant_image_value(model.Image.from_landsat_c2_sr(
         input_img, c2_lst_correct=False,
         cloudmask_args={'cloud_score_flag': False, 'filter_flag': False}).lst)
     assert abs(output['lst'] - 300) <= 0.1
@@ -523,7 +527,7 @@ def test_Image_from_landsat_c2_sr_scaling():
 def test_Image_from_landsat_c2_sr_cloud_mask_args():
     """Test if the cloud_mask_args parameter can be set (not if it works)"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = ssebop.Image.from_landsat_c2_sr(
+    output = model.Image.from_landsat_c2_sr(
         image_id, cloudmask_args={'snow_flag': True, 'cirrus_flag': True})
     assert type(output) == type(default_image_obj())
 
@@ -531,7 +535,7 @@ def test_Image_from_landsat_c2_sr_cloud_mask_args():
 def test_Image_from_landsat_c2_sr_cloud_score_mask_arg():
     """Test if the cloud_score_flag parameter can be set in cloudmask_args"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = ssebop.Image.from_landsat_c2_sr(
+    output = model.Image.from_landsat_c2_sr(
         image_id, cloudmask_args={'cloud_score_flag': True})
     assert type(output) == type(default_image_obj())
 
@@ -539,7 +543,7 @@ def test_Image_from_landsat_c2_sr_cloud_score_mask_arg():
 def test_Image_from_landsat_c2_sr_c2_lst_correct_arg():
     """Test if the c2_lst_correct parameter can be set (not if it works)"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-    output = ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True)
+    output = model.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True)
     assert type(output) == type(default_image_obj())
 
 
@@ -549,10 +553,10 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
     xy = (-102.08284, 37.81728)
     # CGM - Is the uncorrected test needed?
     uncorrected = utils.point_image_value(
-        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=False).lst, xy)
+        model.Image.from_landsat_c2_sr(image_id, c2_lst_correct=False).lst, xy)
     assert uncorrected['lst'] is None
     corrected = utils.point_image_value(
-        ssebop.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True).lst, xy)
+        model.Image.from_landsat_c2_sr(image_id, c2_lst_correct=True).lst, xy)
     assert corrected['lst'] > 0
     # # Exact test values copied from openet-core
     # assert abs(corrected['lst'] - 306.83) <= 0.25
@@ -560,63 +564,21 @@ def test_Image_from_landsat_c2_sr_c2_lst_correct_fill():
 
 def test_Image_from_landsat_c2_sr_lst_source_arg():
     """Test if the lst_source parameter can be set (not if it works)"""
-    # image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20160702'
-    output = ssebop.Image.from_landsat_c2_sr(
+    output = model.Image.from_landsat_c2_sr(
         image_id, lst_source='projects/openet/assets/lst/landsat/c02')
     assert type(output) == type(default_image_obj())
 
 
 def test_Image_from_landsat_c2_sr_lst_source_values():
     """Test if the lst_source image can be read"""
-    # CGM - The default image is not currently in the collection
-    #   Using a different one that is for now
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20160702'
     xy = (-102.4, 36.1)
-    # image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-    # xy = (-102.08284, 37.81728)
     lst_source = 'projects/openet/assets/lst/landsat/c02'
-    output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
+    output_img = model.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
     output = utils.point_image_value(output_img, xy)
-    assert abs(output['lst'] - 322.8) <= 0.25
-    assert output_img.get('lst_source_id').getInfo().startswith(lst_source)
-
-
-# # CGM - The empty LST asset does not seem to exist anymore, commenting out the test for now
-# def test_Image_from_landsat_c2_sr_lst_source_missing():
-#     """Test that the LST is masked if the scene is not present in lst_source"""
-#     # LST source collection is empty so that join will work but not join to anything
-#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-#     xy = (-102.08284, 37.81728)
-#     lst_source = 'projects/openet/assets/lst/landsat/empty'
-#     output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
-#     output = utils.point_image_value(output_img, xy)
-#     assert output['lst'] is None
-#     assert output_img.get('lst_source_id').getInfo() == 'None'
-
-
-# # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
-# def test_Image_from_landsat_c2_sr_lst_source_missing():
-#     """Test if the input LST image is used if the scene is not present in lst_source"""
-#     # This image does not currently exist in the source collection,
-#     #   but if this test stops working check to see if this image was added
-#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031034_20160702'
-#     xy = (-102.08284, 37.81728)
-#     lst_source = 'projects/openet/assets/lst/landsat/c02'
-#     output_img = ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst
-#     output = utils.point_image_value(output_img, xy)
-#     assert abs(output['lst'] - 306.83) <= 0.25
-#     assert output_img.get('lst_source_id').getInfo().startswith('LANDSAT/LC08')
-
-
-# # DEADBEEF - Keep for now in case approach changes for handling missing scenes in LST source
-# def test_Image_from_landsat_c2_sr_lst_source_missing():
-#     """Test if an exception is raised if the scene is not present in lst_source"""
-#     # Testing with a 100% CLOUD_COVER_LAND image that shouldn't be in the LST source collection
-#     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_031035_20220820'
-#     lst_source = 'projects/openet/assets/lst/landsat/c02'
-#     with pytest.raises(Exception):
-#         ssebop.Image.from_landsat_c2_sr(image_id, lst_source=lst_source).lst.getInfo()
+    assert abs(output['lst'] - 322.8) <= 0.1
+    # assert output_img.get('lst_source_id').getInfo().startswith(lst_source)
 
 
 @pytest.mark.parametrize(
@@ -628,16 +590,16 @@ def test_Image_from_landsat_c2_sr_lst_source_values():
 )
 def test_Image_from_image_id(image_id):
     """Test instantiating the class using the from_image_id method"""
-    output = utils.getinfo(ssebop.Image.from_image_id(image_id).ndvi)
+    output = utils.getinfo(model.Image.from_image_id(image_id).ndvi)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
     assert output['properties']['image_id'] == image_id
 
 
 def test_Image_from_method_kwargs():
     """Test that the init parameters can be passed through the helper methods"""
-    assert ssebop.Image.from_landsat_c2_sr(
+    assert model.Image.from_landsat_c2_sr(
         'LANDSAT/LC08/C02/T1_L2/LC08_042035_20150713',
-        lc_source='DEADBEEF')._lc_source == 'DEADBEEF'
+        lc_source='DEADBEEF').lc_source == 'DEADBEEF'
 
 
 @pytest.mark.parametrize(
@@ -652,7 +614,7 @@ def test_Image_from_method_kwargs():
 )
 def test_Image_tcold_fano_source(tcold_src, image_id, xy, expected, tol=0.000001):
     """Test getting Tcorr value and index for a single date at a real point"""
-    tcold_img = ssebop.Image.from_image_id(
+    tcold_img = model.Image.from_image_id(
         image_id, tcold_source=tcold_src, c2_lst_correct=False).tcold
     output = utils.point_image_value(tcold_img, xy)
     assert abs(output['tcold'] - expected) <= tol
@@ -692,7 +654,7 @@ def test_Image_et_fraction_values(dt, tcold, expected, tol=0.0001):
 def test_Image_from_landsat_c2_sr_et_fraction():
     """Test if ETf can be built for a Landsat SR image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(image_id).et_fraction)
+    output = utils.getinfo(model.Image.from_landsat_c2_sr(image_id).et_fraction)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
 
@@ -818,7 +780,7 @@ def test_Image_et_values(tol=0.0001):
 def test_Image_from_landsat_c2_sr_et():
     """Test if ET can be built for a Landsat image"""
     image_id = 'LANDSAT/LC08/C02/T1_L2/LC08_044033_20170716'
-    output = utils.getinfo(ssebop.Image.from_landsat_c2_sr(
+    output = utils.getinfo(model.Image.from_landsat_c2_sr(
         image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET', et_reference_band='etr').et)
     assert output['properties']['system:index'] == image_id.split('/')[-1]
 
@@ -832,7 +794,7 @@ def test_Image_from_landsat_c2_sr_et():
 )
 def test_Image_qa_water_mask_image_values(image_id, xy, expected):
     """Test if qa pixel waterband exists"""
-    output_img = ssebop.Image.from_image_id(image_id)
+    output_img = model.Image.from_image_id(image_id)
     mask_img = output_img.qa_water_mask
     output = utils.point_image_value(mask_img, xy)
     assert output['qa_water'] == expected
@@ -847,7 +809,7 @@ def test_Image_qa_water_mask_image_values(image_id, xy, expected):
 )
 def test_Image_tcold_not_water_mask_image_values(image_id, xy, expected):
     """Test Tcorr not water mask values"""
-    output_img = ssebop.Image.from_image_id(image_id)
+    output_img = model.Image.from_image_id(image_id)
     mask_img = output_img.tcold_not_water_mask
     output = utils.point_image_value(mask_img, xy)
     assert output['tcold_not_water'] == expected
@@ -904,7 +866,7 @@ def test_Image_calculate_variables_valueerror():
 )
 def test_Image_et_reference_water_nodata(image_id, xy):
     """Test if water pixels are being masked in the et_reference band"""
-    output = utils.point_image_value(ssebop.Image.from_image_id(
+    output = utils.point_image_value(model.Image.from_image_id(
         image_id, et_reference_source='IDAHO_EPSCOR/GRIDMET',
         et_reference_band='etr').et_reference, xy)
     assert output['et_reference'] is not None

@@ -206,3 +206,66 @@ def landsat_c2_qa_water_mask(landsat_image):
         .rightShift(7).bitwiseAnd(1).neq(0)
         .rename(['qa_water'])
     )
+
+
+# TODO: Move to openet.core
+# TODO: Consider adding support for setting some sort of "lst_source_index"
+#   parameter to allow for joining on a property other than "scene_id"
+def lst_source_image(lst_source, mask_image):
+    """Select the LST image from a source collection based on the scene_id
+
+    Parameters
+    ----------
+    lst_source : str
+        LST source collection ID.
+        Images in LST source collection must be single band.
+        Images must have a "scene_id" property with an upper case ID in the
+            system:index format (LXSS_PPPRRR_YYYYMMDD)
+        If a "scale_factor" property is present, it will be applied by multiplying
+    mask_image : ee.Image
+        Single Landsat image band with "system:index" property that will be
+        used for selecting target image in source collection.
+        Using a full image instead of the system:index itself so that the image
+        footprint/mask can be applied to the matched image.
+
+    Returns
+    -------
+    ee.Image
+
+    """
+    # Merging with an empty base image is needed so that an empty/masked image is
+    #   returned if the target scene_id is not present in the source collection
+    base_img = mask_image.multiply(0).selfMask().set({'lst_source_id': 'None'})
+
+    lst_image = ee.Image(
+        ee.ImageCollection(lst_source)
+        .filter(ee.Filter.eq('scene_id', mask_image.get('system:index')))
+        .select([0], ['lst'])
+        .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
+        .merge(ee.ImageCollection([base_img]))
+        .first()
+        .updateMask(mask_image.mask())
+    )
+    # # Could use the input LST as a fallback if the scene is missing from LST source
+    # #   instead of returning a masked image
+    # .merge(ee.ImageCollection([lst_image.set({'lst_source_id': self._id})]))
+
+    # Save the lst_source_id property since tscale_factor multiply call below drops it
+    lst_source_id = lst_image.get('lst_source_id')
+
+    # The OpenET LST images are scaled, so assume the image need to be unscaled,
+    #   but set a default scale_factor to 1
+    lst_scale_factor = (
+        ee.Dictionary({'scale_factor': lst_image.get('scale_factor')})
+        .combine({'scale_factor': 1.0}, overwrite=False)
+    )
+
+    return (
+        lst_image.multiply(ee.Number(lst_scale_factor.get('scale_factor')))
+        .rename(['lst'])
+        .set({
+            'system:index': mask_image.get('system:index'),
+            'lst_source_id': lst_source_id,
+            # 'scene_id': mask_image.get('system:index'),
+        })
+    )

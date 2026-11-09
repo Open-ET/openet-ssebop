@@ -48,7 +48,6 @@ class Image:
             dt_source='projects/earthengine-legacy/assets/projects/usgs-ssebop/dt/daymet_median_v7',
             lc_source='USGS/NLCD_RELEASES/2020_REL/NALCMS',
             et_fraction_type='alfalfa',
-            lst_source=None,
             **kwargs,
     ):
         """Construct a generic SSEBop Image
@@ -86,10 +85,6 @@ class Image:
             ET fraction reference type.  The default is 'alfalfa'.
             If set to a "grass" type, some or all of the "et_fraction_type_adjust_"
             keyword arguments listed below must also be set.
-        lst_source : str, optional
-            Land surface temperature source image collection ID.
-            CGM - Add text detailing any properties, image names, band names, etc
-              that are required for the source image collection
         kwargs : dict, optional
             dt_resample : {'bilinear', 'nearest'}, optional
                 Resampling method to apply to dT source.  The default is 'bilinear'.
@@ -187,10 +182,9 @@ class Image:
         self.et_fraction_type = et_fraction_type.lower()
 
         # Model input parameters
-        self._dt_source = dt_source
-        self._tcold_source = tcold_source
-        self._lst_source = lst_source
-        self._lc_source = lc_source
+        self.dt_source = dt_source
+        self.tcold_source = tcold_source
+        self.lc_source = lc_source
 
         # Image projection and geotransform
         self.crs = image.projection().crs()
@@ -205,9 +199,9 @@ class Image:
         # CGM - Should these be checked in the methods they are used in instead?
         # Set the resample method as properties so they can be modified
         if 'dt_resample' in kwargs.keys():
-            self._dt_resample = kwargs['dt_resample'].lower()
+            self.dt_resample = kwargs['dt_resample'].lower()
         else:
-            self._dt_resample = 'bilinear'
+            self.dt_resample = 'bilinear'
 
         # ET fraction alfalfa to grass reference adjustment parameters
         if 'et_fraction_type_adjust_source' in kwargs.keys():
@@ -269,9 +263,9 @@ class Image:
     def et_fraction(self):
         """Fraction of reference ET"""
 
-        if (self._dt_resample and type(self._dt_resample) is str and
-                self._dt_resample.lower() in ['bilinear', 'bicubic']):
-            dt = self.dt.resample(self._dt_resample)
+        if (self.dt_resample and type(self.dt_resample) is str and
+                self.dt_resample.lower() in ['bilinear', 'bicubic']):
+            dt = self.dt.resample(self.dt_resample)
         else:
             dt = self.dt
 
@@ -363,59 +357,7 @@ class Image:
     @lazy_property
     def lst(self):
         """Input land surface temperature (LST) [K]"""
-        lst_img = self.image.select(['lst'])
-
-        if ((type(self._lst_source) is str) and (
-                self._lst_source.lower().startswith('projects/') or
-                self._lst_source.lower().startswith('users/'))):
-            # Use a custom LST image from a separate LST source collection
-            # LST source assumptions (for now)
-            #   String lst_source is an image collection ID
-            #   Images in LST source collection are single band
-            #   Images have a "scene_id" property with an upper case ID in the
-            #     system:index format (LXSS_PPPRRR_YYYYMMDD)
-            #   If a "scale_factor" property is present it will be applied by multiplying
-            # A masked LST image will be used if scene is not in LST source
-            # Get the mask from the input NDVI image and apply to the source LST image
-            # Can't use the input LST image since it will have the emissivity holes
-            # TODO: Consider adding support for setting some sort of "lst_source_index"
-            #   parameter to allow for joining on a property other than "scene_id"
-            mask_img = lst_img.multiply(0).selfMask().set({'lst_source_id': 'None'})
-            lst_img = ee.Image(
-                ee.ImageCollection(self._lst_source)
-                .filter(ee.Filter.eq('scene_id', self._index))
-                .select([0], ['lst'])
-                .map(lambda img: img.set({'lst_source_id': img.get('system:id')}))
-                .merge(ee.ImageCollection([mask_img]))
-                .first()
-                .updateMask(self.image.select(['ndvi']).mask())
-            )
-            # # Switching to this merge line (above) would allow for the input LST
-            # # image to be used as a fallback if the scene is missing from LST source
-            # # instead of returning a masked image
-            # .merge(ee.ImageCollection([lst_img.set({'lst_source_id': self._id})]))
-
-            # The scale_factor multiply call below drops the lst_source property
-            lst_source_id = lst_img.get('lst_source_id')
-
-            # The OpenET LST images are scaled, so assume the image need to be unscaled
-            lst_scale_factor = (
-                ee.Dictionary({'scale_factor': lst_img.get('scale_factor')})
-                .combine({'scale_factor': 1.0}, overwrite=False)
-            )
-            lst_img = lst_img.multiply(ee.Number(lst_scale_factor.get('scale_factor')))
-
-            # Save the actual LST source image ID as a property on the lst image
-            # Source ID could also be added to general properties
-            lst_img = lst_img.set('lst_source_id', lst_source_id)
-            self._properties['lst_source_id'] = lst_source_id
-
-        # TODO: Consider adding support for setting lst_source with a computed object
-        #   like an ee.ImageCollection (and/or ee.Image, ee.Number)
-        # elif isinstance(self._lst_source, ee.computedobject.ComputedObject):
-        #     lst_img = self._lst_source
-
-        return lst_img.set(self._properties)
+        return self.image.select(['lst']).set(self._properties)
 
     @lazy_property
     def mask(self):
@@ -517,14 +459,14 @@ class Image:
         nlcd_ag_classes = [21, 22, 71, 81, 82, 90, 95]
         nlcd_anom_classes = [23, 24, 31, 52]
 
-        if utils.is_number(self._lc_source):
-            landcover_img = ee.Image.constant(float(self._lc_source))
+        if utils.is_number(self.lc_source):
+            landcover_img = ee.Image.constant(float(self.lc_source))
             self.lc_classes = 'constant'
-        elif self._lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
+        elif self.lc_source == 'USGS/NLCD_RELEASES/2020_REL/NALCMS':
             landcover_img = nalcms_nlcd_img
             self.lc_ag_classes = nlcd_ag_classes
             self.lc_anom_classes = nlcd_anom_classes
-        elif self._lc_source in [
+        elif self.lc_source in [
             'projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER',
             'USGS/NLCD_RELEASES/2021_REL/NLCD',
             'USGS/NLCD_RELEASES/2019_REL/NLCD',
@@ -532,7 +474,7 @@ class Image:
             # Assume the source is the Image Collection ID
             # Assume first band is the landcover band
             # Select the closest image in time to the target scene
-            lc_coll = ee.ImageCollection(self._lc_source)
+            lc_coll = ee.ImageCollection(self.lc_source)
             lc_year = (
                 ee.Number(self._year)
                 .max(ee.Date(lc_coll.aggregate_min('system:time_start')).get('year'))
@@ -547,18 +489,18 @@ class Image:
             landcover_img = lc_img.addBands([nalcms_nlcd_img]).reduce(ee.Reducer.firstNonNull())
             self.lc_ag_classes = nlcd_ag_classes
             self.lc_anom_classes = nlcd_anom_classes
-        elif (self._lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
-              self._lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
-              self._lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
+        elif (self.lc_source.startswith('projects/sat-io/open-datasets/USGS/ANNUAL_NLCD/LANDCOVER/') or
+              self.lc_source.startswith('USGS/NLCD_RELEASES/2021_REL/NLCD/') or
+              self.lc_source.startswith('USGS/NLCD_RELEASES/2019_REL/NLCD/')):
             # Assume the source is an NLCD like image ID and the first band is the landcover band
             landcover_img = (
-                ee.Image(self._lc_source).select([0])
+                ee.Image(self.lc_source).select([0])
                 .addBands([nalcms_nlcd_img])
                 .reduce(ee.Reducer.firstNonNull())
             )
             self.lc_ag_classes = nlcd_ag_classes
             self.lc_anom_classes = nlcd_anom_classes
-        elif self._lc_source:
+        elif self.lc_source:
             # Assume the source is a custom land cover image and all necessary
             #   parameters are available in the kwargs (and are valid)
             # Default to the first band in the image if the source band is not set
@@ -566,7 +508,7 @@ class Image:
                 lc_source_band = self.kwargs['lc_source_band']
             else:
                 lc_source_band = 0
-            landcover_img = ee.Image(self._lc_source).select([lc_source_band])
+            landcover_img = ee.Image(self.lc_source).select([lc_source_band])
             # TODO: Add checks for the remap lists
             self.lc_ag_classes = self.kwargs['lc_ag_classes']
             self.lc_anom_classes = self.kwargs['lc_anom_classes']
@@ -678,18 +620,18 @@ class Image:
         Raises
         ------
         ValueError
-            If `self._dt_source` is not supported.
+            If `self.dt_source` is not supported.
 
         """
-        if utils.is_number(self._dt_source):
-            dt_img = ee.Image.constant(float(self._dt_source))
-        elif (self._dt_source.lower().startswith('projects/') or
-              self._dt_source.lower().startswith('users/')):
+        if utils.is_number(self.dt_source):
+            dt_img = ee.Image.constant(float(self.dt_source))
+        elif (self.dt_source.lower().startswith('projects/') or
+              self.dt_source.lower().startswith('users/')):
             # Use precomputed dT median assets
             # Assumes a string source is an image collection ID (not an image ID),
             #   MF: and currently only supports a climatology 'DOY-based' dataset filter
             dt_coll = (
-                ee.ImageCollection(self._dt_source)
+                ee.ImageCollection(self.dt_source)
                 .filter(ee.Filter.calendarRange(self._doy, self._doy, 'day_of_year'))
             )
             # MF: scale factor property only applied for string ID dT collections, and
@@ -701,11 +643,11 @@ class Image:
             )
             dt_img = dt_img.multiply(ee.Number.parse(dt_scale_factor.get('scale_factor')))
         else:
-            raise ValueError(f'Invalid dt_source: {self._dt_source}\n')
+            raise ValueError(f'Invalid dt_source: {self.dt_source}\n')
 
         # # MF: moved this resample to happen at the et_fraction function
-        # if self._dt_resample and self._dt_resample.lower() in ['bilinear', 'bicubic']:
-        #     dt_img = dt_img.resample(self._dt_resample)
+        # if self.dt_resample and self.dt_resample.lower() in ['bilinear', 'bicubic']:
+        #     dt_img = dt_img.resample(self.dt_resample)
         # # TODO: A reproject call may be needed here also
         # # dt_img = dt_img.reproject(self.crs, self.transform)
 
@@ -722,22 +664,22 @@ class Image:
         Raises
         ------
         ValueError
-            If `self._tcold_source` is not supported.
+            If `self.tcold_source` is not supported.
 
         """
-        if utils.is_number(self._tcold_source):
+        if utils.is_number(self.tcold_source):
             return (
-                ee.Image.constant(float(self._tcold_source)).rename(['tcold'])
-                .set({'tcold_source': f'custom_{self._tcold_source}'})
+                ee.Image.constant(float(self.tcold_source)).rename(['tcold'])
+                .set({'tcold_source': f'custom_{self.tcold_source}'})
             )
-        elif 'FANO' == self._tcold_source.upper():
+        elif 'FANO' == self.tcold_source.upper():
             return (
                 ee.Image(self.tcold_FANO).select(['tcold'])
                 .updateMask(1)
                 .set({'tcold_source': 'FANO'})
             )
         else:
-            raise ValueError(f'Unsupported tcold_source: {self._tcold_source}\n')
+            raise ValueError(f'Unsupported tcold_source: {self.tcold_source}\n')
 
     @classmethod
     def from_image_id(cls, image_id, **kwargs):
@@ -806,22 +748,15 @@ class Image:
         # Include QA_RADSAT and SR_CLOUD_QA bands to apply additional cloud masking
         #   in openet.core.common.landsat_c2_sr_cloud_mask()
         input_bands = ee.Dictionary({
-            'LANDSAT_4': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
-            'LANDSAT_5': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
-            'LANDSAT_7': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7',
-                          'ST_B6', 'QA_PIXEL', 'QA_RADSAT'],
-            'LANDSAT_8': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                          'ST_B10', 'QA_PIXEL', 'QA_RADSAT'],
-            'LANDSAT_9': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7',
-                          'ST_B10', 'QA_PIXEL', 'QA_RADSAT'],
+            'LANDSAT_4': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL', 'QA_RADSAT'],
+            'LANDSAT_5': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL', 'QA_RADSAT'],
+            'LANDSAT_7': ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'QA_PIXEL', 'QA_RADSAT'],
+            'LANDSAT_8': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL', 'QA_RADSAT'],
+            'LANDSAT_9': ['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7', 'QA_PIXEL', 'QA_RADSAT'],
         })
-        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2',
-                        'lst', 'QA_PIXEL', 'QA_RADSAT']
-        band_scale = [0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275,
-                      0.00341802, 1, 1]
-        band_offset = [-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 149.0, 0, 0]
+        output_bands = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'QA_PIXEL', 'QA_RADSAT']
+        band_scale = [0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275, 0.0000275, 1, 1]
+        band_offset = [-0.2, -0.2, -0.2, -0.2, -0.2, -0.2, 0, 0]
         prep_image = (
             sr_image.select(input_bands.get(spacecraft_id), output_bands)
             .multiply(band_scale).add(band_offset)
@@ -863,13 +798,30 @@ class Image:
             c2_lst_correct = cls._C2_LST_CORRECT
 
         if c2_lst_correct:
-            lst = openet.core.common.landsat_c2_sr_lst_correct(sr_image)
+            lst_image = openet.core.common.landsat_c2_sr_lst_correct(sr_image)
+        elif ('lst_source' in kwargs.keys()) and kwargs['lst_source']:
+            # Use an LST image from a separate LST source collection
+            # Leaving param in kwargs for now so it will be written as an output property
+            # Can't use the LST band as the mask since it may have emissivity holes
+            lst_image = landsat.lst_source_image(
+                lst_source=kwargs['lst_source'], mask_image=sr_image.select(['SR_B3'])
+            )
         else:
-            lst = prep_image.select(['lst'])
+            lst_bands = ee.Dictionary({
+                'LANDSAT_4': ['ST_B6'],
+                'LANDSAT_5': ['ST_B6'],
+                'LANDSAT_7': ['ST_B6'],
+                'LANDSAT_8': ['ST_B10'],
+                'LANDSAT_9': ['ST_B10'],
+            })
+            lst_image = (
+                sr_image.select(lst_bands.get(spacecraft_id), ['lst'])
+                .multiply(0.00341802).add(149.0)
+            )
 
         # Build the input image
         input_image = ee.Image([
-            lst,
+            lst_image,
             landsat.ndvi(prep_image),
             landsat.ndwi(prep_image),
             landsat.landsat_c2_qa_water_mask(prep_image),
@@ -879,9 +831,10 @@ class Image:
         input_image = (
             input_image
             .updateMask(cloud_mask)
-            .set({'system:index': sr_image.get('system:index'),
-                  'system:time_start': sr_image.get('system:time_start'),
-                  'system:id': sr_image.get('system:id'),
+            .set({
+                'system:index': sr_image.get('system:index'),
+                'system:time_start': sr_image.get('system:time_start'),
+                'system:id': sr_image.get('system:id'),
             })
         )
 
